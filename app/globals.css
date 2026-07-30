@@ -1,26 +1,203 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+
+  --color-jarvis-red: #E50000;
+  --color-jarvis-red-dim: #7A0000;
+  --color-jarvis-red-bright: #FF3333;
+  --color-jarvis-hover-red: #FF2D2D;
+  --color-jarvis-crimson: #7A0000;
+  --color-jarvis-orange: #FF6600;
+  --color-jarvis-success: #2ECC71;
+  --color-jarvis-warning: #F1C40F;
+  --color-jarvis-info: #4AA3FF;
+  --color-jarvis-bg-primary: #050505;
+  --color-jarvis-bg-secondary: #0A0A0A;
+  --color-jarvis-surface: #111111;
+  --color-jarvis-panel: #171717;
+  --color-jarvis-glass: rgba(18,18,18,0.65);
+  --color-jarvis-text: #B8B8B8;
+  --color-jarvis-text-muted: #7A7A7A;
+  --color-jarvis-text-disabled: #555555;
+
+  --radius: 0.625rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: #050505;
+  --foreground: #B8B8B8;
+}
+
+.dark {
+  --background: #050505;
+  --foreground: #B8B8B8;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background-color: #050505;
+    color: #B8B8B8;
+    overflow: hidden;
+  }
+  html {
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility jarvis-glow-sm {
+  box-shadow: 0 0 8px rgba(229,0,0,0.30);
+}
+
+@utility jarvis-glow-md {
+  box-shadow: 0 0 18px rgba(229,0,0,0.35);
+}
+
+@utility jarvis-glow-lg {
+  box-shadow: 0 0 40px rgba(229,0,0,0.50);
+}
+
+@utility jarvis-shadow-sm {
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+@utility jarvis-shadow-md {
+  box-shadow: 0 0 25px rgba(0,0,0,0.4);
+}
+
+@utility jarvis-shadow-lg {
+  box-shadow: 0 0 60px rgba(0,0,0,0.6);
+}
+
+@utility text-glow-sm {
+  text-shadow: 0 0 8px rgba(229,0,0,0.30);
+}
+
+@utility text-glow-md {
+  text-shadow: 0 0 18px rgba(229,0,0,0.35);
+}
+
+@utility text-glow-lg {
+  text-shadow: 0 0 40px rgba(229,0,0,0.50);
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 0.2; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes float-particle {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100vh) translateX(20px); opacity: 0; }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: #E50000; }
+}
+
+@keyframes boot-text-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.3; }
+  94% { opacity: 1; }
+  96% { opacity: 0.5; }
+  97% { opacity: 1; }
+}
+
+@keyframes hex-pulse {
+  0%, 100% { opacity: 0.03; transform: scale(1); }
+  50% { opacity: 0.08; transform: scale(1.02); }
+}
+
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(var(--orb-scale-from, 1)); }
+  50% { transform: scale(var(--orb-scale-to, 1.06)); }
+}
+
+@keyframes orb-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orb-rotate-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes orb-pulse-ring {
+  0% { transform: scale(0.85); opacity: 0.3; }
+  50% { transform: scale(1.15); opacity: 0.05; }
+  100% { transform: scale(0.85); opacity: 0.3; }
+}
+
+@keyframes orb-particle-float {
+  0% {
+    transform: translate(var(--px, 0), var(--py, 0)) scale(0);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(calc(var(--px, 0) * 0.5), calc(var(--py, 0) * 0.5)) scale(1);
+    opacity: var(--particle-opacity, 0.7);
+  }
+  85% {
+    opacity: var(--particle-opacity, 0.7);
+  }
+  100% {
+    transform: translate(calc(var(--px, 0) * -1), calc(var(--py, 0) * -1)) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes orb-conic-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orb-error-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.3; }
+  94% { opacity: 1; }
+  96% { opacity: 0.5; }
+  97% { opacity: 1; }
+}
+
+@keyframes orb-offline-dim {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.4; }
 }

@@ -6,7 +6,7 @@ import { useAppStore } from "@/lib/store";
 import { createDefaultCommands } from "@/lib/commands";
 import AnimatedBackground from "@/components/animated-background";
 import BootSequence from "@/components/boot-sequence";
-import CommandCenter from "@/components/command-center";
+import Desktop from "@/components/desktop";
 import CommandPalette from "@/components/command-palette";
 import DebugPanel from "@/components/ai/DebugPanel";
 
@@ -38,7 +38,7 @@ export default function Home() {
         {!booted ? (
           <BootSequence key="boot" />
         ) : (
-          <CommandCenter key="command" />
+          <Desktop key="desktop" />
         )}
       </AnimatePresence>
 

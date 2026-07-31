@@ -2,7 +2,53 @@
 
 import type { CommandItem } from "@/components/command-palette";
 import { useAppStore } from "@/lib/store";
-import { MODULES } from "@/lib/modules";
+import { MODULES, type ModuleId } from "@/lib/modules";
+import type { WindowInstance } from "@/types/window";
+
+const MODULE_WINDOW_DEFAULTS: Record<
+  ModuleId,
+  { width: number; height: number; title: string }
+> = {
+  "command-center": { width: 1000, height: 680, title: "Command Center" },
+  dj: { width: 900, height: 600, title: "DJ" },
+  producer: { width: 900, height: 600, title: "Producer" },
+  bar: { width: 800, height: 550, title: "Bar" },
+  business: { width: 850, height: 600, title: "Business" },
+  settings: { width: 600, height: 450, title: "Settings" },
+};
+
+function openModuleAsWindow(moduleId: ModuleId) {
+  const store = useAppStore.getState();
+  const existing = store.windows.find((w) => w.moduleId === moduleId);
+  if (existing) {
+    store.focusWindow(existing.id);
+    return;
+  }
+
+  const defaults = MODULE_WINDOW_DEFAULTS[moduleId];
+  const mod = MODULES.find((m) => m.id === moduleId);
+
+  const newWindow: Omit<WindowInstance, "zIndex" | "focused"> = {
+    id: `window-${moduleId}-${Date.now()}`,
+    moduleId,
+    title: defaults.title,
+    icon: mod?.icon ?? "◇",
+    x: 120 + store.windows.length * 30,
+    y: 80 + store.windows.length * 30,
+    width: defaults.width,
+    height: defaults.height,
+    minWidth: 400,
+    minHeight: 300,
+    minimized: false,
+    maximized: false,
+    resizable: true,
+    closable: true,
+    draggable: true,
+  };
+
+  store.navigate(moduleId);
+  store.openWindow(newWindow);
+}
 
 export function createDefaultCommands(): CommandItem[] {
   const navCommands: CommandItem[] = MODULES.map((mod) => ({
@@ -12,7 +58,7 @@ export function createDefaultCommands(): CommandItem[] {
     icon: mod.icon,
     shortcut: mod.shortcut,
     section: "Navigation",
-    action: () => useAppStore.getState().navigate(mod.id),
+    action: () => openModuleAsWindow(mod.id),
   }));
 
   const systemCommands: CommandItem[] = [

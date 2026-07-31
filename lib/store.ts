@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { ModuleId } from "./modules";
 import type { WindowInstance, WindowBounds, SnapPosition } from "@/types/window";
+import type { Workspace } from "./workspaces";
+import type { WallpaperConfig, DesktopShortcutConfig } from "@/services/storage/DesktopPersistence";
+import { desktopPersistence } from "@/services/storage/DesktopPersistence";
 
 // ── AI State ──────────────────────────────────────────────
 
@@ -91,6 +94,32 @@ export interface AppState {
   pinnedModules: ModuleId[];
   pinModule: (id: ModuleId) => void;
   unpinModule: (id: ModuleId) => void;
+
+  // Workspaces
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
+  setActiveWorkspace: (id: string) => void;
+  addWorkspace: (workspace: Workspace) => void;
+  removeWorkspace: (id: string) => void;
+  renameWorkspace: (id: string, name: string) => void;
+
+  // Wallpaper
+  wallpaper: WallpaperConfig;
+  setWallpaper: (config: WallpaperConfig) => void;
+
+  // Persistence
+  persistenceEnabled: boolean;
+  restoreSession: boolean;
+  setPersistenceEnabled: (enabled: boolean) => void;
+  setRestoreSession: (restore: boolean) => void;
+  saveDesktopState: () => void;
+  loadDesktopState: () => void;
+
+  // Desktop Shortcuts
+  desktopShortcuts: DesktopShortcutConfig[];
+  addDesktopShortcut: (shortcut: DesktopShortcutConfig) => void;
+  removeDesktopShortcut: (id: string) => void;
+  updateDesktopShortcutPosition: (id: string, position: { x: number; y: number }) => void;
 
   // Windows
   windows: WindowInstance[];
@@ -205,6 +234,154 @@ export const useAppStore = create<AppState>((set) => ({
   unpinModule: (id) =>
     set((s) => ({
       pinnedModules: s.pinnedModules.filter((m) => m !== id),
+    })),
+
+  // ── Workspaces ─────────────────────────────────────────
+  workspaces: [
+    { id: "workspace-main", name: "Main", icon: "◆", windowIds: [] },
+    { id: "workspace-production", name: "Production", icon: "♫", windowIds: [] },
+    { id: "workspace-business", name: "Business", icon: "▣", windowIds: [] },
+    { id: "workspace-creative", name: "Creative", icon: "★", windowIds: [] },
+  ],
+  activeWorkspaceId: "workspace-main",
+  setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
+  addWorkspace: (workspace) =>
+    set((s) => ({
+      workspaces: [...s.workspaces, workspace],
+    })),
+  removeWorkspace: (id) =>
+    set((s) => ({
+      workspaces: s.workspaces.filter((w) => w.id !== id),
+      activeWorkspaceId: s.activeWorkspaceId === id ? "workspace-main" : s.activeWorkspaceId,
+    })),
+  renameWorkspace: (id, name) =>
+    set((s) => ({
+      workspaces: s.workspaces.map((w) =>
+        w.id === id ? { ...w, name } : w
+      ),
+    })),
+
+  // ── Wallpaper ──────────────────────────────────────────
+  wallpaper: {
+    type: "gradient",
+    preset: "tactical-red",
+    primaryColor: "#ff0033",
+    secondaryColor: "#1a0008",
+    accentColor: "#ff0033",
+  },
+  setWallpaper: (config) => set({ wallpaper: config }),
+
+  // ── Persistence ────────────────────────────────────────
+  persistenceEnabled: true,
+  restoreSession: true,
+  setPersistenceEnabled: (enabled) => {
+    desktopPersistence.setEnabled(enabled);
+    set({ persistenceEnabled: enabled });
+  },
+  setRestoreSession: (restore) => set({ restoreSession: restore }),
+  saveDesktopState: () => {
+    const state = useAppStore.getState();
+    desktopPersistence.save({
+      windows: state.windows.map((w) => ({
+        id: w.id,
+        moduleId: w.moduleId,
+        title: w.title,
+        bounds: { x: w.x, y: w.y, width: w.width, height: w.height },
+        minimized: w.minimized,
+        maximized: w.maximized,
+        zIndex: w.zIndex,
+      })),
+      workspaces: state.workspaces.map((ws) => ({
+        id: ws.id,
+        name: ws.name,
+        icon: ws.icon,
+        windowIds: ws.windowIds,
+      })),
+      activeWorkspaceId: state.activeWorkspaceId,
+      wallpaper: state.wallpaper,
+      pinnedModules: state.pinnedModules,
+      desktopShortcuts: state.desktopShortcuts,
+    });
+  },
+  loadDesktopState: () => {
+    const snapshot = desktopPersistence.load();
+    if (!snapshot) return;
+
+    const state = useAppStore.getState();
+
+    // Restore wallpaper
+    if (snapshot.wallpaper) {
+      state.setWallpaper(snapshot.wallpaper);
+    }
+
+    // Restore pinned modules
+    if (snapshot.pinnedModules && snapshot.pinnedModules.length > 0) {
+      set({ pinnedModules: snapshot.pinnedModules as ModuleId[] });
+    }
+
+    // Restore desktop shortcuts
+    if (snapshot.desktopShortcuts) {
+      set({ desktopShortcuts: snapshot.desktopShortcuts });
+    }
+
+    // Restore workspaces
+    if (snapshot.workspaces && snapshot.workspaces.length > 0) {
+      set({
+        workspaces: snapshot.workspaces.map((ws) => ({
+          ...ws,
+          windowIds: ws.windowIds || [],
+        })),
+        activeWorkspaceId: snapshot.activeWorkspaceId || "workspace-main",
+      });
+    }
+
+    // Restore windows
+    if (snapshot.windows && snapshot.windows.length > 0) {
+      let maxZ = 0;
+      const restoredWindows = snapshot.windows.map((w) => {
+        const z = w.zIndex;
+        if (z > maxZ) maxZ = z;
+        return {
+          id: w.id,
+          moduleId: w.moduleId as ModuleId,
+          title: w.title,
+          x: w.bounds.x,
+          y: w.bounds.y,
+          width: w.bounds.width,
+          height: w.bounds.height,
+          minimized: w.minimized,
+          maximized: w.maximized,
+          zIndex: z,
+          focused: false,
+          previousBounds: null,
+          isSnapped: false,
+          snapPosition: null,
+          minWidth: 400,
+          minHeight: 300,
+          resizable: true,
+          closable: true,
+          draggable: true,
+        };
+      });
+      set({ windows: restoredWindows, highestZ: maxZ });
+    }
+  },
+
+  // ── Desktop Shortcuts ──────────────────────────────────
+  desktopShortcuts: [],
+  addDesktopShortcut: (shortcut) =>
+    set((s) => ({
+      desktopShortcuts: [...s.desktopShortcuts, shortcut],
+    })),
+  removeDesktopShortcut: (id) =>
+    set((s) => ({
+      desktopShortcuts: s.desktopShortcuts.filter((sc) => sc.id !== id),
+    })),
+  updateDesktopShortcutPosition: (id, position) =>
+    set((s) => ({
+      desktopShortcuts: s.desktopShortcuts.map((sc) =>
+        sc.id === id ? { ...sc, position } : sc
+      ),
     })),
 
   // ── Windows ────────────────────────────────────────────

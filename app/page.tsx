@@ -16,6 +16,17 @@ export default function Home() {
   const closePalette = useAppStore((s) => s.closePalette);
   const togglePalette = useAppStore((s) => s.togglePalette);
   const commands = useMemo(() => createDefaultCommands(), []);
+  const restoreSession = useAppStore((s) => s.restoreSession);
+
+  useEffect(() => {
+    if (restoreSession) {
+      const hasSnapshot = localStorage.getItem("jarvis-desktop-state");
+      if (hasSnapshot) {
+        const setBootStage = useAppStore.getState().setBootStage;
+        setBootStage("neural-core");
+      }
+    }
+  }, [restoreSession]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

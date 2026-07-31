@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import Sidebar from "./sidebar";
 import TopHUD from "./top-hud";
 import WindowManager from "./window/WindowManager";
 import Dock from "./dock/Dock";
+import WallpaperRenderer from "./wallpaper/WallpaperRenderer";
+import DesktopGrid from "./desktop/DesktopGrid";
+import ContextMenu from "./context-menu/ContextMenu";
+import type { ContextMenuItem } from "./context-menu/ContextMenu";
 import { getModule } from "@/lib/modules";
+import { generateWorkspaceId } from "@/lib/workspaces";
 import type { ModuleId } from "@/lib/modules";
 
 const MODULE_WINDOW_DEFAULTS: Record<
@@ -32,11 +37,43 @@ export default function Desktop() {
   const openWindow = useAppStore((s) => s.openWindow);
   const focusWindow = useAppStore((s) => s.focusWindow);
   const windows = useAppStore((s) => s.windows);
+  const restoreSession = useAppStore((s) => s.restoreSession);
+  const loadDesktopState = useAppStore((s) => s.loadDesktopState);
+  const saveDesktopState = useAppStore((s) => s.saveDesktopState);
+  const addDesktopShortcut = useAppStore((s) => s.addDesktopShortcut);
+  const addWorkspace = useAppStore((s) => s.addWorkspace);
+  const workspaces = useAppStore((s) => s.workspaces);
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (restoreSession) {
+      loadDesktopState();
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveDesktopState();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [saveDesktopState]);
+
+  useEffect(() => {
+    if (windows.length === 0) return;
+    saveDesktopState();
+  }, [windows]);
 
   const openModuleWindow = useCallback(
     (moduleId: ModuleId) => {
       const existing = windows.find((w) => w.moduleId === moduleId);
       if (existing) {
+        if (existing.minimized) {
+          useAppStore.getState().restoreWindow(existing.id);
+        }
         focusWindow(existing.id);
         return;
       }
@@ -95,22 +132,101 @@ export default function Desktop() {
     return () => window.removeEventListener("keydown", handler);
   }, [navigate, openModuleWindow]);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleContextMenuAction = useCallback(
+    (id: string) => {
+      switch (id) {
+        case "add-shortcut": {
+          const modules: ModuleId[] = [
+            "command-center",
+            "dj",
+            "producer",
+            "bar",
+            "business",
+            "settings",
+          ];
+          const existingShortcuts = useAppStore.getState().desktopShortcuts;
+          const usedModules = existingShortcuts.map((s) => s.moduleId);
+          const availableModule = modules.find((m) => !usedModules.includes(m));
+          if (availableModule) {
+            const gridX = (existingShortcuts.length % 4) * 100 + 40;
+            const gridY = Math.floor(existingShortcuts.length / 4) * 100 + 40;
+            addDesktopShortcut({
+              id: `shortcut-${Date.now()}`,
+              moduleId: availableModule,
+              position: { x: gridX, y: gridY },
+            });
+          }
+          break;
+        }
+        case "add-workspace": {
+          const newId = generateWorkspaceId();
+          addWorkspace({
+            id: newId,
+            name: `Workspace ${workspaces.length + 1}`,
+            icon: "◇",
+            windowIds: [],
+          });
+          break;
+        }
+        case "refresh":
+          window.location.reload();
+          break;
+        case "clear-session":
+          localStorage.removeItem("jarvis-desktop-state");
+          window.location.reload();
+          break;
+      }
+    },
+    [addDesktopShortcut, addWorkspace, workspaces.length]
+  );
+
+  const contextMenuItems: ContextMenuItem[] = [
+    { id: "add-shortcut", label: "Add Desktop Shortcut", icon: "＋" },
+    { id: "add-workspace", label: "New Workspace", icon: "◇" },
+    { id: "separator-1", label: "", separator: true },
+    { id: "refresh", label: "Refresh", icon: "↻", shortcut: "F5" },
+    { id: "clear-session", label: "Clear Session", icon: "✕", destructive: true },
+  ];
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
-      <Sidebar activeModule={active} onModuleChange={(id) => {
-        navigate(id);
-        openModuleWindow(id);
-      }} />
+      <WallpaperRenderer />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <Sidebar
+        activeModule={active}
+        onModuleChange={(id) => {
+          navigate(id);
+          openModuleWindow(id);
+        }}
+      />
+
+      <div className="relative flex flex-1 flex-col overflow-hidden">
         <TopHUD activeModule={active} />
 
-        <main className="relative flex-1 overflow-hidden">
+        <main
+          className="relative flex-1 overflow-hidden"
+          onContextMenu={handleContextMenu}
+        >
+          <DesktopGrid />
           <WindowManager />
         </main>
       </div>
 
       <Dock onModuleOpen={openModuleWindow} />
+
+      {contextMenu && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onItemSelect={handleContextMenuAction}
+        />
+      )}
     </div>
   );
 }

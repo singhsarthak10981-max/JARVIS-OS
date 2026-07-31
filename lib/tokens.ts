@@ -135,4 +135,44 @@ export const tokens = {
     large: 500,
     max: 700,
   },
+  wallpaper: {
+    presets: {
+      "tactical-red": {
+        primary: "#ff0033",
+        secondary: "#1a0008",
+        accent: "#ff0033",
+        gradient: "linear-gradient(135deg, #050505 0%, #1a0008 50%, #050505 100%)",
+      },
+      "midnight-blue": {
+        primary: "#0066ff",
+        secondary: "#000a1a",
+        accent: "#00aaff",
+        gradient: "linear-gradient(135deg, #050510 0%, #000a1a 50%, #050510 100%)",
+      },
+      "emerald": {
+        primary: "#00ff88",
+        secondary: "#001a0d",
+        accent: "#00ffaa",
+        gradient: "linear-gradient(135deg, #050a05 0%, #001a0d 50%, #050a05 100%)",
+      },
+      "royal-purple": {
+        primary: "#9933ff",
+        secondary: "#0d001a",
+        accent: "#aa55ff",
+        gradient: "linear-gradient(135deg, #08050a 0%, #0d001a 50%, #08050a 100%)",
+      },
+      "carbon": {
+        primary: "#333333",
+        secondary: "#111111",
+        accent: "#555555",
+        gradient: "linear-gradient(135deg, #0a0a0a 0%, #111111 50%, #0a0a0a 100%)",
+      },
+      "animated-gradient": {
+        primary: "#ff0033",
+        secondary: "#0066ff",
+        accent: "#00ff88",
+        gradient: "linear-gradient(135deg, #ff0033, #0066ff, #00ff88, #ff0033)",
+      },
+    },
+  },
 } as const;

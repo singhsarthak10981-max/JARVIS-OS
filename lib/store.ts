@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { ModuleId } from "./modules";
-import type { WindowInstance } from "@/types/window";
+import type { WindowInstance, WindowBounds, SnapPosition } from "@/types/window";
 
 // ── AI State ──────────────────────────────────────────────
 
@@ -96,14 +96,16 @@ export interface AppState {
   windows: WindowInstance[];
   focusedWindow: string | null;
   highestZ: number;
-  openWindow: (win: Omit<WindowInstance, "zIndex" | "focused">) => void;
+  openWindow: (win: Omit<WindowInstance, "zIndex" | "focused" | "previousBounds" | "isSnapped" | "snapPosition">) => void;
   closeWindow: (id: string) => void;
   focusWindow: (id: string) => void;
   moveWindow: (id: string, x: number, y: number) => void;
   resizeWindow: (id: string, width: number, height: number) => void;
+  setWindowBounds: (id: string, bounds: Partial<WindowBounds>) => void;
   minimizeWindow: (id: string) => void;
   maximizeWindow: (id: string) => void;
   restoreWindow: (id: string) => void;
+  snapWindow: (id: string, position: SnapPosition, containerWidth: number, containerHeight: number) => void;
   bringToFront: (id: string) => void;
   closeAll: () => void;
 }
@@ -217,6 +219,9 @@ export const useAppStore = create<AppState>((set) => ({
         ...win,
         zIndex: newZ,
         focused: true,
+        previousBounds: null,
+        isSnapped: false,
+        snapPosition: null,
       };
       return {
         windows: [
@@ -260,7 +265,9 @@ export const useAppStore = create<AppState>((set) => ({
 
   moveWindow: (id, x, y) =>
     set((s) => ({
-      windows: s.windows.map((w) => (w.id === id ? { ...w, x, y } : w)),
+      windows: s.windows.map((w) =>
+        w.id === id ? { ...w, x, y, isSnapped: false, snapPosition: null } : w
+      ),
     })),
 
   resizeWindow: (id, width, height) =>
@@ -271,6 +278,29 @@ export const useAppStore = create<AppState>((set) => ({
               ...w,
               width: Math.max(w.minWidth, width),
               height: Math.max(w.minHeight, height),
+              isSnapped: false,
+              snapPosition: null,
+            }
+          : w
+      ),
+    })),
+
+  setWindowBounds: (id, bounds) =>
+    set((s) => ({
+      windows: s.windows.map((w) =>
+        w.id === id
+          ? {
+              ...w,
+              ...(bounds.x !== undefined && { x: bounds.x }),
+              ...(bounds.y !== undefined && { y: bounds.y }),
+              ...(bounds.width !== undefined && {
+                width: Math.max(w.minWidth, bounds.width),
+              }),
+              ...(bounds.height !== undefined && {
+                height: Math.max(w.minHeight, bounds.height),
+              }),
+              isSnapped: false,
+              snapPosition: null,
             }
           : w
       ),
@@ -293,16 +323,113 @@ export const useAppStore = create<AppState>((set) => ({
 
   maximizeWindow: (id) =>
     set((s) => ({
-      windows: s.windows.map((w) =>
-        w.id === id ? { ...w, maximized: true } : w
-      ),
+      windows: s.windows.map((w) => {
+        if (w.id !== id) return w;
+        const isAlreadyMaximized = w.maximized;
+        if (isAlreadyMaximized) {
+          // Restore previous bounds
+          const prev = w.previousBounds;
+          return {
+            ...w,
+            maximized: false,
+            previousBounds: null,
+            isSnapped: false,
+            snapPosition: null,
+            ...(prev && {
+              x: prev.x,
+              y: prev.y,
+              width: prev.width,
+              height: prev.height,
+            }),
+          };
+        }
+        // Save current bounds and maximize
+        return {
+          ...w,
+          maximized: true,
+          previousBounds: { x: w.x, y: w.y, width: w.width, height: w.height },
+          isSnapped: false,
+          snapPosition: null,
+        };
+      }),
     })),
 
   restoreWindow: (id) =>
     set((s) => ({
-      windows: s.windows.map((w) =>
-        w.id === id ? { ...w, maximized: false } : w
-      ),
+      windows: s.windows.map((w) => {
+        if (w.id !== id) return w;
+        const prev = w.previousBounds;
+        return {
+          ...w,
+          maximized: false,
+          isSnapped: false,
+          snapPosition: null,
+          ...(prev && {
+            x: prev.x,
+            y: prev.y,
+            width: prev.width,
+            height: prev.height,
+          }),
+          previousBounds: null,
+        };
+      }),
+    })),
+
+  snapWindow: (id, position, containerWidth, containerHeight) =>
+    set((s) => ({
+      windows: s.windows.map((w) => {
+        if (w.id !== id) return w;
+        if (position === null) {
+          // Restore from snap
+          const prev = w.previousBounds;
+          return {
+            ...w,
+            isSnapped: false,
+            snapPosition: null,
+            maximized: false,
+            ...(prev && {
+              x: prev.x,
+              y: prev.y,
+              width: prev.width,
+              height: prev.height,
+            }),
+            previousBounds: null,
+          };
+        }
+        if (position === "maximized") {
+          return {
+            ...w,
+            maximized: true,
+            previousBounds: w.previousBounds ?? {
+              x: w.x,
+              y: w.y,
+              width: w.width,
+              height: w.height,
+            },
+            isSnapped: false,
+            snapPosition: "maximized",
+          };
+        }
+        // Snap left or right
+        const halfW = Math.floor(containerWidth / 2);
+        const snapX = position === "left" ? 0 : halfW;
+        return {
+          ...w,
+          previousBounds: w.previousBounds ?? {
+            x: w.x,
+            y: w.y,
+            width: w.width,
+            height: w.height,
+          },
+          x: snapX,
+          y: 0,
+          width: halfW,
+          height: containerHeight,
+          isSnapped: true,
+          snapPosition: position,
+          maximized: false,
+        };
+      }),
     })),
 
   bringToFront: (id) =>

@@ -1,3 +1,12 @@
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type SnapPosition = "left" | "right" | "maximized" | null;
+
 export interface WindowInstance {
   id: string;
   moduleId: string;
@@ -16,4 +25,7 @@ export interface WindowInstance {
   closable: boolean;
   draggable: boolean;
   zIndex: number;
+  previousBounds: WindowBounds | null;
+  isSnapped: boolean;
+  snapPosition: SnapPosition;
 }

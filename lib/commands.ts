@@ -3,7 +3,6 @@
 import type { CommandItem } from "@/components/command-palette";
 import { useAppStore } from "@/lib/store";
 import { MODULES, type ModuleId } from "@/lib/modules";
-import type { WindowInstance } from "@/types/window";
 
 const MODULE_WINDOW_DEFAULTS: Record<
   ModuleId,
@@ -28,7 +27,8 @@ function openModuleAsWindow(moduleId: ModuleId) {
   const defaults = MODULE_WINDOW_DEFAULTS[moduleId];
   const mod = MODULES.find((m) => m.id === moduleId);
 
-  const newWindow: Omit<WindowInstance, "zIndex" | "focused"> = {
+  store.navigate(moduleId);
+  store.openWindow({
     id: `window-${moduleId}-${Date.now()}`,
     moduleId,
     title: defaults.title,
@@ -44,10 +44,7 @@ function openModuleAsWindow(moduleId: ModuleId) {
     resizable: true,
     closable: true,
     draggable: true,
-  };
-
-  store.navigate(moduleId);
-  store.openWindow(newWindow);
+  });
 }
 
 export function createDefaultCommands(): CommandItem[] {

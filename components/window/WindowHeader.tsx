@@ -42,6 +42,14 @@ function WindowHeaderInner({
     [draggable, onDragStart]
   );
 
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onMaximize();
+    },
+    [onMaximize]
+  );
+
   return (
     <div
       className="flex h-9 items-center gap-2 border-b px-3 select-none"
@@ -55,6 +63,7 @@ function WindowHeaderInner({
         cursor: draggable ? "grab" : "default",
       }}
       onMouseDown={handleMouseDown}
+      onDoubleClick={handleDoubleClick}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
         {icon && (

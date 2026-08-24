@@ -1,35 +1,111 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { tokens } from "@/lib/tokens";
 import AiOrb from "./ai/AiOrb";
+import HolographicSurface, { type HolographicSurfaceData } from "./hud/HolographicSurface";
 
 const dur = tokens.duration;
 
-const QUICK_ACTIONS = [
-  { label: "WATCH", hint: "Find something to watch", icon: "▷" },
-  { label: "NEWS", hint: "What's happening", icon: "◌" },
-  { label: "MARKETS", hint: "Check the markets", icon: "↗" },
-  { label: "EXPLORE", hint: "Ask me anything", icon: "◇" },
-];
+const GLANCE_DATA: Record<string, HolographicSurfaceData> = {
+  producer: {
+    eyebrow: "WORKSPACE GLANCE // PRODUCER",
+    title: "Producer overview",
+    rows: [
+      { label: "ACTIVE PROJECTS", value: "3" },
+      { label: "UNFINISHED SESSIONS", value: "2" },
+      { label: "RECENT SESSION", value: "Dark R&B Beat" },
+      { label: "LAST ACTIVE", value: "1h 24m ago" },
+    ],
+    action: "Open Producer workspace",
+  },
+  dj: {
+    eyebrow: "WORKSPACE GLANCE // DJ",
+    title: "DJ overview",
+    rows: [
+      { label: "ACTIVE SETS", value: "2" },
+      { label: "PLAYLISTS", value: "18" },
+      { label: "RECENT SET", value: "Late Night R&B" },
+      { label: "LAST ACTIVE", value: "3h 08m ago" },
+    ],
+    action: "Open DJ workspace",
+  },
+  business: {
+    eyebrow: "WORKSPACE GLANCE // BUSINESS",
+    title: "Business overview",
+    rows: [
+      { label: "ORDERS", value: "4" },
+      { label: "PENDING MESSAGES", value: "7" },
+      { label: "OPPORTUNITIES", value: "3" },
+      { label: "MONTH TO DATE", value: "€842" },
+    ],
+    action: "Open Business workspace",
+  },
+  bar: {
+    eyebrow: "WORKSPACE GLANCE // BAR",
+    title: "Bar overview",
+    rows: [
+      { label: "ACTIVE TASKS", value: "5" },
+      { label: "INVENTORY ALERTS", value: "2" },
+      { label: "TODAY", value: "Operations nominal" },
+      { label: "LAST UPDATE", value: "18m ago" },
+    ],
+    action: "Open Bar workspace",
+  },
+};
+
+function resolveGlance(input: string) {
+  const value = input.toLowerCase();
+  const key = Object.keys(GLANCE_DATA).find((module) => value.includes(module));
+  return key ? GLANCE_DATA[key] : null;
+}
 
 export default function CommandCenterDashboard() {
   const [wakeUp, setWakeUp] = useState(true);
+  const [query, setQuery] = useState("");
+  const [surface, setSurface] = useState<HolographicSurfaceData | null>(null);
 
   useEffect(() => {
     const timeout = setTimeout(() => setWakeUp(false), 2600);
     return () => clearTimeout(timeout);
   }, []);
 
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = query.trim();
+    if (!trimmed) return;
+
+    const glance = resolveGlance(trimmed);
+    if (glance) {
+      setSurface(glance);
+      return;
+    }
+
+    setSurface({
+      eyebrow: "JARVIS // CONTEXT SURFACE",
+      title: "Request received",
+      rows: [
+        { label: "REQUEST", value: trimmed },
+        { label: "MODE", value: "General" },
+        { label: "SURFACE", value: "Ready for contextual response" },
+      ],
+    });
+  };
+
   return (
     <section className="relative min-h-full overflow-hidden bg-black/10">
-      {/* Very restrained tactical framing. The Command Center is intentionally not a dashboard full of widgets. */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[43%] h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(229,0,0,0.08),transparent_62%)] blur-2xl" />
+        <div className="absolute left-1/2 top-[43%] h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(229,0,0,0.07),transparent_62%)] blur-2xl" />
         <div className="absolute inset-x-8 top-8 h-px bg-gradient-to-r from-transparent via-jarvis-red/15 to-transparent" />
-        <div className="absolute inset-x-8 bottom-8 h-px bg-gradient-to-r from-transparent via-jarvis-red/10 to-transparent" />
+        <div className="absolute inset-x-8 bottom-8 h-px bg-gradient-to-r from-transparent via-jarvis-red/8 to-transparent" />
       </div>
+
+      <HolographicSurface
+        open={Boolean(surface)}
+        data={surface}
+        onClose={() => setSurface(null)}
+      />
 
       <div className="relative z-10 flex min-h-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10">
         <motion.header
@@ -53,7 +129,7 @@ export default function CommandCenterDashboard() {
               GENERAL MODE
             </div>
             <div className="mt-1 text-[9px] tracking-[0.16em] text-jarvis-red/60">
-              READY
+              {surface ? "SURFACE ACTIVE" : "READY"}
             </div>
           </div>
         </motion.header>
@@ -73,20 +149,20 @@ export default function CommandCenterDashboard() {
 
             <motion.div
               className="mt-4 text-center"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8, duration: 0.5 }}
+              animate={{ opacity: surface ? 0.62 : 1 }}
+              transition={{ duration: 0.25 }}
             >
               <div className="text-sm font-light tracking-[0.24em] text-jarvis-text-primary uppercase">
-                What can I do for you?
+                {surface ? "Context surface active" : "What can I do for you?"}
               </div>
               <div className="mt-2 text-[9px] tracking-[0.14em] text-jarvis-text-disabled">
-                TALK · SEARCH · WATCH · EXPLORE
+                {surface ? "INFORMATION MATERIALIZED AROUND YOUR REQUEST" : "TALK · SEARCH · WATCH · EXPLORE"}
               </div>
             </motion.div>
           </motion.div>
 
-          <motion.div
+          <motion.form
+            onSubmit={handleSubmit}
             className="mt-7 w-full max-w-2xl"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -94,54 +170,26 @@ export default function CommandCenterDashboard() {
           >
             <div className="group flex min-h-14 items-center gap-3 rounded-xl border border-jarvis-red/15 bg-jarvis-bg-secondary/65 px-4 shadow-[0_0_35px_rgba(229,0,0,0.04)] backdrop-blur-xl transition-colors focus-within:border-jarvis-red/35">
               <span className="text-jarvis-red/70">⌁</span>
-              <span className="flex-1 text-[11px] tracking-wide text-jarvis-text-disabled">
-                Ask JARVIS anything...
-              </span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="min-w-0 flex-1 bg-transparent text-[11px] tracking-wide text-jarvis-text-secondary outline-none placeholder:text-jarvis-text-disabled"
+                placeholder="Ask JARVIS anything..."
+                aria-label="Ask JARVIS anything"
+              />
               <span className="hidden rounded border border-jarvis-red/10 px-2 py-1 font-mono text-[8px] tracking-wider text-jarvis-text-disabled sm:block">
                 ⌘ J
               </span>
               <button
-                type="button"
-                aria-label="Activate voice input"
+                type="submit"
+                aria-label="Send command"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-jarvis-red/15 text-xs text-jarvis-red/80 transition-colors hover:border-jarvis-red/40 hover:bg-jarvis-red/5"
               >
-                ◉
+                ↗
               </button>
             </div>
-          </motion.div>
+          </motion.form>
         </main>
-
-        <motion.section
-          className="mx-auto w-full max-w-4xl"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2, duration: 0.55 }}
-        >
-          <div className="mb-2 px-1 text-[8px] tracking-[0.2em] text-jarvis-text-disabled uppercase">
-            Quick access
-          </div>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            {QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                className="group flex items-center gap-3 rounded-lg border border-jarvis-red/8 bg-jarvis-bg-secondary/35 px-3 py-3 text-left transition-all hover:border-jarvis-red/20 hover:bg-jarvis-red/5"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-jarvis-red/10 text-jarvis-red/70 transition-colors group-hover:border-jarvis-red/25 group-hover:text-jarvis-red">
-                  {action.icon}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[9px] tracking-[0.14em] text-jarvis-text-secondary uppercase">
-                    {action.label}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[8px] tracking-wide text-jarvis-text-disabled">
-                    {action.hint}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </motion.section>
       </div>
     </section>
   );

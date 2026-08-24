@@ -5,13 +5,8 @@ import { AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import DesktopWindow from "./DesktopWindow";
 import EmptyState from "./EmptyState";
-import type { ModuleId } from "@/lib/modules";
 
-interface WindowManagerProps {
-  excludeModuleId?: ModuleId;
-}
-
-export default function WindowManager({ excludeModuleId }: WindowManagerProps) {
+export default function WindowManager() {
   const windows = useAppStore((s) => s.windows);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -31,9 +26,9 @@ export default function WindowManager({ excludeModuleId }: WindowManagerProps) {
     return () => observer.disconnect();
   }, []);
 
-  const visibleWindows = excludeModuleId
-    ? windows.filter((win) => win.moduleId !== excludeModuleId)
-    : windows;
+  // Command Center is now a page-level surface, not a desktop window.
+  // Specialized workspaces continue to use the window manager.
+  const visibleWindows = windows.filter((win) => win.moduleId !== "command-center");
 
   return (
     <div ref={containerRef} className="relative h-full w-full">

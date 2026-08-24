@@ -14,6 +14,7 @@ import type { ContextMenuItem } from "./context-menu/ContextMenu";
 import { getModule } from "@/lib/modules";
 import { generateWorkspaceId } from "@/lib/workspaces";
 import type { ModuleId } from "@/lib/modules";
+import CommandCenterSurface from "./command-center-surface";
 
 const MODULE_WINDOW_DEFAULTS: Record<
   ModuleId,
@@ -57,8 +58,6 @@ export default function Desktop() {
     saveDesktopState();
   }, [windows]);
 
-  // Existing persisted sessions may contain the old framed Command Center window.
-  // Normalize it into the new full-canvas presentation on restore.
   useEffect(() => {
     const commandCenter = windows.find((win) => win.moduleId === "command-center");
     if (commandCenter && !commandCenter.maximized) {
@@ -73,6 +72,7 @@ export default function Desktop() {
         if (existing.minimized) useAppStore.getState().restoreWindow(existing.id);
         if (moduleId === "command-center" && !existing.maximized) maximizeWindow(existing.id);
         focusWindow(existing.id);
+        navigate(moduleId);
         return;
       }
 
@@ -96,8 +96,9 @@ export default function Desktop() {
         closable: !isCommandCenter,
         draggable: !isCommandCenter,
       });
+      navigate(moduleId);
     },
-    [windows, openWindow, focusWindow, maximizeWindow]
+    [windows, openWindow, focusWindow, maximizeWindow, navigate]
   );
 
   useEffect(() => {
@@ -164,11 +165,13 @@ export default function Desktop() {
     { id: "clear-session", label: "Clear Session", icon: "✕", destructive: true },
   ];
 
+  const isCommandCenter = active === "command-center";
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
       <WallpaperRenderer />
 
-      {active !== "command-center" && (
+      {!isCommandCenter && (
         <Sidebar
           activeModule={active}
           onModuleChange={(id) => {
@@ -185,7 +188,11 @@ export default function Desktop() {
           <DesktopGrid />
           <TacticalArc />
           <div className="relative z-10 h-full w-full">
-            <WindowManager />
+            {isCommandCenter ? (
+              <CommandCenterSurface />
+            ) : (
+              <WindowManager />
+            )}
           </div>
         </main>
       </div>

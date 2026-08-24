@@ -4,7 +4,6 @@ import { useCallback, memo } from "react";
 import { motion } from "framer-motion";
 import { tokens } from "@/lib/tokens";
 import { useAppStore } from "@/lib/store";
-import { MODULES } from "@/lib/modules";
 import type { ModuleId } from "@/lib/modules";
 import DockItem from "./DockItem";
 import { getModule } from "@/lib/modules";
@@ -26,9 +25,7 @@ function DockInner({ onModuleOpen }: DockProps) {
     (moduleId: string) => {
       const existing = windows.find((w) => w.moduleId === moduleId);
       if (existing) {
-        if (existing.minimized) {
-          restoreWindow(existing.id);
-        }
+        if (existing.minimized) restoreWindow(existing.id);
         focusWindow(existing.id);
         return;
       }
@@ -43,16 +40,19 @@ function DockInner({ onModuleOpen }: DockProps) {
 
   return (
     <motion.div
-      className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2"
+      className="fixed bottom-3 left-1/2 z-30 max-w-[calc(100vw-24px)] -translate-x-1/2 sm:bottom-4"
       initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: dur.large / 1000, ease: [0.16, 1, 0.3, 1] }}
     >
       <div
-        className="flex items-center gap-2 rounded-2xl border border-jarvis-red/10 bg-jarvis-glass px-3 py-2 backdrop-blur-[20px]"
+        className="flex max-w-full items-center gap-1.5 overflow-x-auto rounded-2xl border border-jarvis-red/10 bg-jarvis-glass px-2 py-2 backdrop-blur-[20px] sm:gap-2 sm:px-3"
         style={{
           boxShadow: `${tokens.glow.small}, ${tokens.shadow.medium}`,
+          scrollbarWidth: "none",
         }}
+        role="toolbar"
+        aria-label="JARVIS application dock"
       >
         {pinnedModuleDefs.map((mod) => (
           <DockItem

@@ -8,6 +8,7 @@ import WindowManager from "./window/WindowManager";
 import Dock from "./dock/Dock";
 import WallpaperRenderer from "./wallpaper/WallpaperRenderer";
 import DesktopGrid from "./desktop/DesktopGrid";
+import TacticalArc from "./hud/TacticalArc";
 import ContextMenu from "./context-menu/ContextMenu";
 import type { ContextMenuItem } from "./context-menu/ContextMenu";
 import { getModule } from "@/lib/modules";
@@ -18,12 +19,7 @@ const MODULE_WINDOW_DEFAULTS: Record<
   ModuleId,
   { width: number; height: number; title: string; icon: string }
 > = {
-  "command-center": {
-    width: 1000,
-    height: 680,
-    title: "Command Center",
-    icon: "◆",
-  },
+  "command-center": { width: 1000, height: 680, title: "Command Center", icon: "◆" },
   dj: { width: 900, height: 600, title: "DJ", icon: "♫" },
   producer: { width: 900, height: 600, title: "Producer", icon: "♩" },
   bar: { width: 800, height: 550, title: "Bar", icon: "▥" },
@@ -44,21 +40,14 @@ export default function Desktop() {
   const addWorkspace = useAppStore((s) => s.addWorkspace);
   const workspaces = useAppStore((s) => s.workspaces);
 
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (restoreSession) {
-      loadDesktopState();
-    }
+    if (restoreSession) loadDesktopState();
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      saveDesktopState();
-    }, 30000);
+    const interval = setInterval(() => saveDesktopState(), 30000);
     return () => clearInterval(interval);
   }, [saveDesktopState]);
 
@@ -71,16 +60,13 @@ export default function Desktop() {
     (moduleId: ModuleId) => {
       const existing = windows.find((w) => w.moduleId === moduleId);
       if (existing) {
-        if (existing.minimized) {
-          useAppStore.getState().restoreWindow(existing.id);
-        }
+        if (existing.minimized) useAppStore.getState().restoreWindow(existing.id);
         focusWindow(existing.id);
         return;
       }
 
       const defaults = MODULE_WINDOW_DEFAULTS[moduleId];
       const mod = getModule(moduleId);
-
       openWindow({
         id: `window-${moduleId}-${Date.now()}`,
         moduleId,
@@ -103,9 +89,7 @@ export default function Desktop() {
   );
 
   useEffect(() => {
-    if (windows.length === 0) {
-      openModuleWindow("command-center");
-    }
+    if (windows.length === 0) openModuleWindow("command-center");
   }, []);
 
   useEffect(() => {
@@ -113,14 +97,7 @@ export default function Desktop() {
       const isMod = e.metaKey || e.ctrlKey;
       if (isMod && e.key >= "0" && e.key <= "6") {
         e.preventDefault();
-        const modules: ModuleId[] = [
-          "command-center",
-          "dj",
-          "producer",
-          "bar",
-          "business",
-          "settings",
-        ];
+        const modules: ModuleId[] = ["command-center", "dj", "producer", "bar", "business", "settings"];
         const idx = parseInt(e.key, 10);
         if (modules[idx]) {
           navigate(modules[idx]);
@@ -141,38 +118,20 @@ export default function Desktop() {
     (id: string) => {
       switch (id) {
         case "add-shortcut": {
-          const modules: ModuleId[] = [
-            "command-center",
-            "dj",
-            "producer",
-            "bar",
-            "business",
-            "settings",
-          ];
+          const modules: ModuleId[] = ["command-center", "dj", "producer", "bar", "business", "settings"];
           const existingShortcuts = useAppStore.getState().desktopShortcuts;
           const usedModules = existingShortcuts.map((s) => s.moduleId);
           const availableModule = modules.find((m) => !usedModules.includes(m));
           if (availableModule) {
             const gridX = (existingShortcuts.length % 4) * 100 + 40;
             const gridY = Math.floor(existingShortcuts.length / 4) * 100 + 40;
-            addDesktopShortcut({
-              id: `shortcut-${Date.now()}`,
-              moduleId: availableModule,
-              position: { x: gridX, y: gridY },
-            });
+            addDesktopShortcut({ id: `shortcut-${Date.now()}`, moduleId: availableModule, position: { x: gridX, y: gridY } });
           }
           break;
         }
-        case "add-workspace": {
-          const newId = generateWorkspaceId();
-          addWorkspace({
-            id: newId,
-            name: `Workspace ${workspaces.length + 1}`,
-            icon: "◇",
-            windowIds: [],
-          });
+        case "add-workspace":
+          addWorkspace({ id: generateWorkspaceId(), name: `Workspace ${workspaces.length + 1}`, icon: "◇", windowIds: [] });
           break;
-        }
         case "refresh":
           window.location.reload();
           break;
@@ -208,24 +167,19 @@ export default function Desktop() {
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <TopHUD activeModule={active} />
 
-        <main
-          className="relative flex-1 overflow-hidden"
-          onContextMenu={handleContextMenu}
-        >
+        <main className="relative flex-1 overflow-hidden" onContextMenu={handleContextMenu}>
           <DesktopGrid />
-          <WindowManager />
+          <TacticalArc />
+          <div className="relative z-10 h-full w-full">
+            <WindowManager />
+          </div>
         </main>
       </div>
 
       <Dock onModuleOpen={openModuleWindow} />
 
       {contextMenu && (
-        <ContextMenu
-          items={contextMenuItems}
-          position={contextMenu}
-          onClose={() => setContextMenu(null)}
-          onItemSelect={handleContextMenuAction}
-        />
+        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={() => setContextMenu(null)} onItemSelect={handleContextMenuAction} />
       )}
     </div>
   );

@@ -32,6 +32,7 @@ export default function Desktop() {
   const navigate = useAppStore((s) => s.navigate);
   const openWindow = useAppStore((s) => s.openWindow);
   const focusWindow = useAppStore((s) => s.focusWindow);
+  const maximizeWindow = useAppStore((s) => s.maximizeWindow);
   const windows = useAppStore((s) => s.windows);
   const restoreSession = useAppStore((s) => s.restoreSession);
   const loadDesktopState = useAppStore((s) => s.loadDesktopState);
@@ -56,11 +57,21 @@ export default function Desktop() {
     saveDesktopState();
   }, [windows]);
 
+  // Existing persisted sessions may contain the old framed Command Center window.
+  // Normalize it into the new full-canvas presentation on restore.
+  useEffect(() => {
+    const commandCenter = windows.find((win) => win.moduleId === "command-center");
+    if (commandCenter && !commandCenter.maximized) {
+      maximizeWindow(commandCenter.id);
+    }
+  }, [windows, maximizeWindow]);
+
   const openModuleWindow = useCallback(
     (moduleId: ModuleId) => {
       const existing = windows.find((w) => w.moduleId === moduleId);
       if (existing) {
         if (existing.minimized) useAppStore.getState().restoreWindow(existing.id);
+        if (moduleId === "command-center" && !existing.maximized) maximizeWindow(existing.id);
         focusWindow(existing.id);
         return;
       }
@@ -81,13 +92,12 @@ export default function Desktop() {
         minHeight: 300,
         minimized: false,
         maximized: isCommandCenter,
-        isSnapped: false,
         resizable: !isCommandCenter,
         closable: !isCommandCenter,
         draggable: !isCommandCenter,
       });
     },
-    [windows, openWindow, focusWindow]
+    [windows, openWindow, focusWindow, maximizeWindow]
   );
 
   useEffect(() => {

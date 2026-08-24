@@ -5,8 +5,13 @@ import { AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import DesktopWindow from "./DesktopWindow";
 import EmptyState from "./EmptyState";
+import type { ModuleId } from "@/lib/modules";
 
-export default function WindowManager() {
+interface WindowManagerProps {
+  excludeModuleId?: ModuleId;
+}
+
+export default function WindowManager({ excludeModuleId }: WindowManagerProps) {
   const windows = useAppStore((s) => s.windows);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -26,12 +31,16 @@ export default function WindowManager() {
     return () => observer.disconnect();
   }, []);
 
+  const visibleWindows = excludeModuleId
+    ? windows.filter((win) => win.moduleId !== excludeModuleId)
+    : windows;
+
   return (
     <div ref={containerRef} className="relative h-full w-full">
-      {windows.length === 0 && <EmptyState />}
+      {visibleWindows.length === 0 && <EmptyState />}
 
       <AnimatePresence>
-        {windows.map((win) => (
+        {visibleWindows.map((win) => (
           <DesktopWindow
             key={win.id}
             window={win}

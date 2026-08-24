@@ -2,7 +2,7 @@
 
 import type { ModuleId } from "@/lib/modules";
 import ModuleShell from "./ModuleShell";
-import CommandCenterDashboard from "../command-center-dashboard";
+import CommandCenterSurface from "../command-center-surface";
 
 function Placeholder({
   moduleId,
@@ -32,7 +32,7 @@ function Placeholder({
 export default function ModuleRenderer({ moduleId }: { moduleId: ModuleId }) {
   switch (moduleId) {
     case "command-center":
-      return <CommandCenterDashboard />;
+      return <CommandCenterSurface />;
     case "producer":
       return <Placeholder moduleId="producer" title="Producer" description="Production workspace — beat business arrives here next." />;
     case "dj":

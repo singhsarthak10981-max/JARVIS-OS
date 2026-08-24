@@ -67,6 +67,7 @@ export default function Desktop() {
 
       const defaults = MODULE_WINDOW_DEFAULTS[moduleId];
       const mod = getModule(moduleId);
+      const isCommandCenter = moduleId === "command-center";
       openWindow({
         id: `window-${moduleId}-${Date.now()}`,
         moduleId,
@@ -79,10 +80,11 @@ export default function Desktop() {
         minWidth: 400,
         minHeight: 300,
         minimized: false,
-        maximized: false,
-        resizable: true,
-        closable: true,
-        draggable: true,
+        maximized: isCommandCenter,
+        isSnapped: false,
+        resizable: !isCommandCenter,
+        closable: !isCommandCenter,
+        draggable: !isCommandCenter,
       });
     },
     [windows, openWindow, focusWindow]
@@ -156,13 +158,15 @@ export default function Desktop() {
     <div className="flex h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
       <WallpaperRenderer />
 
-      <Sidebar
-        activeModule={active}
-        onModuleChange={(id) => {
-          navigate(id);
-          openModuleWindow(id);
-        }}
-      />
+      {active !== "command-center" && (
+        <Sidebar
+          activeModule={active}
+          onModuleChange={(id) => {
+            navigate(id);
+            openModuleWindow(id);
+          }}
+        />
+      )}
 
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <TopHUD activeModule={active} />

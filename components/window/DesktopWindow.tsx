@@ -43,6 +43,7 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
   const snapWindow = useAppStore((s) => s.snapWindow);
   const dragOffset = useRef({ x: 0, y: 0 });
   const [snapPreview, setSnapPreview] = useState<SnapPosition>(null);
+  const isCommandCenter = win.moduleId === "command-center";
 
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -130,42 +131,46 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
 
   return (
     <>
-      <SnapOverlay position={snapPreview} containerWidth={containerWidth} containerHeight={containerHeight} />
+      {!isCommandCenter && (
+        <SnapOverlay position={snapPreview} containerWidth={containerWidth} containerHeight={containerHeight} />
+      )}
       <motion.div
-        className="absolute flex flex-col overflow-hidden border border-jarvis-red/10 bg-jarvis-surface/65"
+        className={isCommandCenter ? "absolute flex flex-col overflow-hidden bg-transparent" : "absolute flex flex-col overflow-hidden border border-jarvis-red/10 bg-jarvis-surface/65"}
         style={{
           ...windowStyle,
-          borderRadius: isAnimatingMaximize ? 0 : r.window,
-          backdropFilter: `blur(${tokens.glass.blur})`,
-          boxShadow: win.focused ? `${tokens.glow.medium}, ${tokens.shadow.large}` : tokens.shadow.medium,
+          borderRadius: isCommandCenter ? 0 : isAnimatingMaximize ? 0 : r.window,
+          backdropFilter: isCommandCenter ? "none" : `blur(${tokens.glass.blur})`,
+          boxShadow: isCommandCenter ? "none" : win.focused ? `${tokens.glow.medium}, ${tokens.shadow.large}` : tokens.shadow.medium,
         }}
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1, left: win.x, top: win.y, width: win.width, height: win.height, borderRadius: isAnimatingMaximize ? 0 : r.window }}
-        exit={{ opacity: 0, scale: 0.96 }}
+        initial={{ opacity: 0, scale: isCommandCenter ? 1 : 0.96 }}
+        animate={{ opacity: 1, scale: 1, left: win.x, top: win.y, width: win.width, height: win.height, borderRadius: isCommandCenter ? 0 : isAnimatingMaximize ? 0 : r.window }}
+        exit={{ opacity: 0, scale: isCommandCenter ? 1 : 0.96 }}
         transition={isAnimatingMaximize ? snapTransition : { duration: 0.2, ease: "easeOut" }}
         onMouseDown={() => focusWindow(win.id)}
         layout
       >
-        <WindowHeader
-          title={win.title}
-          icon={win.icon}
-          focused={win.focused}
-          closable={win.closable}
-          minimized={win.minimized}
-          maximized={win.maximized}
-          draggable={win.draggable}
-          onDragStart={handleDragStart}
-          onClose={handleClose}
-          onMinimize={handleMinimize}
-          onMaximize={handleMaximize}
-        />
+        {!isCommandCenter && (
+          <WindowHeader
+            title={win.title}
+            icon={win.icon}
+            focused={win.focused}
+            closable={win.closable}
+            minimized={win.minimized}
+            maximized={win.maximized}
+            draggable={win.draggable}
+            onDragStart={handleDragStart}
+            onClose={handleClose}
+            onMinimize={handleMinimize}
+            onMaximize={handleMaximize}
+          />
+        )}
         <WindowBody focused={win.focused}>
           <ModuleRenderer moduleId={win.moduleId as import("@/lib/modules").ModuleId} />
         </WindowBody>
-        {win.resizable && ["top", "right", "bottom", "left", "top-left", "top-right", "bottom-left", "bottom-right"].map((edge) => (
+        {!isCommandCenter && win.resizable && ["top", "right", "bottom", "left", "top-left", "top-right", "bottom-left", "bottom-right"].map((edge) => (
           <ResizeHandle key={edge} edge={edge as ResizeEdge} onResizeStart={handleResizeStart} />
         ))}
-        {win.focused && (
+        {!isCommandCenter && win.focused && (
           <motion.div
             className="pointer-events-none absolute inset-0 rounded-[inherit]"
             initial={{ opacity: 0 }}
@@ -188,7 +193,7 @@ const CURSORS: Record<ResizeEdge, string> = {
   "top-left": "nwse-resize",
   "top-right": "nesw-resize",
   "bottom-left": "nesw-resize",
-  "bottom-right": "nwse-resize",
+  "bottom-right": "nesw-resize",
 };
 
 const DesktopWindow = memo(DesktopWindowInner);

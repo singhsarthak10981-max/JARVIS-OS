@@ -1,189 +1,148 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { tokens } from "@/lib/tokens";
 import AiOrb from "./ai/AiOrb";
-import GlassCard from "./glass-card";
-import TacticalArc from "./hud/TacticalArc";
 
 const dur = tokens.duration;
 
-const SYSTEM_STATS = [
-  { label: "CPU LOAD", value: "23%", bar: 23 },
-  { label: "MEMORY", value: "847 GB", bar: 67 },
-  { label: "NEURAL CORE", value: "99.7%", bar: 99.7 },
-  { label: "NETWORK", value: "1.2 TB/s", bar: 85 },
-];
-
-const ACTIVITY_LOG = [
-  { time: "14:32:07", event: "Neural scan completed", status: "ok" },
-  { time: "14:31:45", event: "Threat assessment updated", status: "ok" },
-  { time: "14:30:22", event: "Communication channel open", status: "ok" },
-  { time: "14:29:18", event: "System diagnostic passed", status: "ok" },
-  { time: "14:28:01", event: "Archive sync completed", status: "ok" },
-];
-
-const SYSTEM_CARDS = [
-  { title: "NEURAL NETWORK", desc: "Deep learning cores active", icon: "◈", detail: "CORE READY" },
-  { title: "DIAGNOSTICS", desc: "All baseline tests passing", icon: "◇", detail: "NOMINAL" },
-  { title: "COMMUNICATIONS", desc: "3 channels available", icon: "◎", detail: "CONNECTED" },
+const QUICK_ACTIONS = [
+  { label: "WATCH", hint: "Find something to watch", icon: "▷" },
+  { label: "NEWS", hint: "What's happening", icon: "◌" },
+  { label: "MARKETS", hint: "Check the markets", icon: "↗" },
+  { label: "EXPLORE", hint: "Ask me anything", icon: "◇" },
 ];
 
 export default function CommandCenterDashboard() {
-  const [orbWakeUp, setOrbWakeUp] = useState(true);
+  const [wakeUp, setWakeUp] = useState(true);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setOrbWakeUp(false), 3000);
+    const timeout = setTimeout(() => setWakeUp(false), 2600);
     return () => clearTimeout(timeout);
   }, []);
 
   return (
-    <div className="relative min-h-full overflow-hidden">
-      <TacticalArc />
+    <section className="relative min-h-full overflow-hidden bg-black/10">
+      {/* Very restrained tactical framing. The Command Center is intentionally not a dashboard full of widgets. */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[43%] h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(229,0,0,0.08),transparent_62%)] blur-2xl" />
+        <div className="absolute inset-x-8 top-8 h-px bg-gradient-to-r from-transparent via-jarvis-red/15 to-transparent" />
+        <div className="absolute inset-x-8 bottom-8 h-px bg-gradient-to-r from-transparent via-jarvis-red/10 to-transparent" />
+      </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl space-y-4 p-3 sm:space-y-5 sm:p-5 lg:space-y-6 lg:p-6">
+      <div className="relative z-10 flex min-h-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10">
         <motion.header
-          className="flex flex-col gap-3 border-b border-jarvis-red/10 pb-4 sm:flex-row sm:items-end sm:justify-between"
-          initial={{ opacity: 0, y: 20 }}
+          className="flex items-start justify-between"
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: dur.large / 1000 }}
+          transition={{ duration: dur.large / 1000 }}
         >
-          <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="rounded border border-jarvis-red/20 bg-jarvis-red/5 px-2 py-1 text-[9px] font-semibold tracking-[0.14em] text-jarvis-red uppercase">
-                Mission Control
-              </span>
-              <span className="flex items-center gap-1.5 text-[9px] tracking-[0.14em] text-jarvis-success uppercase">
-                <span className="h-1.5 w-1.5 rounded-full bg-jarvis-success" />
-                Systems nominal
-              </span>
+          <div>
+            <div className="flex items-center gap-2 text-[9px] font-medium tracking-[0.24em] text-jarvis-text-disabled uppercase">
+              <span className="h-1.5 w-1.5 rounded-full bg-jarvis-success shadow-[0_0_8px_rgba(0,255,120,0.55)]" />
+              Personal Command Interface
             </div>
-            <h1 className="text-xl font-light tracking-[0.15em] text-jarvis-red uppercase text-glow-md sm:text-2xl">
+            <h1 className="mt-2 text-lg font-light tracking-[0.18em] text-jarvis-text-primary uppercase sm:text-xl">
               Command Center
             </h1>
-            <p className="mt-1 text-[10px] tracking-wider text-jarvis-text-muted sm:text-[11px]">
-              Central operating view — core services and workspace state
-            </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
-            <div className="rounded border border-jarvis-red/10 bg-jarvis-panel/50 px-2.5 py-1.5 text-[9px] tracking-wider text-jarvis-text-disabled uppercase">
-              Threat: <span className="text-jarvis-success">MINIMAL</span>
+          <div className="hidden text-right sm:block">
+            <div className="font-mono text-[9px] tracking-[0.18em] text-jarvis-text-disabled">
+              GENERAL MODE
             </div>
-            <div className="rounded border border-jarvis-red/10 bg-jarvis-panel/50 px-2.5 py-1.5 font-mono text-[9px] tracking-wider text-jarvis-red/70">
-              CORE // 01
+            <div className="mt-1 text-[9px] tracking-[0.16em] text-jarvis-red/60">
+              READY
             </div>
           </div>
         </motion.header>
 
-        <div className="grid grid-cols-1 gap-4 lg:gap-5 xl:grid-cols-3">
+        <main className="flex flex-1 flex-col items-center justify-center py-6">
           <motion.div
-            className="relative flex items-center justify-center xl:col-span-1"
-            initial={{ opacity: 0, scale: 0.9 }}
+            className="relative flex flex-col items-center"
+            initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.8, duration: dur.large / 1000 }}
+            transition={{ delay: 0.25, duration: dur.large / 1000, ease: "easeOut" }}
           >
-            <GlassCard className="relative flex min-h-[280px] w-full items-center justify-center overflow-hidden sm:min-h-[320px]" glow>
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(229,0,0,0.07),transparent_55%)]" />
-              <AiOrb size={180} wakeUp={orbWakeUp} />
-            </GlassCard>
-          </motion.div>
-
-          <motion.div
-            className="space-y-4 xl:col-span-2"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.9, duration: dur.large / 1000 }}
-          >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-              {SYSTEM_STATS.map((stat, i) => (
-                <GlassCard key={stat.label} className="p-3.5 sm:p-4" hover={false}>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <span className="text-[9px] tracking-wider text-jarvis-text-muted uppercase sm:text-[10px]">
-                      {stat.label}
-                    </span>
-                    <span className="font-mono text-xs text-jarvis-red sm:text-sm">
-                      {stat.value}
-                    </span>
-                  </div>
-                  <div className="h-1 w-full overflow-hidden rounded-full bg-jarvis-panel">
-                    <motion.div
-                      className="h-full rounded-full bg-gradient-to-r from-jarvis-red-dim to-jarvis-red"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${stat.bar}%` }}
-                      transition={{ delay: 1.2 + i * 0.15, duration: dur.max / 1000, ease: "easeOut" }}
-                    />
-                  </div>
-                </GlassCard>
-              ))}
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] tracking-[0.32em] text-jarvis-red/50 uppercase">
+              Neural Interface
             </div>
 
-            <GlassCard className="p-3.5 sm:p-4" hover={false}>
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-[9px] tracking-wider text-jarvis-text-muted uppercase sm:text-[10px]">
-                  Activity Log
-                </span>
-                <span className="flex items-center gap-1.5 text-[9px] tracking-wider text-jarvis-red/60 uppercase">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-jarvis-red" />
-                  Live
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {ACTIVITY_LOG.map((entry, i) => (
-                  <motion.div
-                    key={i}
-                    className="flex items-center gap-2 rounded-lg border border-transparent px-2.5 py-1.5 transition-colors hover:border-jarvis-red/10 hover:bg-jarvis-red/5 sm:gap-3 sm:px-3"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 1.4 + i * 0.1 }}
-                  >
-                    <span className="font-mono text-[9px] text-jarvis-text-disabled sm:text-[10px]">
-                      {entry.time}
-                    </span>
-                    <div className="h-1 w-1 shrink-0 rounded-full bg-jarvis-success" />
-                    <span className="truncate text-[10px] text-jarvis-text-secondary sm:text-[12px]">
-                      {entry.event}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-            </GlassCard>
-          </motion.div>
-        </div>
+            <AiOrb size={250} wakeUp={wakeUp} />
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {SYSTEM_CARDS.map((card, i) => (
             <motion.div
-              key={card.title}
-              initial={{ opacity: 0, y: 20 }}
+              className="mt-4 text-center"
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.6 + i * 0.15, duration: dur.large / 1000 }}
+              transition={{ delay: 0.8, duration: 0.5 }}
             >
-              <GlassCard className="p-4 sm:p-5">
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-jarvis-red/20 bg-jarvis-red/10 text-jarvis-red">
-                    {card.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-[10px] font-semibold tracking-wider text-jarvis-text-primary uppercase sm:text-[11px]">
-                      {card.title}
-                    </div>
-                    <div className="truncate text-[9px] tracking-wider text-jarvis-text-muted sm:text-[10px]">
-                      {card.desc}
-                    </div>
-                  </div>
-                </div>
-                <div className="h-px w-full bg-gradient-to-r from-jarvis-red/20 via-jarvis-red/5 to-transparent" />
-                <div className="mt-3 flex justify-between text-[9px] tracking-wider text-jarvis-text-disabled sm:text-[10px]">
-                  <span>UPTIME: 99.99%</span>
-                  <span className="text-jarvis-red/60">{card.detail}</span>
-                </div>
-              </GlassCard>
+              <div className="text-sm font-light tracking-[0.24em] text-jarvis-text-primary uppercase">
+                What can I do for you?
+              </div>
+              <div className="mt-2 text-[9px] tracking-[0.14em] text-jarvis-text-disabled">
+                TALK · SEARCH · WATCH · EXPLORE
+              </div>
             </motion.div>
-          ))}
-        </div>
+          </motion.div>
+
+          <motion.div
+            className="mt-7 w-full max-w-2xl"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1, duration: 0.55 }}
+          >
+            <div className="group flex min-h-14 items-center gap-3 rounded-xl border border-jarvis-red/15 bg-jarvis-bg-secondary/65 px-4 shadow-[0_0_35px_rgba(229,0,0,0.04)] backdrop-blur-xl transition-colors focus-within:border-jarvis-red/35">
+              <span className="text-jarvis-red/70">⌁</span>
+              <span className="flex-1 text-[11px] tracking-wide text-jarvis-text-disabled">
+                Ask JARVIS anything...
+              </span>
+              <span className="hidden rounded border border-jarvis-red/10 px-2 py-1 font-mono text-[8px] tracking-wider text-jarvis-text-disabled sm:block">
+                ⌘ J
+              </span>
+              <button
+                type="button"
+                aria-label="Activate voice input"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-jarvis-red/15 text-xs text-jarvis-red/80 transition-colors hover:border-jarvis-red/40 hover:bg-jarvis-red/5"
+              >
+                ◉
+              </button>
+            </div>
+          </motion.div>
+        </main>
+
+        <motion.section
+          className="mx-auto w-full max-w-4xl"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2, duration: 0.55 }}
+        >
+          <div className="mb-2 px-1 text-[8px] tracking-[0.2em] text-jarvis-text-disabled uppercase">
+            Quick access
+          </div>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                className="group flex items-center gap-3 rounded-lg border border-jarvis-red/8 bg-jarvis-bg-secondary/35 px-3 py-3 text-left transition-all hover:border-jarvis-red/20 hover:bg-jarvis-red/5"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-jarvis-red/10 text-jarvis-red/70 transition-colors group-hover:border-jarvis-red/25 group-hover:text-jarvis-red">
+                  {action.icon}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[9px] tracking-[0.14em] text-jarvis-text-secondary uppercase">
+                    {action.label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[8px] tracking-wide text-jarvis-text-disabled">
+                    {action.hint}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </motion.section>
       </div>
-    </div>
+    </section>
   );
 }

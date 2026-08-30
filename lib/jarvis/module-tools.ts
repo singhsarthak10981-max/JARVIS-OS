@@ -1,5 +1,5 @@
-import type { ModuleId } from "./modules";
-import { getModule } from "./modules";
+import type { ModuleId } from "../modules";
+import { getModule } from "../modules";
 import type { WindowInstance } from "@/types/window";
 
 export type JarvisModuleToolName = "open_module";

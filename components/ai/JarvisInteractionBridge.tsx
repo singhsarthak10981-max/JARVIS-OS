@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
-import { executeTool, type JarvisToolCall } from "@/lib/jarvis/tools";
+import {
+  executeModuleTool,
+  type JarvisModuleToolCall,
+} from "@/lib/jarvis/module-tools";
 
 const INPUT_SELECTOR = 'input[aria-label="Ask J.A.R.V.I.S. anything"]';
 
@@ -84,7 +87,7 @@ export default function JarvisInteractionBridge() {
         const data = (await response.json()) as {
           response?: string;
           intent?: string;
-          toolCall?: JarvisToolCall;
+          toolCall?: JarvisModuleToolCall;
           error?: string;
         };
 
@@ -96,16 +99,9 @@ export default function JarvisInteractionBridge() {
 
         if (id !== requestId.current) return;
 
-        let assistantResponse =
+        const assistantResponse =
           data.response?.trim() ||
           "I processed the request, but no response was returned.";
-
-        if (data.toolCall) {
-          const toolResult = executeTool(data.toolCall, store.navigate);
-          assistantResponse = toolResult.ok
-            ? toolResult.message
-            : toolResult.message;
-        }
 
         history.current = [
           ...history.current,
@@ -113,18 +109,48 @@ export default function JarvisInteractionBridge() {
           { role: "assistant", content: assistantResponse },
         ].slice(-12);
 
+        // Acknowledge the response before navigation can unmount the surface.
         dispatchResponse({
-          response: assistantResponse,
+          response: data.toolCall ? "Preparing the requested module." : assistantResponse,
           query,
         });
 
-        store.setAiState(data.toolCall ? "executing" : "speaking");
-        window.setTimeout(() => {
-          if (id === requestId.current) {
-            processing = false;
-            useAppStore.getState().setAiState("idle");
-          }
-        }, data.toolCall ? 900 : 2200);
+        if (data.toolCall) {
+          store.setAiState("executing");
+          window.setTimeout(() => {
+            if (id !== requestId.current) return;
+
+            const currentStore = useAppStore.getState();
+            const result = executeModuleTool(data.toolCall!, {
+              navigate: currentStore.navigate,
+              openWindow: currentStore.openWindow,
+              focusWindow: currentStore.focusWindow,
+              windows: currentStore.windows,
+            });
+
+            dispatchResponse({
+              response: result.message,
+              query,
+            });
+          }, 350);
+        } else {
+          store.setAiState("speaking");
+          window.setTimeout(() => {
+            if (id === requestId.current) {
+              processing = false;
+              useAppStore.getState().setAiState("idle");
+            }
+          }, 2200);
+        }
+
+        if (data.toolCall) {
+          window.setTimeout(() => {
+            if (id === requestId.current) {
+              processing = false;
+              useAppStore.getState().setAiState("idle");
+            }
+          }, 1100);
+        }
       } catch (error) {
         if (id !== requestId.current) return;
 

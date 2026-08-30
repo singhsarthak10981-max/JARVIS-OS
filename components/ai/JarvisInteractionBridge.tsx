@@ -44,15 +44,13 @@ export default function JarvisInteractionBridge() {
         }
       };
 
-      const handleSubmit = (event: Event) => {
+      const handleSubmit = () => {
         const currentInput = input;
-        const currentForm = form;
-        if (!currentInput || !currentForm) return;
+        if (!currentInput) return;
 
         const trimmed = currentInput.value.trim();
         if (!trimmed) return;
 
-        event.stopPropagation();
         clearTimers();
         processing = true;
 

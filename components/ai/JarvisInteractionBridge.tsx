@@ -61,6 +61,11 @@ export default function JarvisInteractionBridge() {
       const query = input.value.trim();
       if (!query) return;
 
+      // JARVIS owns this form submission. Prevent the React form handler
+      // from running a second command request and clearing the UI state.
+      event.preventDefault();
+      event.stopPropagation();
+
       processing = true;
       const id = ++requestId.current;
       const store = useAppStore.getState();
@@ -103,20 +108,24 @@ export default function JarvisInteractionBridge() {
           data.response?.trim() ||
           "I processed the request, but no response was returned.";
 
+        const toolResponse = data.toolCall
+          ? "Preparing the requested module."
+          : assistantResponse;
+
         history.current = [
           ...history.current,
           { role: "user", content: query },
           { role: "assistant", content: assistantResponse },
         ].slice(-12);
 
-        // Acknowledge the response before navigation can unmount the surface.
         dispatchResponse({
-          response: data.toolCall ? "Preparing the requested module." : assistantResponse,
+          response: toolResponse,
           query,
         });
 
         if (data.toolCall) {
           store.setAiState("executing");
+
           window.setTimeout(() => {
             if (id !== requestId.current) return;
 
@@ -133,6 +142,13 @@ export default function JarvisInteractionBridge() {
               query,
             });
           }, 350);
+
+          window.setTimeout(() => {
+            if (id === requestId.current) {
+              processing = false;
+              useAppStore.getState().setAiState("idle");
+            }
+          }, 1100);
         } else {
           store.setAiState("speaking");
           window.setTimeout(() => {
@@ -141,15 +157,6 @@ export default function JarvisInteractionBridge() {
               useAppStore.getState().setAiState("idle");
             }
           }, 2200);
-        }
-
-        if (data.toolCall) {
-          window.setTimeout(() => {
-            if (id === requestId.current) {
-              processing = false;
-              useAppStore.getState().setAiState("idle");
-            }
-          }, 1100);
         }
       } catch (error) {
         if (id !== requestId.current) return;

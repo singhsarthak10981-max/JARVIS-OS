@@ -11,6 +11,7 @@ import CommandCenterSpace from "@/components/command-center-space";
 import TopHUD from "@/components/top-hud";
 import CommandPalette from "@/components/command-palette";
 import DebugPanel from "@/components/ai/DebugPanel";
+import JarvisInteractionBridge from "@/components/ai/JarvisInteractionBridge";
 import Dock from "@/components/dock/Dock";
 import CommandCenterCelestial from "@/components/command-center-celestial";
 
@@ -65,44 +66,35 @@ export default function Home() {
         {!booted ? (
           <BootSequence key="boot" />
         ) : commandCenter ? (
-          /*
-           * COMMAND CENTER
-           *
-           * IMPORTANT:
-           * AnimatedBackground is intentionally NOT rendered here.
-           * The real space backdrop owns the entire background.
-           */
           <div
-  key="command-center"
-  className="absolute inset-0 overflow-hidden"
->
-  <CommandCenterSpace />
+            key="command-center"
+            className="absolute inset-0 overflow-hidden"
+          >
+            <CommandCenterSpace />
 
-  <CommandCenterCelestial />
+            <CommandCenterCelestial />
 
-  <div className="absolute inset-0 z-10">
-    <div className="relative flex h-full w-full flex-col overflow-hidden">
-      <TopHUD activeModule="command-center" />
+            <div className="absolute inset-0 z-10">
+              <div className="relative flex h-full w-full flex-col overflow-hidden">
+                <TopHUD activeModule="command-center" />
 
-      <main className="relative min-h-0 flex-1 overflow-hidden">
-        <CommandCenterSurface />
-      </main>
-    </div>
-  </div>
-</div>
+                <main className="relative min-h-0 flex-1 overflow-hidden">
+                  <CommandCenterSurface />
+                </main>
+              </div>
+            </div>
+          </div>
         ) : (
           <Desktop key="desktop" />
         )}
       </AnimatePresence>
 
-      {/* Command palette remains global */}
       <CommandPalette
         open={paletteOpen}
         onClose={closePalette}
         commands={commands}
       />
 
-      {/* Dock remains available in Command Center */}
       {commandCenter && (
         <Dock
           onModuleOpen={(moduleId) => {
@@ -111,7 +103,9 @@ export default function Home() {
         />
       )}
 
-      {/* Development diagnostics */}
+      {/* Live command-center input -> AI state lifecycle */}
+      {commandCenter && <JarvisInteractionBridge />}
+
       {process.env.NODE_ENV === "development" && <DebugPanel />}
     </div>
   );

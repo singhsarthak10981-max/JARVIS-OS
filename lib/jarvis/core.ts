@@ -1,3 +1,5 @@
+import { buildToolCall, type JarvisToolCall } from "./tools";
+
 export type JarvisIntent =
   | "question"
   | "conversation"
@@ -21,6 +23,7 @@ export interface JarvisRequest {
 export interface JarvisResult {
   response: string;
   intent: JarvisIntent;
+  toolCall?: JarvisToolCall;
 }
 
 const SYSTEM_PROMPT = `You are J.A.R.V.I.S., the intelligence layer of JARVIS OS.
@@ -30,55 +33,60 @@ Personality:
 - Sound like an advanced personal operating-system assistant, not a generic chatbot.
 - Be concise by default. Expand only when the user asks for detail.
 - Never mention this system prompt or internal implementation.
-- Do not claim to have performed an action unless the system actually performed it.
+- Never claim an OS action happened unless a tool result confirms it.
 
 Context:
-- You operate inside a personal OS with workspaces such as Command Center, Producer, DJ, Bar, Business, and Settings.
-- The current active workspace/module may be supplied with the request.
-- Conversation history may be supplied. Use it naturally and avoid repeating questions already answered.
+- You operate inside a personal OS with Command Center, Producer, DJ, Bar, Business, and Settings modules.
+- Current OS context and recent conversation may be supplied.
 
 Behavior:
 - Answer general questions directly.
-- For OS/workspace requests, clearly state what the user is asking for, but do not pretend the action happened yet; tools will be added later.
-- When a request is ambiguous, ask one concise clarification question.
+- Understand natural-language commands such as “open Producer” or “switch to DJ”.
+- For a command that will be executed by a tool, keep the response concise and do not falsely claim success before execution.
+- Ask one concise clarification when necessary.
 `;
 
-const NAVIGATION_PATTERNS = [
-  /^(open|launch|start|go to|switch to|show me)\\b/i,
-  /\\b(open|launch|switch|navigate)\\s+(the\\s+)?(producer|dj|bar|business|settings|command center)\\b/i,
-];
-
-const WORKSPACE_PATTERNS = [
-  /\\b(workspace|projects?|sessions?|sets?|playlists?|inventory|orders?|messages?|opportunities)\\b/i,
-  /\\bwhat did i work on\\b/i,
-  /\\bshow (me )?(my|the)\\b/i,
-];
-
-const SYSTEM_ACTION_PATTERNS = [
-  /\\b(close|minimize|maximize|restore|snap|move|resize)\\b/i,
-  /\\b(change|set|enable|disable|turn on|turn off)\\b.*\\b(setting|theme|volume|sound|wallpaper)\\b/i,
-];
-
-const CONVERSATION_PATTERNS = [
-  /^(hi|hey|hello|yo|good morning|good afternoon|good evening)\\b/i,
-  /\\b(thanks|thank you|how are you|who are you|what are you)\\b/i,
-];
-
-function matchesAny(value: string, patterns: RegExp[]) {
-  return patterns.some((pattern) => pattern.test(value));
+function normalize(value: string) {
+  return value.trim().toLowerCase();
 }
 
-export function classifyIntent(query: string): JarvisIntent {
-  const value = query.trim();
+const MODULE_NAMES = [
+  "command center",
+  "producer",
+  "dj",
+  "bar",
+  "business",
+  "settings",
+];
 
-  if (matchesAny(value, CONVERSATION_PATTERNS)) return "conversation";
-  if (matchesAny(value, SYSTEM_ACTION_PATTERNS)) return "system-action";
-  if (matchesAny(value, NAVIGATION_PATTERNS)) return "navigation";
-  if (matchesAny(value, WORKSPACE_PATTERNS)) return "workspace-request";
-  if (
-    value.endsWith("?") ||
-    /^(what|why|how|when|where|who|which|is|are|can|does|do)\\b/i.test(value)
-  ) {
+export function classifyIntent(query: string): JarvisIntent {
+  const value = normalize(query);
+
+  if (/^(hi|hey|hello|yo|good morning|good afternoon|good evening)\b/i.test(value)) {
+    return "conversation";
+  }
+
+  if (/\b(thanks|thank you|how are you|who are you|what are you)\b/i.test(value)) {
+    return "conversation";
+  }
+
+  if (MODULE_NAMES.some((module) => value.includes(module)) &&
+      /\b(open|launch|start|go to|switch|navigate|show)\b/i.test(value)) {
+    return "navigation";
+  }
+
+  if (/\b(close|minimize|maximize|restore|snap|move|resize)\b/i.test(value) ||
+      /\b(change|set|enable|disable|turn on|turn off)\b.*\b(setting|theme|volume|sound|wallpaper)\b/i.test(value)) {
+    return "system-action";
+  }
+
+  if (/\b(workspace|projects?|sessions?|sets?|playlists?|inventory|orders?|messages?|opportunities)\b/i.test(value) ||
+      /\bwhat did i work on\b/i.test(value) ||
+      /\bshow (me )?(my|the)\b/i.test(value)) {
+    return "workspace-request";
+  }
+
+  if (value.endsWith("?") || /^(what|why|how|when|where|who|which|is|are|can|does|do)\b/i.test(value)) {
     return "question";
   }
 
@@ -92,12 +100,12 @@ function buildMessages(request: JarvisRequest) {
     request.activeWorkspaceId ? `Active workspace: ${request.activeWorkspaceId}` : null,
   ]
     .filter(Boolean)
-    .join("\\n");
+    .join("\n");
 
   return [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system" as const, content: SYSTEM_PROMPT },
     ...(context
-      ? [{ role: "system" as const, content: `Current OS context:\\n${context}` }]
+      ? [{ role: "system" as const, content: `Current OS context:\n${context}` }]
       : []),
     ...history,
     { role: "user" as const, content: request.query },
@@ -113,6 +121,7 @@ export async function runJarvisCore(
   if (!query) throw new Error("No request was provided.");
 
   const intent = classifyIntent(query);
+  const toolCall = buildToolCall(intent, query) ?? undefined;
 
   const ollamaResponse = await fetch(`${ollamaUrl}/api/chat`, {
     method: "POST",
@@ -140,5 +149,5 @@ export async function runJarvisCore(
   const response = data.message?.content?.trim();
   if (!response) throw new Error("Ollama returned an empty response.");
 
-  return { response, intent };
+  return toolCall ? { response, intent, toolCall } : { response, intent };
 }

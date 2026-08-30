@@ -5,6 +5,11 @@ import { useAppStore } from "@/lib/store";
 
 const INPUT_SELECTOR = 'input[aria-label="Ask J.A.R.V.I.S. anything"]';
 
+interface JarvisMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface JarvisResponseEventDetail {
   response: string;
   query: string;
@@ -19,6 +24,7 @@ function dispatchResponse(detail: JarvisResponseEventDetail) {
 
 export default function JarvisInteractionBridge() {
   const requestId = useRef(0);
+  const history = useRef<JarvisMessage[]>([]);
 
   useEffect(() => {
     let processing = false;
@@ -66,11 +72,17 @@ export default function JarvisInteractionBridge() {
         const response = await fetch("/api/jarvis", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
+          body: JSON.stringify({
+            query,
+            history: history.current,
+            activeModule: store.activeModule,
+            activeWorkspaceId: store.activeWorkspaceId,
+          }),
         });
 
         const data = (await response.json()) as {
           response?: string;
+          intent?: string;
           error?: string;
         };
 
@@ -82,10 +94,18 @@ export default function JarvisInteractionBridge() {
 
         if (id !== requestId.current) return;
 
+        const assistantResponse =
+          data.response?.trim() ||
+          "I processed the request, but no response was returned.";
+
+        history.current = [
+          ...history.current,
+          { role: "user", content: query },
+          { role: "assistant", content: assistantResponse },
+        ].slice(-12);
+
         dispatchResponse({
-          response:
-            data.response?.trim() ||
-            "I processed the request, but no response was returned.",
+          response: assistantResponse,
           query,
         });
 

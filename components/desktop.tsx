@@ -103,8 +103,21 @@ export default function Desktop() {
   );
 
   useEffect(() => {
-    if (windows.length === 0) openModuleWindow("command-center");
-  }, []);
+    if (windows.length === 0) {
+      openModuleWindow("command-center");
+      return;
+    }
+
+    if (active !== "command-center") {
+      const activeWindow = windows.find((win) => win.moduleId === active);
+      if (!activeWindow) {
+        openModuleWindow(active);
+      } else if (activeWindow.minimized) {
+        useAppStore.getState().restoreWindow(activeWindow.id);
+        focusWindow(activeWindow.id);
+      }
+    }
+  }, [active, windows, openModuleWindow, focusWindow]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -170,44 +183,43 @@ export default function Desktop() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
-    {!isCommandCenter && <WallpaperRenderer />}
+      {!isCommandCenter && <WallpaperRenderer />}
 
-{!isCommandCenter && (
-  <Sidebar
-    activeModule={active}
-    onModuleChange={(id) => {
-      navigate(id);
-      openModuleWindow(id);
-    }}
-  />
-)}
+      {!isCommandCenter && (
+        <Sidebar
+          activeModule={active}
+          onModuleChange={(id) => {
+            navigate(id);
+            openModuleWindow(id);
+          }}
+        />
+      )}
 
-<div className="relative flex flex-1 flex-col overflow-hidden">
-  {!isCommandCenter && <TopHUD activeModule={active} />}
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        {!isCommandCenter && <TopHUD activeModule={active} />}
 
-       <main
-  className="relative flex-1 overflow-hidden"
-  onContextMenu={handleContextMenu}
->
-  <div className="absolute inset-0">
-    {isCommandCenter ? (
-      <>
-        <CommandCenterSpace />
+        <main
+          className="relative flex-1 overflow-hidden"
+          onContextMenu={handleContextMenu}
+        >
+          <div className="absolute inset-0">
+            {isCommandCenter ? (
+              <>
+                <CommandCenterSpace />
+                <CommandCenterSurface />
+              </>
+            ) : (
+              <>
+                <DesktopGrid />
+                <TacticalArc />
 
-        <CommandCenterSurface />
-      </>
-    ) : (
-      <>
-        <DesktopGrid />
-        <TacticalArc />
-
-        <div className="relative z-10 h-full w-full">
-          <WindowManager />
-        </div>
-      </>
-    )}
-  </div>
-</main>
+                <div className="relative z-10 h-full w-full">
+                  <WindowManager />
+                </div>
+              </>
+            )}
+          </div>
+        </main>
       </div>
 
       <Dock onModuleOpen={openModuleWindow} />

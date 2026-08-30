@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
+import { executeTool, type JarvisToolCall } from "@/lib/jarvis/tools";
 
 const INPUT_SELECTOR = 'input[aria-label="Ask J.A.R.V.I.S. anything"]';
 
@@ -83,6 +84,7 @@ export default function JarvisInteractionBridge() {
         const data = (await response.json()) as {
           response?: string;
           intent?: string;
+          toolCall?: JarvisToolCall;
           error?: string;
         };
 
@@ -94,9 +96,16 @@ export default function JarvisInteractionBridge() {
 
         if (id !== requestId.current) return;
 
-        const assistantResponse =
+        let assistantResponse =
           data.response?.trim() ||
           "I processed the request, but no response was returned.";
+
+        if (data.toolCall) {
+          const toolResult = executeTool(data.toolCall, store.navigate);
+          assistantResponse = toolResult.ok
+            ? toolResult.message
+            : toolResult.message;
+        }
 
         history.current = [
           ...history.current,
@@ -109,13 +118,13 @@ export default function JarvisInteractionBridge() {
           query,
         });
 
-        store.setAiState("speaking");
+        store.setAiState(data.toolCall ? "executing" : "speaking");
         window.setTimeout(() => {
           if (id === requestId.current) {
             processing = false;
             useAppStore.getState().setAiState("idle");
           }
-        }, 2200);
+        }, data.toolCall ? 900 : 2200);
       } catch (error) {
         if (id !== requestId.current) return;
 

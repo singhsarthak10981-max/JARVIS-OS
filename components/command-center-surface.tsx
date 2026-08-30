@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useAppStore } from "@/lib/store";
 import { tokens } from "@/lib/tokens";
 import NeuralSigil from "./ai/NeuralSigil";
 import HolographicSurface, {
@@ -75,6 +76,7 @@ export default function CommandCenterSurface() {
   const [surface, setSurface] =
     useState<HolographicSurfaceData | null>(null);
   const [ready, setReady] = useState(false);
+  const aiState = useAppStore((s) => s.aiState);
 
   useEffect(() => {
     const timeout = setTimeout(() => setReady(true), 350);
@@ -212,10 +214,16 @@ export default function CommandCenterSurface() {
               ease: [0.16, 1, 0.3, 1],
             }}
           >
-            <NeuralSigil
-              size={390}
-              active
-            />
+            <div className="relative">
+              <AnimatePresence mode="sync" initial={false}>
+                <StateTransitionPulse key={aiState} state={aiState} />
+              </AnimatePresence>
+
+              <NeuralSigil
+                size={390}
+                active
+              />
+            </div>
           </motion.div>
 
           {/* ====================================================== */}
@@ -273,6 +281,79 @@ export default function CommandCenterSurface() {
         </main>
       </div>
     </section>
+  );
+}
+
+function StateTransitionPulse({
+  state,
+}: {
+  state:
+    | "idle"
+    | "listening"
+    | "thinking"
+    | "speaking"
+    | "executing"
+    | "offline"
+    | "error";
+}) {
+  const accent =
+    state === "error"
+      ? "#FF2A1A"
+      : state === "offline"
+        ? "#6B7280"
+        : state === "thinking"
+          ? "#60A5FA"
+          : state === "speaking"
+            ? "#FF8A00"
+            : state === "executing"
+              ? "#FF3B30"
+              : state === "listening"
+                ? "#4ADE80"
+                : "#FFB81C";
+
+  const transitionDuration =
+    state === "executing"
+      ? 0.65
+      : state === "error"
+        ? 0.5
+        : state === "listening"
+          ? 0.8
+          : 1.0;
+
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-[-12%] z-0 rounded-full"
+      initial={{
+        opacity: state === "offline" ? 0.04 : 0.22,
+        scale: 0.72,
+      }}
+      animate={{
+        opacity:
+          state === "offline"
+            ? 0
+            : state === "error"
+              ? [0.2, 0.55, 0]
+              : [0.16, 0.34, 0],
+        scale:
+          state === "error"
+            ? [0.76, 1.05, 1.12]
+            : [0.76, 0.96, 1.08],
+      }}
+      exit={{
+        opacity: 0,
+        scale: 1.16,
+      }}
+      transition={{
+        duration: transitionDuration,
+        ease: "easeOut",
+        times: [0, 0.36, 1],
+      }}
+      style={{
+        background: `radial-gradient(circle, ${accent}22 0%, ${accent}10 28%, transparent 68%)`,
+        filter: "blur(8px)",
+      }}
+      aria-hidden="true"
+    />
   );
 }
 

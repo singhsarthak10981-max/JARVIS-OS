@@ -41,22 +41,10 @@ function arcPath(
   startAngle: number,
   endAngle: number,
 ) {
-  const start = polarPoint(
-    cx,
-    cy,
-    radius,
-    startAngle,
-  );
+  const start = polarPoint(cx, cy, radius, startAngle);
+  const end = polarPoint(cx, cy, radius, endAngle);
 
-  const end = polarPoint(
-    cx,
-    cy,
-    radius,
-    endAngle,
-  );
-
-  const largeArc =
-    endAngle - startAngle > 180 ? 1 : 0;
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
 
   return `
     M ${start.x} ${start.y}
@@ -70,6 +58,7 @@ export default function NeuralSigil({
 }: NeuralSigilProps) {
   const aiState = useAppStore((s) => s.aiState);
 
+  const isIdle = aiState === "idle";
   const isListening = aiState === "listening";
   const isThinking = aiState === "thinking";
   const isSpeaking = aiState === "speaking";
@@ -79,52 +68,48 @@ export default function NeuralSigil({
 
   /*
    * ================================================================
-   * STATE PROFILES
+   * STATE CHOREOGRAPHY
    * ================================================================
    *
-   * Everything here controls how the reactor behaves.
-   * The geometry stays the same — only its behavior changes.
+   * Each state has its own motion language.
+   *
+   * IDLE      -> dormant / breathing
+   * LISTENING -> attentive / receiving
+   * THINKING  -> scanning / calculating
+   * SPEAKING  -> outward / expressive
+   * EXECUTING -> decisive / energetic
+   * OFFLINE   -> suspended
+   * ERROR     -> alarm
    */
 
-  const outerSpeed = isExecuting
-    ? 11
-    : isThinking
-      ? 18
-      : isSpeaking
-        ? 24
-        : isListening
-          ? 30
-          : 44;
+  const outerSpeed =
+    isExecuting ? 7 :
+    isThinking ? 12 :
+    isSpeaking ? 20 :
+    isListening ? 28 :
+    44;
 
-  const middleSpeed = isExecuting
-    ? 8
-    : isThinking
-      ? 12
-      : isSpeaking
-        ? 18
-        : isListening
-          ? 22
-          : 30;
+  const middleSpeed =
+    isExecuting ? 5 :
+    isThinking ? 9 :
+    isSpeaking ? 15 :
+    isListening ? 20 :
+    30;
 
-  const innerSpeed = isExecuting
-    ? 5
-    : isThinking
-      ? 8
-      : isSpeaking
-        ? 11
-        : isListening
-          ? 15
-          : 20;
+  const innerSpeed =
+    isExecuting ? 3.5 :
+    isThinking ? 6 :
+    isSpeaking ? 9 :
+    isListening ? 13 :
+    20;
 
-  const corePulseDuration = isExecuting
-    ? 0.65
-    : isThinking
-      ? 1
-      : isSpeaking
-        ? 1.2
-        : isListening
-          ? 1.7
-          : 3;
+  const corePulseDuration =
+    isExecuting ? 0.55 :
+    isThinking ? 0.95 :
+    isSpeaking ? 0.8 :
+    isListening ? 1.25 :
+    isIdle ? 3.8 :
+    3;
 
   const primaryGlow = isError
     ? C.crimson
@@ -136,32 +121,19 @@ export default function NeuralSigil({
     ? C.crimson
     : C.amber;
 
-  /*
-   * Intensity is deliberately different by state.
-   * Idle stays quiet so the background video remains dominant.
-   */
-
-  const intensity = isError
-    ? 1
-    : isExecuting
-      ? 1
-      : isThinking
-        ? 0.9
-        : isSpeaking
-          ? 0.82
-          : isListening
-            ? 0.74
-            : isOffline
-              ? 0.18
-              : 0.42;
+  const intensity =
+    isError ? 1 :
+    isExecuting ? 1 :
+    isThinking ? 0.92 :
+    isSpeaking ? 0.88 :
+    isListening ? 0.78 :
+    isOffline ? 0.12 :
+    0.3;
 
   return (
     <motion.div
       className="relative shrink-0"
-      style={{
-        width: size,
-        height: size,
-      }}
+      style={{ width: size, height: size }}
       animate={{
         scale: active
           ? isExecuting
@@ -170,7 +142,9 @@ export default function NeuralSigil({
               ? [1, 1.008, 1]
               : isSpeaking
                 ? [1, 1.009, 1]
-                : [1, 1.004, 1]
+                : isListening
+                  ? [1, 1.006, 1]
+                  : [1, 1.004, 1]
           : 1,
       }}
       transition={{
@@ -178,7 +152,9 @@ export default function NeuralSigil({
           ? 0.8
           : isThinking
             ? 1.2
-            : 4.5,
+            : isSpeaking
+              ? 0.9
+              : 4.5,
         repeat: Infinity,
         ease: "easeInOut",
       }}
@@ -202,19 +178,21 @@ export default function NeuralSigil({
         }}
         animate={{
           opacity: isOffline
-            ? [0.08, 0.12, 0.08]
+            ? [0.04, 0.08, 0.04]
             : isError
               ? [0.4, 0.9, 0.4]
               : [
-                  0.22 * intensity,
-                  0.48 * intensity,
-                  0.22 * intensity,
+                  0.18 * intensity,
+                  0.42 * intensity,
+                  0.18 * intensity,
                 ],
           scale: isExecuting
             ? [0.97, 1.07, 0.97]
             : isThinking
               ? [0.98, 1.05, 0.98]
-              : [0.99, 1.02, 0.99],
+              : isListening
+                ? [0.99, 1.035, 0.99]
+                : [0.995, 1.015, 0.995],
         }}
         transition={{
           duration: isError
@@ -223,7 +201,9 @@ export default function NeuralSigil({
               ? 0.8
               : isThinking
                 ? 1.2
-                : 3.8,
+                : isListening
+                  ? 1.3
+                  : 3.8,
           repeat: Infinity,
           ease: "easeInOut",
         }}
@@ -244,7 +224,7 @@ export default function NeuralSigil({
           cy="200"
           r="195"
           fill="none"
-          stroke={`${C.crimson}${isOffline ? "30" : "65"}`}
+          stroke={`${C.crimson}${isOffline ? "24" : "65"}`}
           strokeWidth="0.8"
         />
 
@@ -253,42 +233,34 @@ export default function NeuralSigil({
           cy="200"
           r="189"
           fill="none"
-          stroke={
-            isError
-              ? `${C.crimson}95`
-              : `${C.fire}48`
-          }
+          stroke={isError ? `${C.crimson}95` : `${C.fire}48`}
           strokeWidth="0.7"
           strokeDasharray="2 10"
           animate={{
-            rotate: 360,
+            rotate: isIdle || isOffline ? 0 : 360,
             opacity: isOffline
-              ? [0.18, 0.28, 0.18]
+              ? [0.1, 0.16, 0.1]
               : isError
                 ? [0.45, 1, 0.45]
                 : [
-                    0.45 * intensity,
-                    0.8 * intensity,
-                    0.45 * intensity,
+                    0.36 * intensity,
+                    0.72 * intensity,
+                    0.36 * intensity,
                   ],
           }}
           transition={{
             rotate: {
               duration: outerSpeed,
-              repeat: Infinity,
+              repeat: isIdle || isOffline ? 0 : Infinity,
               ease: "linear",
             },
             opacity: {
-              duration: isError
-                ? 0.7
-                : corePulseDuration * 1.6,
+              duration: isError ? 0.7 : corePulseDuration * 1.6,
               repeat: Infinity,
               ease: "easeInOut",
             },
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         <motion.circle
@@ -296,97 +268,47 @@ export default function NeuralSigil({
           cy="200"
           r="181"
           fill="none"
-          stroke={`${C.amber}${isOffline ? "1E" : "48"}`}
+          stroke={`${C.amber}${isOffline ? "14" : "48"}`}
           strokeWidth="1.1"
           strokeDasharray="25 9 4 14"
-          animate={{
-            rotate: -360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : -360 }}
           transition={{
             duration: outerSpeed + 9,
-            repeat: Infinity,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         {/* ======================================================== */}
         {/* SEGMENTED THERMAL RING                                  */}
         {/* ======================================================== */}
 
-        {Array.from({
-          length: OUTER_SEGMENTS,
-        }).map((_, index) => {
-          const segment =
-            360 / OUTER_SEGMENTS;
-
-          const gap =
-            index % 4 === 0
-              ? 4
-              : 6;
-
-          const start =
-            index * segment + gap / 2;
-
-          const end =
-            start + segment - gap;
-
+        {Array.from({ length: OUTER_SEGMENTS }).map((_, index) => {
+          const segment = 360 / OUTER_SEGMENTS;
+          const gap = index % 4 === 0 ? 4 : 6;
+          const start = index * segment + gap / 2;
+          const end = start + segment - gap;
           const major = index % 4 === 0;
           const hot = index % 8 === 0;
 
           return (
             <motion.path
               key={`segment-${index}`}
-              d={arcPath(
-                200,
-                200,
-                164,
-                start,
-                end,
-              )}
+              d={arcPath(200, 200, 164, start, end)}
               fill="none"
-              stroke={
-                hot
-                  ? activeAccent
-                  : major
-                    ? C.fire
-                    : C.crimson
-              }
-              strokeWidth={
-                hot
-                  ? 2.7
-                  : major
-                    ? 1.6
-                    : 0.9
-              }
+              stroke={hot ? activeAccent : major ? C.fire : C.crimson}
+              strokeWidth={hot ? 2.7 : major ? 1.6 : 0.9}
               animate={{
                 opacity: isOffline
-                  ? 0.08
+                  ? 0.04
                   : isError
-                    ? [
-                        0.2,
-                        hot ? 0.95 : 0.55,
-                        0.2,
-                      ]
+                    ? [0.2, hot ? 0.95 : 0.55, 0.2]
                     : hot
-                      ? [
-                          0.3 * intensity,
-                          0.95 * intensity,
-                          0.3 * intensity,
-                        ]
+                      ? [0.22 * intensity, 0.95 * intensity, 0.22 * intensity]
                       : major
-                        ? [
-                            0.18 * intensity,
-                            0.62 * intensity,
-                            0.18 * intensity,
-                          ]
-                        : [
-                            0.08 * intensity,
-                            0.28 * intensity,
-                            0.08 * intensity,
-                          ],
+                        ? [0.14 * intensity, 0.62 * intensity, 0.14 * intensity]
+                        : [0.06 * intensity, 0.25 * intensity, 0.06 * intensity],
               }}
               transition={{
                 duration: isError
@@ -394,12 +316,13 @@ export default function NeuralSigil({
                   : hot
                     ? isExecuting
                       ? 0.8
-                      : 1.8
+                      : isListening
+                        ? 1.3
+                        : 1.8
                     : major
                       ? 2.6
                       : 3.8,
-                delay:
-                  index * 0.045,
+                delay: index * 0.045,
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
@@ -411,26 +334,10 @@ export default function NeuralSigil({
         {/* INDEX TICKS                                             */}
         {/* ======================================================== */}
 
-        {Array.from({
-          length: INNER_TICKS,
-        }).map((_, index) => {
+        {Array.from({ length: INNER_TICKS }).map((_, index) => {
           const angle = index * 15;
-
-          const outer = polarPoint(
-            200,
-            200,
-            153,
-            angle,
-          );
-
-          const inner = polarPoint(
-            200,
-            200,
-            index % 3 === 0
-              ? 143
-              : 147,
-            angle,
-          );
+          const outer = polarPoint(200, 200, 153, angle);
+          const inner = polarPoint(200, 200, index % 3 === 0 ? 143 : 147, angle);
 
           return (
             <line
@@ -441,20 +348,16 @@ export default function NeuralSigil({
               y2={inner.y}
               stroke={
                 index % 3 === 0
-                  ? `${C.amber}${isOffline ? "18" : "70"}`
-                  : `${C.fire}${isOffline ? "12" : "42"}`
+                  ? `${C.amber}${isOffline ? "10" : "70"}`
+                  : `${C.fire}${isOffline ? "0A" : "42"}`
               }
-              strokeWidth={
-                index % 3 === 0
-                  ? 1.15
-                  : 0.7
-              }
+              strokeWidth={index % 3 === 0 ? 1.15 : 0.7}
             />
           );
         })}
 
         {/* ======================================================== */}
-        {/* MIDDLE ORBIT                                           */}
+        {/* MIDDLE ORBIT                                            */}
         {/* ======================================================== */}
 
         <circle
@@ -462,7 +365,7 @@ export default function NeuralSigil({
           cy="200"
           r="146"
           fill="none"
-          stroke={`${C.crimson}${isOffline ? "15" : "48"}`}
+          stroke={`${C.crimson}${isOffline ? "0C" : "48"}`}
           strokeWidth="0.8"
         />
 
@@ -471,20 +374,16 @@ export default function NeuralSigil({
           cy="200"
           r="138"
           fill="none"
-          stroke={`${C.fire}${isOffline ? "18" : "62"}`}
+          stroke={`${C.fire}${isOffline ? "10" : "62"}`}
           strokeWidth="1.2"
           strokeDasharray="54 16 6 20"
-          animate={{
-            rotate: 360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : 360 }}
           transition={{
             duration: middleSpeed,
-            repeat: Infinity,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         <motion.circle
@@ -492,20 +391,16 @@ export default function NeuralSigil({
           cy="200"
           r="127"
           fill="none"
-          stroke={`${C.amber}${isOffline ? "15" : "45"}`}
+          stroke={`${C.amber}${isOffline ? "10" : "45"}`}
           strokeWidth="1"
           strokeDasharray="3 8"
-          animate={{
-            rotate: -360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : -360 }}
           transition={{
             duration: middleSpeed + 5,
-            repeat: Infinity,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         <circle
@@ -513,7 +408,7 @@ export default function NeuralSigil({
           cy="200"
           r="116"
           fill="none"
-          stroke={`${C.crimson}${isOffline ? "16" : "52"}`}
+          stroke={`${C.crimson}${isOffline ? "0D" : "52"}`}
           strokeWidth="0.8"
         />
 
@@ -526,20 +421,16 @@ export default function NeuralSigil({
           cy="200"
           r="104"
           fill="none"
-          stroke={`${C.fire}${isOffline ? "18" : "70"}`}
+          stroke={`${C.fire}${isOffline ? "12" : "70"}`}
           strokeWidth="1.6"
           strokeDasharray="66 19"
-          animate={{
-            rotate: 360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : 360 }}
           transition={{
             duration: innerSpeed,
-            repeat: Infinity,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         <motion.circle
@@ -547,22 +438,16 @@ export default function NeuralSigil({
           cy="200"
           r="92"
           fill="none"
-          stroke={`${C.amber}${isOffline ? "14" : "55"}`}
+          stroke={`${C.amber}${isOffline ? "0C" : "55"}`}
           strokeWidth="0.9"
           strokeDasharray="2 7"
-          animate={{
-            rotate: -360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : -360 }}
           transition={{
-            duration: innerSpeed - 1 > 2
-              ? innerSpeed - 1
-              : 2,
-            repeat: Infinity,
+            duration: innerSpeed - 1 > 2 ? innerSpeed - 1 : 2,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         {/* ======================================================== */}
@@ -571,74 +456,48 @@ export default function NeuralSigil({
 
         <motion.g
           animate={{
-            scale:
-              isListening
-                ? [1, 1.015, 1]
-                : isThinking
-                  ? [1, 0.985, 1.02, 1]
-                  : isSpeaking
-                    ? [1, 1.018, 1]
-                    : isExecuting
-                      ? [1, 0.975, 1.01, 1]
-                      : [1, 1.004, 1],
+            scale: isListening
+              ? [1, 1.015, 1]
+              : isThinking
+                ? [1, 0.985, 1.02, 1]
+                : isSpeaking
+                  ? [1, 1.018, 1]
+                  : isExecuting
+                    ? [1, 0.975, 1.01, 1]
+                    : isIdle
+                      ? [1, 1.002, 1]
+                      : 1,
           }}
           transition={{
-            duration:
-              isThinking
-                ? 1.1
-                : isExecuting
-                  ? 0.7
-                  : 3.2,
+            duration: isThinking ? 1.1 : isExecuting ? 0.7 : isListening ? 1.4 : 3.2,
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         >
-          {/* upper eye */}
           <path
-            d="
-              M 103 200
-              C 127 157, 165 134, 200 134
-              C 235 134, 273 157, 297 200
-            "
+            d="M 103 200 C 127 157, 165 134, 200 134 C 235 134, 273 157, 297 200"
             fill="none"
             stroke={`${C.fire}${isOffline ? "25" : "88"}`}
             strokeWidth="2"
           />
 
-          {/* lower eye */}
           <path
-            d="
-              M 103 200
-              C 127 243, 165 266, 200 266
-              C 235 266, 273 243, 297 200
-            "
+            d="M 103 200 C 127 243, 165 266, 200 266 C 235 266, 273 243, 297 200"
             fill="none"
             stroke={`${C.fire}${isOffline ? "22" : "74"}`}
             strokeWidth="2"
           />
 
-          {/* inner upper */}
           <path
-            d="
-              M 122 200
-              C 144 169, 172 151, 200 151
-              C 228 151, 256 169, 278 200
-            "
+            d="M 122 200 C 144 169, 172 151, 200 151 C 228 151, 256 169, 278 200"
             fill="none"
             stroke={`${C.amber}${isOffline ? "18" : "65"}`}
             strokeWidth="1"
           />
 
-          {/* inner lower */}
           <path
-            d="
-              M 122 200
-              C 144 231, 172 249, 200 249
-              C 228 249, 256 231, 278 200
-            "
+            d="M 122 200 C 144 231, 172 249, 200 249 C 228 249, 256 231, 278 200"
             fill="none"
             stroke={`${C.amber}${isOffline ? "15" : "55"}`}
             strokeWidth="1"
@@ -646,7 +505,7 @@ export default function NeuralSigil({
         </motion.g>
 
         {/* ======================================================== */}
-        {/* IRIS                                                   */}
+        {/* IRIS                                                     */}
         {/* ======================================================== */}
 
         <motion.circle
@@ -656,22 +515,13 @@ export default function NeuralSigil({
           fill={`${C.crimson}${isOffline ? "03" : "08"}`}
           stroke={`${C.fire}${isOffline ? "20" : "72"}`}
           strokeWidth="1.4"
-          animate={{
-            rotate: 360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : 360 }}
           transition={{
-            duration:
-              isExecuting
-                ? 8
-                : isThinking
-                  ? 13
-                  : 19,
-            repeat: Infinity,
+            duration: isExecuting ? 8 : isThinking ? 13 : 19,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         <motion.circle
@@ -679,25 +529,16 @@ export default function NeuralSigil({
           cy="200"
           r="60"
           fill="none"
-          stroke={`${C.amber}${isOffline ? "12" : "56"}`}
+          stroke={`${C.amber}${isOffline ? "0C" : "56"}`}
           strokeWidth="0.9"
           strokeDasharray="4 7"
-          animate={{
-            rotate: -360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : -360 }}
           transition={{
-            duration:
-              isExecuting
-                ? 6
-                : isThinking
-                  ? 9
-                  : 12,
-            repeat: Infinity,
+            duration: isExecuting ? 6 : isThinking ? 9 : 12,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
 
         {/* ======================================================== */}
@@ -705,37 +546,16 @@ export default function NeuralSigil({
         {/* ======================================================== */}
 
         <motion.g
-          animate={{
-            rotate: -360,
-          }}
+          animate={{ rotate: isIdle || isOffline ? 0 : -360 }}
           transition={{
-            duration:
-              isExecuting
-                ? 10
-                : isThinking
-                  ? 15
-                  : 23,
-            repeat: Infinity,
+            duration: isExecuting ? 10 : isThinking ? 15 : 23,
+            repeat: isIdle || isOffline ? 0 : Infinity,
             ease: "linear",
           }}
-          style={{
-            transformOrigin: "200px 200px",
-          }}
+          style={{ transformOrigin: "200px 200px" }}
         >
           <path
-            d="
-              M 200 148
-              L 215 174
-              L 245 182
-              L 226 200
-              L 229 228
-              L 200 214
-              L 171 228
-              L 174 200
-              L 155 182
-              L 185 174
-              Z
-            "
+            d="M 200 148 L 215 174 L 245 182 L 226 200 L 229 228 L 200 214 L 171 228 L 174 200 L 155 182 L 185 174 Z"
             fill="none"
             stroke={`${C.fire}${isOffline ? "15" : "72"}`}
             strokeWidth="1"
@@ -746,26 +566,75 @@ export default function NeuralSigil({
             cy="200"
             r="43"
             fill="none"
-            stroke={`${C.amber}${isOffline ? "12" : "52"}`}
+            stroke={`${C.amber}${isOffline ? "0C" : "52"}`}
             strokeWidth="0.9"
             strokeDasharray="2 5"
           />
         </motion.g>
 
         {/* ======================================================== */}
+        {/* LISTENING ACQUISITION FIELD                             */}
+        {/* ======================================================== */}
+
+        <motion.circle
+          cx="200"
+          cy="200"
+          r="76"
+          fill="none"
+          stroke={C.amber}
+          strokeWidth="1.2"
+          strokeDasharray="3 8"
+          animate={{
+            scale: isListening ? [0.88, 1.08, 0.88] : 1,
+            opacity: isListening ? [0.05, 0.8, 0.05] : 0,
+          }}
+          transition={{
+            duration: 1.2,
+            repeat: isListening ? Infinity : 0,
+            ease: "easeInOut",
+          }}
+          style={{ transformOrigin: "200px 200px" }}
+        />
+
+        {/* ======================================================== */}
+        {/* THINKING SCANNER                                        */}
+        {/* ======================================================== */}
+
+        <motion.path
+          d={arcPath(200, 200, 153, -28, 28)}
+          fill="none"
+          stroke={C.amber}
+          strokeWidth="2"
+          strokeLinecap="round"
+          animate={{
+            rotate: isThinking || isExecuting ? 360 : 0,
+            opacity: isThinking
+              ? [0.05, 0.9, 0.05]
+              : isExecuting
+                ? [0.2, 1, 0.2]
+                : 0,
+          }}
+          transition={{
+            rotate: {
+              duration: isExecuting ? 1.8 : 3.2,
+              repeat: isThinking || isExecuting ? Infinity : 0,
+              ease: "linear",
+            },
+            opacity: {
+              duration: isExecuting ? 0.45 : 0.8,
+              repeat: isThinking || isExecuting ? Infinity : 0,
+              ease: "easeInOut",
+            },
+          }}
+          style={{ transformOrigin: "200px 200px" }}
+        />
+
+        {/* ======================================================== */}
         {/* RADIAL ENERGY NODES                                     */}
         {/* ======================================================== */}
 
-        {Array.from({
-          length: NODES,
-        }).map((_, index) => {
-          const point = polarPoint(
-            200,
-            200,
-            104,
-            index * 30,
-          );
-
+        {Array.from({ length: NODES }).map((_, index) => {
+          const point = polarPoint(200, 200, 104, index * 30);
           const major = index % 3 === 0;
 
           return (
@@ -774,30 +643,20 @@ export default function NeuralSigil({
               cx={point.x}
               cy={point.y}
               r={major ? 3 : 1.8}
-              fill={
-                major
-                  ? C.amber
-                  : C.fire
-              }
+              fill={major ? C.amber : C.fire}
               animate={{
                 opacity: isOffline
-                  ? 0.1
+                  ? 0.05
                   : isError
                     ? [0.15, 1, 0.15]
                     : [
-                        0.16,
-                        major
-                          ? 0.9 * intensity
-                          : 0.55 * intensity,
-                        0.16,
+                        0.12,
+                        major ? 0.9 * intensity : 0.55 * intensity,
+                        0.12,
                       ],
                 scale: isOffline
                   ? 1
-                  : [
-                      0.88,
-                      major ? 1.18 : 1.08,
-                      0.88,
-                    ],
+                  : [0.88, major ? 1.18 : 1.08, 0.88],
               }}
               transition={{
                 duration: isError
@@ -843,28 +702,34 @@ export default function NeuralSigil({
               ? [27, 33, 27]
               : isThinking
                 ? [25, 31, 25]
-                : isExecuting
-                  ? [23, 34, 23]
-                  : [27, 29, 27],
+                : isSpeaking
+                  ? [27, 34, 27]
+                  : isExecuting
+                    ? [23, 34, 23]
+                    : isIdle
+                      ? [27, 29, 27]
+                      : [26, 28, 26],
 
             ry: isListening
               ? [15, 18, 15]
               : isThinking
                 ? [13, 18, 13]
-                : isExecuting
-                  ? [12, 19, 12]
-                  : [15, 16, 15],
+                : isSpeaking
+                  ? [15, 19, 15]
+                  : isExecuting
+                    ? [12, 19, 12]
+                    : isIdle
+                      ? [15, 16, 15]
+                      : [14, 15, 14],
 
             opacity: isOffline
-              ? [0.15, 0.22, 0.15]
+              ? [0.08, 0.16, 0.08]
               : isError
                 ? [0.4, 1, 0.4]
                 : [0.48, 0.95, 0.48],
           }}
           transition={{
-            duration: isError
-              ? 0.6
-              : corePulseDuration,
+            duration: isError ? 0.6 : corePulseDuration,
             repeat: Infinity,
             ease: "easeInOut",
           }}
@@ -878,31 +743,28 @@ export default function NeuralSigil({
           cx="200"
           cy="200"
           r="10"
-          fill={
-            isError
-              ? "#FFE6E0"
-              : C.white
-          }
+          fill={isError ? "#FFE6E0" : C.white}
           animate={{
-            r:
-              isExecuting
-                ? [8, 14, 8]
-                : isThinking
-                  ? [8, 13, 8]
-                  : isSpeaking
-                    ? [9, 13, 9]
-                    : [9, 11, 9],
+            r: isExecuting
+              ? [8, 14, 8]
+              : isThinking
+                ? [8, 13, 8]
+                : isSpeaking
+                  ? [9, 14, 9]
+                  : isListening
+                    ? [9, 12, 9]
+                    : isIdle
+                      ? [9, 10.5, 9]
+                      : [9, 11, 9],
 
             opacity: isOffline
-              ? [0.15, 0.25, 0.15]
+              ? [0.08, 0.18, 0.08]
               : isError
                 ? [0.5, 1, 0.5]
                 : [0.68, 1, 0.68],
           }}
           transition={{
-            duration: isError
-              ? 0.55
-              : corePulseDuration,
+            duration: isError ? 0.55 : corePulseDuration,
             repeat: Infinity,
             ease: "easeInOut",
           }}
@@ -916,49 +778,56 @@ export default function NeuralSigil({
         />
 
         {/* ======================================================== */}
-        {/* STATE-DRIVEN ENERGY SWEEP                               */}
+        {/* SPEAKING COMMUNICATION RING                              */}
+        {/* ======================================================== */}
+
+        <motion.circle
+          cx="200"
+          cy="200"
+          r="46"
+          fill="none"
+          stroke={C.fire}
+          strokeWidth="1.2"
+          animate={{
+            r: isSpeaking ? [44, 72, 92] : 46,
+            opacity: isSpeaking ? [0.75, 0.35, 0] : 0,
+          }}
+          transition={{
+            duration: 1.15,
+            repeat: isSpeaking ? Infinity : 0,
+            ease: "easeOut",
+          }}
+        />
+
+        {/* ======================================================== */}
+        {/* STATE-DRIVEN ENERGY SWEEPS                               */}
         {/* ======================================================== */}
 
         <motion.path
-          d={arcPath(
-            200,
-            200,
-            175,
-            8,
-            52,
-          )}
+          d={arcPath(200, 200, 175, 8, 52)}
           fill="none"
-          stroke={
-            isError
-              ? C.crimson
-              : activeAccent
-          }
-          strokeWidth={
-            isExecuting
-              ? 3.2
-              : isThinking
-                ? 2.8
-                : 2.2
-          }
+          stroke={isError ? C.crimson : activeAccent}
+          strokeWidth={isExecuting ? 3.2 : isThinking ? 2.8 : 2.2}
           strokeLinecap="round"
           animate={{
-            pathLength:
-              isListening
-                ? [0.2, 1, 0.2]
-                : isThinking
-                  ? [0.05, 1, 0.05]
-                  : isExecuting
-                    ? [0.15, 1, 0.15]
-                    : [0.18, 0.5, 0.18],
+            pathLength: isListening
+              ? [0.2, 1, 0.2]
+              : isThinking
+                ? [0.05, 1, 0.05]
+                : isExecuting
+                  ? [0.15, 1, 0.15]
+                  : isSpeaking
+                    ? [0.18, 0.75, 0.18]
+                    : [0.18, isIdle ? 0.32 : 0.5, 0.18],
 
             opacity: isOffline
-              ? [0.05, 0.08, 0.05]
+              ? [0.02, 0.05, 0.02]
               : isError
                 ? [0.2, 1, 0.2]
                 : [
-                    0.18 * intensity,
+                    0.14 * intensity,
                     0.95 * intensity,
-                    0.18 * intensity,
+                    0.14 * intensity,
                   ],
           }}
           transition={{
@@ -970,53 +839,102 @@ export default function NeuralSigil({
                   ? 1.3
                   : isListening
                     ? 1.8
-                    : 3,
+                    : isSpeaking
+                      ? 1.1
+                      : 3,
             repeat: Infinity,
             ease: "easeInOut",
           }}
         />
 
         <motion.path
-          d={arcPath(
-            200,
-            200,
-            138,
-            190,
-            242,
-          )}
+          d={arcPath(200, 200, 138, 190, 242)}
           fill="none"
-          stroke={
-            isError
-              ? C.crimson
-              : C.fire
-          }
+          stroke={isError ? C.crimson : C.fire}
           strokeWidth="1.8"
           strokeLinecap="round"
           animate={{
             opacity: isOffline
-              ? 0.06
-              : [
-                  0.1 * intensity,
-                  0.72 * intensity,
-                  0.1 * intensity,
-                ],
-            pathLength:
-              isExecuting
-                ? [0.1, 1, 0.1]
-                : isThinking
-                  ? [0.2, 0.8, 0.2]
-                  : [0.25, 0.65, 0.25],
+              ? 0.02
+              : [0.08 * intensity, 0.72 * intensity, 0.08 * intensity],
+            pathLength: isExecuting
+              ? [0.1, 1, 0.1]
+              : isThinking
+                ? [0.2, 0.8, 0.2]
+                : isListening
+                  ? [0.18, 0.7, 0.18]
+                  : [0.25, isIdle ? 0.4 : 0.65, 0.25],
           }}
           transition={{
             duration: isExecuting
               ? 0.9
               : isThinking
                 ? 1.5
-                : 3.2,
+                : isListening
+                  ? 1.6
+                  : 3.2,
             repeat: Infinity,
             ease: "easeInOut",
             delay: 0.7,
           }}
+        />
+
+        {/* ======================================================== */}
+        {/* EXECUTION ENERGY VECTOR                                 */}
+        {/* ======================================================== */}
+
+        <motion.path
+          d={arcPath(200, 200, 126, 145, 215)}
+          fill="none"
+          stroke={C.fire}
+          strokeWidth="2.8"
+          strokeLinecap="round"
+          animate={{
+            pathLength: isExecuting ? [0.05, 1, 0.05] : 0,
+            opacity: isExecuting ? [0.1, 1, 0.1] : 0,
+          }}
+          transition={{
+            duration: 0.6,
+            repeat: isExecuting ? Infinity : 0,
+            ease: "easeInOut",
+          }}
+        />
+
+        {/* ======================================================== */}
+        {/* ERROR ALARM FIELD                                       */}
+        {/* ======================================================== */}
+
+        <motion.circle
+          cx="200"
+          cy="200"
+          r="82"
+          fill="none"
+          stroke={C.crimson}
+          strokeWidth="1.5"
+          strokeDasharray="6 12"
+          animate={{
+            rotate: isError ? 360 : 0,
+            opacity: isError ? [0.1, 0.9, 0.1] : 0,
+            scale: isError ? [0.94, 1.08, 0.94] : 1,
+          }}
+          transition={{
+            rotate: {
+              duration: 2.5,
+              repeat: isError ? Infinity : 0,
+              ease: "linear",
+            },
+            opacity: {
+              duration: 0.45,
+              repeat: isError ? Infinity : 0,
+              ease: "easeInOut",
+            },
+            scale: {
+              duration: 0.55,
+              repeat: isError ? Infinity : 0,
+              ease: "easeInOut",
+            },
+          }}
+          style={{ transformOrigin: "200px 200px" }}
         />
       </svg>
 
@@ -1044,19 +962,31 @@ export default function NeuralSigil({
             : isThinking
               ? [0.88, 1.15, 0.88]
               : isSpeaking
-                ? [0.9, 1.12, 0.9]
-                : [0.94, 1.06, 0.94],
+                ? [0.88, 1.18, 0.88]
+                : isListening
+                  ? [0.92, 1.1, 0.92]
+                  : isIdle
+                    ? [0.96, 1.04, 0.96]
+                    : [0.94, 1.06, 0.94],
 
           opacity: isOffline
-            ? [0.05, 0.08, 0.05]
+            ? [0.02, 0.04, 0.02]
             : isError
               ? [0.2, 0.9, 0.2]
-              : [0.28 * intensity, 0.72 * intensity, 0.28 * intensity],
+              : [0.24 * intensity, 0.72 * intensity, 0.24 * intensity],
         }}
         transition={{
           duration: isError
             ? 0.6
-            : corePulseDuration * 1.2,
+            : isExecuting
+              ? 0.8
+              : isThinking
+                ? 1.0
+                : isSpeaking
+                  ? 0.9
+                  : isListening
+                    ? 1.2
+                    : 3.8,
           repeat: Infinity,
           ease: "easeInOut",
         }}

@@ -14,7 +14,6 @@ interface DesktopShortcutProps {
 }
 
 export default function DesktopShortcut({
-  id,
   moduleId,
   position,
   label,
@@ -24,11 +23,11 @@ export default function DesktopShortcut({
   const focusWindow = useAppStore((s) => s.focusWindow);
   const restoreWindow = useAppStore((s) => s.restoreWindow);
   const windows = useAppStore((s) => s.windows);
-  const updatePosition = useAppStore((s) => s.updateDesktopShortcutPosition);
-  const removeShortcut = useAppStore((s) => s.removeDesktopShortcut);
 
-  const module = getModule(moduleId as never);
-  if (!module) return null;
+  // Named `mod`, not `module`: `module` is a reserved CommonJS binding and
+  // Next.js errors on assigning to it (@next/next/no-assign-module-variable).
+  const mod = getModule(moduleId as never);
+  if (!mod) return null;
 
   const handleDoubleClick = () => {
     const existing = windows.find((w) => w.moduleId === moduleId);
@@ -42,8 +41,8 @@ export default function DesktopShortcut({
       openWindow({
         id: `window-${moduleId}-${Date.now()}`,
         moduleId: moduleId as never,
-        title: module.label,
-        icon: module.icon,
+        title: mod.label,
+        icon: mod.icon,
         x: position.x + 80,
         y: position.y,
         width: 900,
@@ -84,7 +83,7 @@ export default function DesktopShortcut({
             isHovered ? "text-jarvis-red" : "text-jarvis-text-secondary"
           }`}
         >
-          {module.icon}
+          {mod.icon}
         </span>
       </motion.div>
       <span
@@ -92,7 +91,7 @@ export default function DesktopShortcut({
           isHovered ? "text-jarvis-text-primary" : "text-jarvis-text-muted"
         }`}
       >
-        {label || module.label}
+        {label || mod.label}
       </span>
     </motion.div>
   );

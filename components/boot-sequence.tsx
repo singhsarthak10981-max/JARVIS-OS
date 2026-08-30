@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, type BootStage } from "@/lib/store";
 import { tokens } from "@/lib/tokens";
@@ -46,14 +46,6 @@ const BOOT_LINES: BootLine[] = [
   { text: "All subsystems nominal", type: "success", stage: "ai-services" },
 ];
 
-const STAGE_ORDER: BootStage[] = [
-  "neural-core",
-  "memory",
-  "voice",
-  "modules",
-  "ai-services",
-];
-
 const STAGE_LABELS: Record<string, string> = {
   "neural-core": "NEURAL CORE",
   memory: "MEMORY",
@@ -88,32 +80,37 @@ export default function BootSequence() {
 
   const totalLines = BOOT_LINES.length;
 
-  const addLine = useCallback(() => {
-    const idx = lineIndexRef.current;
-    if (idx >= totalLines) {
-      setBootStage("greeting");
-      setBootPhase("greeting");
-      return;
-    }
-
-    const line = BOOT_LINES[idx];
-    setVisibleLines((prev) => [...prev, line]);
-    setCurrentStage(line.stage);
-    setBootStage(line.stage);
-
-    const progress = Math.round(((idx + 1) / totalLines) * 100);
-    setBootProgress(progress);
-
-    lineIndexRef.current = idx + 1;
-
-    const delay = 40 + Math.random() * 60;
-    setTimeout(addLine, delay);
-  }, [totalLines, setBootProgress, setBootStage]);
-
   useEffect(() => {
-    const timeout = setTimeout(addLine, 400);
-    return () => clearTimeout(timeout);
-  }, [addLine]);
+    // Self-scheduling typewriter loop. Declared inside the effect so it can
+    // reference itself, and so every pending timer is cancelled on unmount —
+    // previously only the first 400ms timeout was cleaned up and the chain
+    // kept running (and setting state) after the boot screen went away.
+    let timer: ReturnType<typeof setTimeout>;
+
+    const addLine = () => {
+      const idx = lineIndexRef.current;
+      if (idx >= totalLines) {
+        setBootStage("greeting");
+        setBootPhase("greeting");
+        return;
+      }
+
+      const line = BOOT_LINES[idx];
+      setVisibleLines((prev) => [...prev, line]);
+      setCurrentStage(line.stage);
+      setBootStage(line.stage);
+
+      const progress = Math.round(((idx + 1) / totalLines) * 100);
+      setBootProgress(progress);
+
+      lineIndexRef.current = idx + 1;
+
+      timer = setTimeout(addLine, 40 + Math.random() * 60);
+    };
+
+    timer = setTimeout(addLine, 400);
+    return () => clearTimeout(timer);
+  }, [totalLines, setBootProgress, setBootStage]);
 
   useEffect(() => {
     const interval = setInterval(() => setShowCursor((prev) => !prev), 530);
@@ -124,11 +121,11 @@ export default function BootSequence() {
     if (bootPhase !== "greeting") return;
 
     if (greetingIndex >= GREETING_LINES.length) {
-      setTimeout(() => {
+      const done = setTimeout(() => {
         setBootPhase("done");
         completeBoot();
       }, 800);
-      return;
+      return () => clearTimeout(done);
     }
 
     const timeout = setTimeout(() => {

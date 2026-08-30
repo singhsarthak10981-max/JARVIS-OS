@@ -7,7 +7,6 @@ import { tokens } from "@/lib/tokens";
 import OrbCore from "./OrbCore";
 import OrbGlow from "./OrbGlow";
 import OrbRings from "./OrbRings";
-import OrbParticles from "./OrbParticles";
 import { getValidTransitions } from "./OrbStateMachine";
 
 const dur = tokens.duration;
@@ -28,7 +27,10 @@ export default function AiOrb({
   const storeState = useAppStore((s) => s.aiState);
   const state = overrideState ?? storeState;
 
-  const validTransitions = useMemo(() => getValidTransitions(state), [state]);
+  const validTransitions = useMemo(
+    () => getValidTransitions(state),
+    [state],
+  );
 
   const borderColor =
     state === "offline"
@@ -40,18 +42,34 @@ export default function AiOrb({
   return (
     <div
       className={`relative flex items-center justify-center ${className}`}
-      style={{ width: size, height: size }}
+      style={{
+        width: size,
+        height: size,
+      }}
       data-ai-state={state}
       data-valid-transitions={validTransitions.join(",")}
     >
-      <OrbCore state={state} size={size} wakeUp={wakeUp} />
+      {/* Living reactor core */}
+      <OrbCore
+        state={state}
+        size={size}
+        wakeUp={wakeUp}
+      />
 
-      <OrbGlow state={state} size={size} wakeUp={wakeUp} />
+      {/* Atmospheric reactor glow */}
+      <OrbGlow
+        state={state}
+        size={size}
+        wakeUp={wakeUp}
+      />
 
-      <OrbRings state={state} wakeUp={wakeUp} />
+      {/* Engineered Arc Reactor geometry */}
+      <OrbRings
+        state={state}
+        wakeUp={wakeUp}
+      />
 
-      <OrbParticles state={state} radius={size / 2} />
-
+      {/* Inner reactor boundary */}
       <motion.div
         className="absolute border"
         style={{
@@ -75,11 +93,18 @@ export default function AiOrb({
         }
         transition={
           wakeUp
-            ? { duration: 2, times: [0, 0.5, 1] }
-            : { duration: dur.large / 1000, ease: "easeInOut" }
+            ? {
+                duration: 2,
+                times: [0, 0.5, 1],
+              }
+            : {
+                duration: dur.large / 1000,
+                ease: "easeInOut",
+              }
         }
       />
 
+      {/* Core identity label */}
       <motion.span
         className="relative z-10 font-mono text-sm font-bold tracking-[0.3em] uppercase"
         style={{
@@ -89,7 +114,10 @@ export default function AiOrb({
         animate={{
           opacity: wakeUp ? [0, 1] : 1,
         }}
-        transition={{ duration: 1, delay: wakeUp ? 0.8 : 0 }}
+        transition={{
+          duration: 1,
+          delay: wakeUp ? 0.8 : 0,
+        }}
       >
         J.A.R.V.I.S.
       </motion.span>

@@ -3,8 +3,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { tokens } from "@/lib/tokens";
-import AiOrb from "./ai/AiOrb";
-import HolographicSurface, { type HolographicSurfaceData } from "./hud/HolographicSurface";
+import NeuralSigil from "./ai/NeuralSigil";
+import HolographicSurface, {
+  type HolographicSurfaceData,
+} from "./hud/HolographicSurface";
 
 const dur = tokens.duration;
 
@@ -20,6 +22,7 @@ const GLANCE_DATA: Record<string, HolographicSurfaceData> = {
     ],
     action: "Open Producer workspace",
   },
+
   dj: {
     eyebrow: "WORKSPACE GLANCE // DJ",
     title: "DJ overview",
@@ -31,6 +34,7 @@ const GLANCE_DATA: Record<string, HolographicSurfaceData> = {
     ],
     action: "Open DJ workspace",
   },
+
   business: {
     eyebrow: "WORKSPACE GLANCE // BUSINESS",
     title: "Business overview",
@@ -42,6 +46,7 @@ const GLANCE_DATA: Record<string, HolographicSurfaceData> = {
     ],
     action: "Open Business workspace",
   },
+
   bar: {
     eyebrow: "WORKSPACE GLANCE // BAR",
     title: "Bar overview",
@@ -57,124 +62,209 @@ const GLANCE_DATA: Record<string, HolographicSurfaceData> = {
 
 function resolveGlance(input: string) {
   const value = input.toLowerCase();
-  const key = Object.keys(GLANCE_DATA).find((module) => value.includes(module));
+
+  const key = Object.keys(GLANCE_DATA).find((module) =>
+    value.includes(module),
+  );
+
   return key ? GLANCE_DATA[key] : null;
 }
 
 export default function CommandCenterSurface() {
-  const [wakeUp, setWakeUp] = useState(true);
   const [query, setQuery] = useState("");
-  const [surface, setSurface] = useState<HolographicSurfaceData | null>(null);
+  const [surface, setSurface] =
+    useState<HolographicSurfaceData | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setWakeUp(false), 2600);
+    const timeout = setTimeout(() => setReady(true), 350);
+
     return () => clearTimeout(timeout);
   }, []);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     const trimmed = query.trim();
+
     if (!trimmed) return;
 
     const glance = resolveGlance(trimmed);
+
     setSurface(
       glance ?? {
         eyebrow: "J.A.R.V.I.S. // CONTEXT PROJECTION",
         title: "Request received",
         rows: [
-          { label: "REQUEST", value: trimmed },
-          { label: "MODE", value: "General" },
-          { label: "PROJECTION", value: "Ready for contextual response" },
+          {
+            label: "REQUEST",
+            value: trimmed,
+          },
+          {
+            label: "MODE",
+            value: "GENERAL",
+          },
+          {
+            label: "PROJECTION",
+            value: "READY FOR CONTEXTUAL RESPONSE",
+          },
         ],
-      }
+      },
     );
   };
 
   return (
-    <section className="relative h-full min-h-0 overflow-hidden bg-black">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 opacity-[0.18] bg-[linear-gradient(rgba(255,0,0,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.035)_1px,transparent_1px)] bg-[size:72px_72px]" />
-        <div className="absolute left-1/2 top-[44%] h-[620px] w-[620px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(229,0,0,0.09),transparent_66%)] blur-3xl" />
-        <div className="absolute inset-x-8 top-7 h-px bg-gradient-to-r from-transparent via-jarvis-red/18 to-transparent" />
-        <div className="absolute inset-x-8 bottom-7 h-px bg-gradient-to-r from-transparent via-jarvis-red/10 to-transparent" />
-      </div>
+    <section className="absolute inset-0 z-10 overflow-hidden bg-transparent">
+      {/* ============================================================ */}
+      {/* CONTEXT PROJECTION                                          */}
+      {/* ============================================================ */}
 
-      <HolographicSurface open={Boolean(surface)} data={surface} onClose={() => setSurface(null)} />
+      <HolographicSurface
+        open={Boolean(surface)}
+        data={surface}
+        onClose={() => setSurface(null)}
+      />
 
-      <div className="relative z-10 flex h-full flex-col px-6 py-6 sm:px-10 lg:px-14">
-        <motion.header
-          className="flex items-start justify-between"
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: dur.large / 1000 }}
-        >
-          <div>
-            <div className="flex items-center gap-2 text-[8px] font-medium tracking-[0.28em] text-jarvis-text-disabled uppercase">
-              <span className="h-1.5 w-1.5 rounded-full bg-jarvis-success shadow-[0_0_8px_rgba(0,255,120,0.55)]" />
-              J.A.R.V.I.S. Personal Command Interface
-            </div>
-            <div className="mt-2 flex items-baseline gap-3">
-              <h1 className="text-xl font-light tracking-[0.22em] text-jarvis-text-primary uppercase">J.A.R.V.I.S.</h1>
-              <span className="text-[8px] tracking-[0.2em] text-jarvis-red/60 uppercase">Command Center</span>
-            </div>
-          </div>
+      <div className="relative z-10 flex h-full min-h-0 flex-col px-6 pb-5 pt-16 sm:px-8 lg:px-10">
+        {/* ========================================================== */}
+        {/* MAIN COMMAND CENTER                                       */}
+        {/* ========================================================== */}
 
-          <div className="text-right">
-            <div className="font-mono text-[8px] tracking-[0.18em] text-jarvis-text-disabled">CORE ONLINE</div>
-            <div className="mt-1 text-[8px] tracking-[0.2em] text-jarvis-red/60 uppercase">
-              {surface ? "PROJECTION ACTIVE" : "STANDBY · LISTENING"}
-            </div>
-          </div>
-        </motion.header>
+        <main className="relative min-h-0 flex-1">
+          {/* ====================================================== */}
+          {/* SYSTEM STATUS / ACTIVITY                               */}
+          {/* ====================================================== */}
 
-        <main className="flex min-h-0 flex-1 flex-col items-center justify-center">
-          <motion.div
-            className="relative flex flex-col items-center"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: dur.large / 1000, ease: "easeOut" }}
+          <motion.aside
+            className="absolute bottom-[18%] left-[4%] z-20"
+            initial={{
+              opacity: 0,
+              x: -10,
+            }}
+            animate={{
+              opacity: ready ? 1 : 0,
+              x: ready ? 0 : -10,
+            }}
+            transition={{
+              duration: dur.large / 1000,
+            }}
           >
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] tracking-[0.34em] text-jarvis-red/45 uppercase">
-              Neural Core // Active
+            {/* SYSTEM STATUS */}
+
+            <div className="mb-7">
+              <div className="mb-3 flex items-center gap-3">
+                <span className="h-px w-8 bg-orange-200/30" />
+
+                <span className="text-[8px] tracking-[0.24em] text-white/42 uppercase">
+                  System Status
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                <StatusRow label="CORE" value="ONLINE" />
+                <StatusRow label="AI" value="READY" />
+                <StatusRow label="NETWORK" value="SECURE" />
+                <StatusRow label="MEMORY" value="84%" />
+              </div>
             </div>
 
-            <AiOrb size={280} wakeUp={wakeUp} />
+            {/* ACTIVITY */}
 
-            <motion.div
-              className="mt-5 text-center"
-              animate={{ opacity: surface ? 0.55 : 1 }}
-              transition={{ duration: 0.25 }}
-            >
-              <div className="text-sm font-light tracking-[0.26em] text-jarvis-text-primary uppercase">
-                {surface ? "Context projection active" : "How can I assist?"}
+            <div>
+              <div className="mb-3 flex items-center gap-3">
+                <span className="h-px w-8 bg-orange-200/20" />
+
+                <span className="text-[8px] tracking-[0.24em] text-white/38 uppercase">
+                  Activity
+                </span>
               </div>
-              <div className="mt-2 text-[8px] tracking-[0.18em] text-jarvis-text-disabled">
-                {surface ? "INFORMATION MATERIALIZED AROUND YOUR REQUEST" : "TALK · SEARCH · WATCH · EXPLORE"}
+
+              <div className="space-y-2 text-[8px] tracking-[0.08em]">
+                <ActivityRow text="Listening for command" />
+
+                <ActivityRow text="Core standing by" />
+
+                <ActivityRow
+                  text="No critical system events"
+                  muted
+                />
               </div>
-            </motion.div>
+            </div>
+          </motion.aside>
+
+          {/* ====================================================== */}
+          {/* CENTER NEURAL SIGIL                                     */}
+          {/* ====================================================== */}
+
+          <motion.div
+            className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
+            initial={{
+              opacity: 0,
+              scale: 0.92,
+            }}
+            animate={{
+              opacity: ready ? 1 : 0,
+              scale: ready ? 1 : 0.92,
+            }}
+            transition={{
+              delay: 0.12,
+              duration: 0.8,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+          >
+            <NeuralSigil
+              size={390}
+              active
+            />
           </motion.div>
+
+          {/* ====================================================== */}
+          {/* ONLY BOXED ELEMENT: ASK JARVIS                         */}
+          {/* ====================================================== */}
 
           <motion.form
             onSubmit={handleSubmit}
-            className="mt-8 w-full max-w-2xl"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
+            className="absolute bottom-5 left-1/2 z-30 w-[min(760px,72vw)] -translate-x-1/2"
+            initial={{
+              opacity: 0,
+              y: 8,
+            }}
+            animate={{
+              opacity: ready ? 1 : 0,
+              y: ready ? 0 : 8,
+            }}
+            transition={{
+              delay: 0.3,
+              duration: 0.45,
+            }}
           >
-            <div className="group flex min-h-14 items-center gap-3 border border-jarvis-red/15 bg-black/45 px-4 shadow-[0_0_35px_rgba(229,0,0,0.035)] backdrop-blur-xl transition-colors focus-within:border-jarvis-red/35">
-              <span className="text-jarvis-red/70">⌁</span>
+            <div className="group relative flex min-h-14 items-center gap-3 overflow-hidden border border-orange-100/[0.10] bg-black/[0.12] px-4 backdrop-blur-md transition-colors focus-within:border-orange-300/25">
+              <div className="pointer-events-none absolute left-0 top-0 h-px w-24 bg-gradient-to-r from-orange-300/30 to-transparent" />
+
+              <div className="pointer-events-none absolute bottom-0 right-0 h-px w-20 bg-gradient-to-l from-red-400/15 to-transparent" />
+
+              <span className="text-orange-100/65">
+                ⌁
+              </span>
+
               <input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-[11px] tracking-wide text-jarvis-text-secondary outline-none placeholder:text-jarvis-text-disabled"
+                onChange={(event) =>
+                  setQuery(event.target.value)
+                }
+                className="min-w-0 flex-1 bg-transparent text-[11px] tracking-wide text-white/58 outline-none placeholder:text-white/22"
                 placeholder="Ask J.A.R.V.I.S. anything..."
                 aria-label="Ask J.A.R.V.I.S. anything"
               />
-              <span className="hidden border border-jarvis-red/10 px-2 py-1 font-mono text-[8px] tracking-wider text-jarvis-text-disabled sm:block">⌘ J</span>
+
+              <span className="hidden border border-white/[0.06] px-2 py-1 font-mono text-[8px] tracking-wider text-white/22 sm:block">
+                ⌘ J
+              </span>
+
               <button
                 type="submit"
                 aria-label="Send command"
-                className="flex h-8 w-8 items-center justify-center border border-jarvis-red/15 text-xs text-jarvis-red/80 transition-colors hover:border-jarvis-red/40 hover:bg-jarvis-red/5"
+                className="flex h-8 w-8 items-center justify-center border border-orange-100/[0.12] text-xs text-orange-100/70 transition-colors hover:border-orange-200/30 hover:bg-orange-200/5"
               >
                 ↗
               </button>
@@ -183,5 +273,53 @@ export default function CommandCenterSurface() {
         </main>
       </div>
     </section>
+  );
+}
+
+function StatusRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex w-[175px] items-center justify-between gap-4">
+      <span className="text-[8px] tracking-[0.14em] text-white/30">
+        {label}
+      </span>
+
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-orange-300/75 shadow-[0_0_7px_rgba(255,184,28,0.35)]" />
+
+        <span className="font-mono text-[8px] tracking-[0.12em] text-white/42">
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ActivityRow({
+  text,
+  muted = false,
+}: {
+  text: string;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="h-px w-4 bg-orange-200/16" />
+
+      <span
+        className={
+          muted
+            ? "text-white/18"
+            : "text-white/35"
+        }
+      >
+        {text}
+      </span>
+    </div>
   );
 }

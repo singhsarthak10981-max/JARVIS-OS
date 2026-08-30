@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, memo } from "react";
+import { useCallback, memo, useState } from "react";
 import { motion } from "framer-motion";
 import { tokens } from "@/lib/tokens";
 import { useAppStore } from "@/lib/store";
@@ -15,6 +15,8 @@ interface DockProps {
 }
 
 function DockInner({ onModuleOpen }: DockProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
   const pinnedModules = useAppStore((s) => s.pinnedModules);
   const windows = useAppStore((s) => s.windows);
   const focusedWindow = useAppStore((s) => s.focusedWindow);
@@ -23,50 +25,93 @@ function DockInner({ onModuleOpen }: DockProps) {
 
   const handleOpen = useCallback(
     (moduleId: string) => {
-      const existing = windows.find((w) => w.moduleId === moduleId);
+      const existing = windows.find(
+        (w) => w.moduleId === moduleId,
+      );
+
       if (existing) {
-        if (existing.minimized) restoreWindow(existing.id);
+        if (existing.minimized) {
+          restoreWindow(existing.id);
+        }
+
         focusWindow(existing.id);
         return;
       }
+
       onModuleOpen(moduleId as ModuleId);
     },
-    [windows, focusWindow, restoreWindow, onModuleOpen]
+    [
+      windows,
+      focusWindow,
+      restoreWindow,
+      onModuleOpen,
+    ],
   );
 
   const pinnedModuleDefs = pinnedModules
     .map((id) => getModule(id))
-    .filter((m): m is NonNullable<typeof m> => m !== undefined);
+    .filter(
+      (m): m is NonNullable<typeof m> =>
+        m !== undefined,
+    );
 
   return (
-    <motion.div
-      className="fixed bottom-3 left-1/2 z-30 max-w-[calc(100vw-24px)] -translate-x-1/2 sm:bottom-4"
-      initial={{ y: 80, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: dur.large / 1000, ease: [0.16, 1, 0.3, 1] }}
-    >
+    <>
+      {/* ============================================================ */}
+      {/* LEFT EDGE TRIGGER                                            */}
+      {/* ============================================================ */}
+
       <div
-        className="flex max-w-full items-center gap-1.5 overflow-x-auto rounded-2xl border border-jarvis-red/10 bg-jarvis-glass px-2 py-2 backdrop-blur-[20px] sm:gap-2 sm:px-3"
-        style={{
-          boxShadow: `${tokens.glow.small}, ${tokens.shadow.medium}`,
-          scrollbarWidth: "none",
+        className="fixed left-0 top-1/2 z-50 h-32 w-4 -translate-y-1/2"
+        onMouseEnter={() => setIsOpen(true)}
+        aria-hidden="true"
+      />
+
+      {/* ============================================================ */}
+      {/* AUTO-HIDING DOCK                                             */}
+      {/* ============================================================ */}
+
+      <motion.div
+        className="fixed left-2 top-1/2 z-40 -translate-y-1/2"
+        initial={{
+          x: -80,
+          opacity: 0,
         }}
-        role="toolbar"
-        aria-label="JARVIS application dock"
+        animate={{
+          x: isOpen ? 0 : -80,
+          opacity: isOpen ? 1 : 0.5,
+        }}
+        transition={{
+          duration: dur.large / 1000,
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
       >
-        {pinnedModuleDefs.map((mod) => (
-          <DockItem
-            key={mod.id}
-            module={mod}
-            windows={windows}
-            focusedWindow={focusedWindow}
-            onOpen={handleOpen}
-          />
-        ))}
-      </div>
-    </motion.div>
+        <div
+          className="flex max-h-[70vh] flex-col items-center gap-1.5 overflow-y-auto rounded-2xl border border-white/[0.08] bg-black/25 px-2 py-2 backdrop-blur-xl sm:gap-2 sm:px-2.5"
+          style={{
+            boxShadow: `${tokens.glow.small}, ${tokens.shadow.medium}`,
+            scrollbarWidth: "none",
+          }}
+          role="toolbar"
+          aria-label="JARVIS application dock"
+        >
+          {pinnedModuleDefs.map((mod) => (
+            <DockItem
+              key={mod.id}
+              module={mod}
+              windows={windows}
+              focusedWindow={focusedWindow}
+              onOpen={handleOpen}
+            />
+          ))}
+        </div>
+      </motion.div>
+    </>
   );
 }
 
 const Dock = memo(DockInner);
+
 export default Dock;

@@ -15,6 +15,7 @@ import { getModule } from "@/lib/modules";
 import { generateWorkspaceId } from "@/lib/workspaces";
 import type { ModuleId } from "@/lib/modules";
 import CommandCenterSurface from "./command-center-surface";
+import CommandCenterSpace from "./command-center-space";
 
 const MODULE_WINDOW_DEFAULTS: Record<
   ModuleId,
@@ -169,32 +170,44 @@ export default function Desktop() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
-      <WallpaperRenderer />
+    {!isCommandCenter && <WallpaperRenderer />}
 
-      {!isCommandCenter && (
-        <Sidebar
-          activeModule={active}
-          onModuleChange={(id) => {
-            navigate(id);
-            openModuleWindow(id);
-          }}
-        />
-      )}
+{!isCommandCenter && (
+  <Sidebar
+    activeModule={active}
+    onModuleChange={(id) => {
+      navigate(id);
+      openModuleWindow(id);
+    }}
+  />
+)}
 
-      <div className="relative flex flex-1 flex-col overflow-hidden">
-        <TopHUD activeModule={active} />
+<div className="relative flex flex-1 flex-col overflow-hidden">
+  {!isCommandCenter && <TopHUD activeModule={active} />}
 
-        <main className="relative flex-1 overflow-hidden" onContextMenu={handleContextMenu}>
-          <DesktopGrid />
-          <TacticalArc />
-          <div className="relative z-10 h-full w-full">
-            {isCommandCenter ? (
-              <CommandCenterSurface />
-            ) : (
-              <WindowManager />
-            )}
-          </div>
-        </main>
+       <main
+  className="relative flex-1 overflow-hidden"
+  onContextMenu={handleContextMenu}
+>
+  <div className="absolute inset-0">
+    {isCommandCenter ? (
+      <>
+        <CommandCenterSpace />
+
+        <CommandCenterSurface />
+      </>
+    ) : (
+      <>
+        <DesktopGrid />
+        <TacticalArc />
+
+        <div className="relative z-10 h-full w-full">
+          <WindowManager />
+        </div>
+      </>
+    )}
+  </div>
+</main>
       </div>
 
       <Dock onModuleOpen={openModuleWindow} />

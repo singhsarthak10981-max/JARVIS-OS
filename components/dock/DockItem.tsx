@@ -8,8 +8,6 @@ import DockTooltip from "./DockTooltip";
 import RunningIndicator, { type RunningState } from "./RunningIndicator";
 import type { WindowInstance } from "@/types/window";
 
-const dur = tokens.duration;
-
 interface DockItemProps {
   module: ModuleDefinition;
   windows: WindowInstance[];

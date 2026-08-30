@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { usePersistedFlag } from "@/lib/client-hooks";
 import { MODULES, type ModuleId } from "@/lib/modules";
 import { tokens } from "@/lib/tokens";
 
-const r = tokens.radius;
 const dur = tokens.duration;
 const expandedW = tokens.sidebar.expandedWidth;
 const collapsedW = 64;
@@ -22,16 +22,9 @@ export default function Sidebar({
   onModuleChange,
 }: SidebarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (saved === "true") setCollapsed(true);
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
-  }, [collapsed]);
+  // Reads back as collapsed on reload; renders expanded on the server so the
+  // first client render matches, then settles.
+  const [collapsed, setCollapsed] = usePersistedFlag(SIDEBAR_STORAGE_KEY, false);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -43,7 +36,7 @@ export default function Sidebar({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [setCollapsed]);
 
   const width = collapsed ? collapsedW : expandedW;
 

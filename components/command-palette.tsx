@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { tokens } from "@/lib/tokens";
 
-const c = tokens.color;
 const r = tokens.radius;
 const dur = tokens.duration;
 
@@ -81,11 +80,12 @@ export default function CommandPalette({
   const selectedCommand = flatList[selectedIndex];
 
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
-
-  useEffect(() => {
     if (open) {
+      // Transient dialog state, reset on open. react-hooks/set-state-in-effect
+      // is right about effects that mirror derived data, but the palette has no
+      // render-time source to derive "just opened" from — `open` is a prop and
+      // this component stays mounted while closed so the exit animation can run.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
       setSelectedIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
@@ -175,7 +175,12 @@ export default function CommandPalette({
                 ref={inputRef}
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  // Reset the highlight here rather than in an effect on
+                  // [query] — same result, one render instead of two.
+                  setQuery(e.target.value);
+                  setSelectedIndex(0);
+                }}
                 placeholder="Search commands..."
                 className="flex-1 bg-transparent font-mono text-sm text-jarvis-text-primary placeholder-jarvis-text-disabled outline-none"
               />

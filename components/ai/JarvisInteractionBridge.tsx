@@ -112,11 +112,12 @@ export default function JarvisInteractionBridge() {
           ? "Preparing the requested module."
           : assistantResponse;
 
-        history.current = [
+        const nextHistory: JarvisMessage[] = [
           ...history.current,
           { role: "user", content: query },
           { role: "assistant", content: assistantResponse },
-        ].slice(-12);
+        ];
+        history.current = nextHistory.slice(-12);
 
         dispatchResponse({
           response: toolResponse,

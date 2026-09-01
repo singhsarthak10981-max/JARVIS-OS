@@ -1,4 +1,4 @@
-import type { ModuleId } from "./modules";
+import type { ModuleId } from "../modules";
 
 export type JarvisToolName = "open_module";
 

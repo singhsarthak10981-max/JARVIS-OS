@@ -3,9 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { MODULES, type ModuleId } from "@/lib/modules";
+import {
+  MODULE_SECTIONS,
+  getModulesBySection,
+  type ModuleId,
+} from "@/lib/modules";
 import { tokens } from "@/lib/tokens";
 import { useAppStore } from "@/lib/store";
+import { usePlatform } from "@/lib/use-platform";
+import { formatShortcut } from "@/lib/platform";
+import { useServerStatus } from "@/lib/ai/use-server-status";
+import StatusDot, { type StatusTone } from "./ui/status-dot";
 
 const dur = tokens.duration;
 const expandedW = tokens.sidebar.expandedWidth;
@@ -22,7 +30,6 @@ export default function Sidebar({
   activeModule,
   onModuleChange,
 }: SidebarProps) {
-  const [hovered, setHovered] = useState<string | null>(null);
   const [pointerInside, setPointerInside] = useState(false);
   const [keyboardFocused, setKeyboardFocused] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -30,6 +37,8 @@ export default function Sidebar({
   const toggleAssistant = useAppStore((s) => s.toggleAssistant);
   const assistantOpen = useAppStore((s) => s.assistantOpen);
   const aiState = useAppStore((s) => s.aiState);
+  const { state: coreState } = useServerStatus();
+  const platform = usePlatform();
 
   const keyboardNavigationRef = useRef(false);
 
@@ -83,6 +92,15 @@ export default function Sidebar({
     setPinned((value) => !value);
   };
 
+  const coreTone: StatusTone =
+    coreState === "online" ? "ok" : coreState === "offline" ? "warn" : "idle";
+  const coreLabel =
+    coreState === "online"
+      ? "Core online"
+      : coreState === "offline"
+        ? "Core unreachable"
+        : "Checking core";
+
   return (
     <motion.aside
       className="absolute left-0 z-40 flex flex-col border-r border-jarvis-red/15 bg-jarvis-bg-secondary/95 shadow-[0_0_36px_rgba(0,0,0,0.48)] backdrop-blur-[24px]"
@@ -126,10 +144,12 @@ export default function Sidebar({
                 exit={{ opacity: 0, width: 0, x: -8 }}
                 transition={{ duration: dur.small / 1000 }}
               >
-                <span className="text-xs font-bold tracking-[0.2em] text-jarvis-red uppercase">
+                <span className="block text-[11px] font-semibold tracking-[0.2em] text-jarvis-text-primary uppercase">
                   Jarvis
                 </span>
-                <span className="ml-1 text-[10px] text-jarvis-text-muted">v1.0</span>
+                <span className="block text-[9px] tracking-[0.22em] text-jarvis-text-disabled uppercase">
+                  Personal OS
+                </span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -152,7 +172,7 @@ export default function Sidebar({
           type="button"
           onClick={toggleAssistant}
           aria-pressed={assistantOpen}
-          title="Summon JARVIS (Ctrl+Shift+J)"
+          title={`Summon JARVIS (${formatShortcut("⌘⇧J", platform)})`}
           className={cn(
             "group relative flex w-full items-center rounded-lg border border-jarvis-red/20 bg-jarvis-red/5 transition-colors hover:border-jarvis-red/40 hover:bg-jarvis-red/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50",
             "gap-3 px-3 py-2.5",
@@ -166,15 +186,19 @@ export default function Sidebar({
                 aiState === "listening" ? "bg-jarvis-success" : "bg-jarvis-red"
               )}
             />
-            <span
-              className={cn(
-                "relative h-2 w-2 rounded-full",
+            <StatusDot
+              tone={
                 aiState === "listening"
-                  ? "animate-pulse bg-jarvis-success"
+                  ? "ok"
                   : aiState === "thinking" || aiState === "executing"
-                    ? "animate-pulse bg-jarvis-info"
-                    : "bg-jarvis-red"
-              )}
+                    ? "info"
+                    : aiState === "error"
+                      ? "error"
+                      : "idle"
+              }
+              size={7}
+              pulse={aiState !== "idle" && aiState !== "offline"}
+              className="relative"
             />
           </span>
 
@@ -188,101 +212,104 @@ export default function Sidebar({
                   {aiState === "idle" ? "Standing by" : aiState}
                 </span>
               </span>
-              <span className="rounded border border-jarvis-red/20 px-1 py-0.5 font-mono text-[8px] text-jarvis-red/60">
-                ⌘⇧J
-              </span>
+              <kbd className="shrink-0 font-mono text-[9px] text-jarvis-red/70">
+                {formatShortcut("⌘⇧J", platform)}
+              </kbd>
             </>
           )}
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="JARVIS modules">
-        {MODULES.map((item, index) => {
-          const isActive = activeModule === item.id;
-          const isHovered = hovered === item.id;
+      <nav
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto p-2 pt-2 jarvis-scroll"
+        aria-label="JARVIS modules"
+      >
+        {MODULE_SECTIONS.map((section) => {
+          const modules = getModulesBySection(section.id);
+          if (modules.length === 0) return null;
 
           return (
-            <div key={item.id} className="relative">
-              <motion.button
-                type="button"
-                aria-current={isActive ? "page" : undefined}
-                aria-label={item.label}
-                title={collapsed ? `${item.label}${item.shortcut ? ` (${item.shortcut})` : ""}` : undefined}
-                className={cn(
-                  "group relative flex w-full items-center rounded-lg text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50",
-                  "gap-3 px-3 py-2.5",
-                  isActive
-                    ? "bg-jarvis-red/10 text-jarvis-red"
-                    : "text-jarvis-text-muted hover:bg-jarvis-red/5 hover:text-jarvis-text-secondary"
-                )}
-                onClick={() => onModuleChange(item.id)}
-                onMouseEnter={() => setHovered(item.id)}
-                onMouseLeave={() => setHovered(null)}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 * index + 0.4, duration: dur.medium / 1000 }}
-              >
-                {isActive && (
-                  <motion.div
-                    className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-jarvis-red"
-                    layoutId="sidebar-active"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
+            <div key={section.id} className="space-y-0.5">
+              {!collapsed && (
+                <div className="px-2 pb-1 text-[9px] font-medium tracking-[0.2em] text-jarvis-text-disabled uppercase">
+                  {section.label}
+                </div>
+              )}
 
-                <span
-                  className={cn(
-                    "shrink-0 text-sm transition-all duration-200",
-                    isActive
-                      ? "text-jarvis-red text-glow-sm"
-                      : "text-jarvis-text-disabled group-hover:text-jarvis-red/60"
-                  )}
-                >
-                  {item.icon}
-                </span>
+              {modules.map((item) => {
+                const isActive = activeModule === item.id;
+                const shortcut = item.shortcut
+                  ? formatShortcut(item.shortcut, platform)
+                  : "";
 
-                <AnimatePresence initial={false}>
-                  {!collapsed && (
-                    <motion.span
-                      className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-wide"
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={isActive ? "page" : undefined}
+                    aria-label={item.label}
+                    title={
+                      collapsed
+                        ? `${item.label}${shortcut ? ` (${shortcut})` : ""}`
+                        : undefined
+                    }
+                    onClick={() => onModuleChange(item.id)}
+                    className={cn(
+                      "group relative flex w-full items-center gap-2.5 rounded-[8px] px-2 py-[7px] text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50",
+                      isActive
+                        ? "bg-white/[0.05] text-jarvis-text-primary"
+                        : "text-jarvis-text-muted hover:bg-white/[0.03] hover:text-jarvis-text-secondary"
+                    )}
+                  >
+                    {isActive && (
+                      <span
+                        className="absolute top-1/2 left-0 h-4 w-[2px] -translate-y-1/2 rounded-r bg-jarvis-red"
+                        aria-hidden
+                      />
+                    )}
+
+                    <span
+                      className={cn(
+                        "w-4 shrink-0 text-center text-[13px] transition-colors",
+                        isActive
+                          ? "text-jarvis-red"
+                          : "text-jarvis-text-disabled group-hover:text-jarvis-text-muted"
+                      )}
                     >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+                      {item.icon}
+                    </span>
 
-                {item.shortcut && (
-                  <span className="ml-auto text-[10px] text-jarvis-text-disabled/50 group-hover:text-jarvis-text-muted">
-                    {item.shortcut}
-                  </span>
-                )}
-
-                <AnimatePresence>
-                  {isHovered && !isActive && (
-                    <motion.div
-                      className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-r from-jarvis-red/5 to-transparent"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: dur.small / 1000 }}
-                    />
-                  )}
-                </AnimatePresence>
-              </motion.button>
+                    {!collapsed && (
+                      <>
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 truncate text-[12.5px] tracking-[0.01em]",
+                            isActive && "font-medium"
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                        {shortcut && (
+                          <span className="shrink-0 font-mono text-[9.5px] text-jarvis-text-disabled">
+                            {shortcut}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           );
         })}
       </nav>
 
-      <div className="border-t border-jarvis-red/10 p-3">
-        <div className="flex items-center gap-2" title="System Online">
-          <div className="h-2 w-2 shrink-0 rounded-full bg-jarvis-red jarvis-glow-sm" />
+      <div className="border-t border-white/[0.06] p-3">
+        <div className="flex items-center gap-2" title={coreLabel}>
+          <StatusDot tone={coreTone} pulse={coreState === "checking"} />
           {!collapsed && (
-            <span className="text-[10px] tracking-wider text-jarvis-text-muted uppercase">
-              System Online
+            <span className="truncate text-[10px] tracking-[0.12em] text-jarvis-text-muted uppercase">
+              {coreLabel}
             </span>
           )}
         </div>

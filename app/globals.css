@@ -51,8 +51,10 @@
   --jarvis-panel: #171717;
   --jarvis-glass: rgba(18,18,18,0.65);
   --jarvis-text: #B8B8B8;
-  --jarvis-text-muted: #7A7A7A;
-  --jarvis-text-disabled: #555555;
+  /* Raised from #7A7A7A / #555555: secondary labels sit on near-black
+     surfaces and were below a comfortable reading contrast. */
+  --jarvis-text-muted: #8F8F8F;
+  --jarvis-text-disabled: #6B6B6B;
   --jarvis-glow-rgb: 229, 0, 0;
   --jarvis-orb-idle: #7A0000;
   --jarvis-orb-idle-highlight: #E50000;
@@ -149,6 +151,41 @@
   }
   html {
     font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* One keyboard-focus language everywhere. Components that draw their own
+     ring opt out with `focus-visible:outline-none`; everything else gets a
+     visible, theme-aware outline instead of the browser default. */
+  :where(button, a[href], input, textarea, select, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid rgb(var(--jarvis-glow-rgb) / 0.65);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgb(var(--jarvis-glow-rgb) / 0.28);
+    color: #ffffff;
+  }
+}
+
+/* Thin, low-contrast scrollbars for dense panes; the track stays out of the
+   way so content does not look boxed in. */
+@utility jarvis-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--jarvis-glow-rgb) / 0.28) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: rgb(var(--jarvis-glow-rgb) / 0.22);
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--jarvis-glow-rgb) / 0.36);
   }
 }
 

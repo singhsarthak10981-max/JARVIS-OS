@@ -10,9 +10,11 @@ interface WindowBodyProps {
 function WindowBodyInner({ children, focused }: WindowBodyProps) {
   return (
     <div
-      className="flex-1 overflow-auto"
+      className="flex-1 overflow-auto jarvis-scroll"
       style={{
-        opacity: focused ? 1 : 0.7,
+        // The header and shadow carry the focus signal; body text stays
+        // readable so a background window can still be scanned.
+        opacity: focused ? 1 : 0.88,
         transition: "opacity 200ms ease",
       }}
     >

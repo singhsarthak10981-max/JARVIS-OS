@@ -1,4 +1,5 @@
 import type { AiProviderId } from "./providers";
+import type { SearchNotice } from "./search/types";
 
 export type ChatRole = "user" | "assistant" | "system";
 
@@ -13,6 +14,8 @@ export interface ChatMessage {
   action?: boolean;
   error?: boolean;
   streaming?: boolean;
+  /** Web search state for this turn, when one was attempted. */
+  search?: SearchNotice;
 }
 
 export interface AssistantMeta {
@@ -31,6 +34,8 @@ export interface ServerStatus {
   version: string;
   local: boolean;
   providers: Record<string, boolean>;
+  /** True when TAVILY_API_KEY is set on the server. Never the key itself. */
+  webSearch?: boolean;
 }
 
 export interface JarvisRequest {
@@ -44,6 +49,8 @@ export interface JarvisRequest {
     activeModule: string;
     openWindows: number;
   };
+  /** Settings toggle. The server may still decline to search. */
+  webSearch?: boolean;
 }
 
 export interface TestConnectionResult {

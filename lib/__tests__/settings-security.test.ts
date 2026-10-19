@@ -21,6 +21,22 @@ afterEach(() => {
   localStorage.clear();
 });
 
+describe("web search settings", () => {
+  it("stores a boolean toggle and never a search key", async () => {
+    const store = await freshStore();
+    const settings = store.getState().settings as unknown as Record<string, unknown>;
+
+    expect(settings.webSearchEnabled).toBe(true);
+
+    store.getState().updateSettings({ webSearchEnabled: false });
+    const raw = (localStorage.getItem(SETTINGS_STORAGE_KEY) ?? "").toLowerCase();
+
+    expect(raw).toContain('"websearchenabled":false');
+    expect(raw).not.toContain("tavily");
+    expect(raw).not.toContain("apikey");
+  });
+});
+
 describe("API key persistence", () => {
   it("does not expose an api key field in default settings", async () => {
     const store = await freshStore();

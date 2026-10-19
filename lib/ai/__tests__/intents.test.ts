@@ -407,3 +407,64 @@ describe("DJ library intents", () => {
     expect(result.reply).toContain("no sets");
   });
 });
+
+describe("capability requests", () => {
+  /**
+   * The two long prompts that previously returned the fixed capability list
+   * because they happened to contain the word "help" / "capabilities".
+   * They are ordinary conversational questions and must reach the model.
+   */
+  const LONG_CAPABILITY_PROMPTS = [
+    "Can you help me debug why my Next.js settings store rehydrates twice in development and explain what the root cause usually is?",
+    "Explain the capabilities and limitations of the current AI provider architecture, especially how missing credentials and the local fallback are handled.",
+  ];
+
+  it("answers a direct, short help request with the capability list", () => {
+    for (const prompt of ["what can you do?", "help", "what are your capabilities?"]) {
+      const result = resolve(prompt);
+      expect(result.kind).toBe("answer");
+      expect(result.reply).toContain("Open, close and switch modules");
+    }
+  });
+
+  it.each(LONG_CAPABILITY_PROMPTS)(
+    "sends a long capability question to the model: %s",
+    (prompt) => {
+      expect(resolve(prompt).kind).toBe("chat");
+    }
+  );
+
+  it("does not intercept a message that merely mentions capabilities", () => {
+    expect(
+      resolve("I've been reading about agent capabilities lately and I'm curious how they're benchmarked")
+        .kind
+    ).toBe("chat");
+  });
+
+  it("keeps the introduction intent from swallowing a capability question", () => {
+    expect(resolve("what are you capable of?").kind).toBe("chat");
+    expect(resolve("who are you?").kind).toBe("answer");
+  });
+
+  it("still runs deterministic desktop commands", () => {
+    expect(resolve("open the producer module")).toMatchObject({
+      action: { type: "open-module", moduleId: "producer" },
+    });
+    expect(resolve("set a timer for 5 minutes")).toMatchObject({
+      action: { type: "start-timer", seconds: 300 },
+    });
+    expect(resolve("switch to the stealth theme")).toMatchObject({
+      action: { type: "set-theme", theme: "stealth" },
+    });
+    expect(resolve("remember that the studio lights are on channel 4")).toMatchObject({
+      action: { type: "remember", fact: "the studio lights are on channel 4" },
+    });
+  });
+
+  it("does not treat a long help request as a menu", () => {
+    expect(
+      resolve("help me understand how React Server Components decide what to stream first")
+        .kind
+    ).toBe("chat");
+  });
+});

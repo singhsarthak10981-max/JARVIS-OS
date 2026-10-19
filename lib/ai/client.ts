@@ -4,6 +4,7 @@ import type {
   ServerStatus,
   TestConnectionResult,
 } from "./types";
+import type { SearchNotice } from "./search/types";
 
 export async function fetchServerStatus(): Promise<ServerStatus | null> {
   try {
@@ -47,6 +48,8 @@ export async function testConnection(
 
 export interface StreamHandlers {
   onMeta?: (meta: AssistantMeta) => void;
+  /** Web search lifecycle for this turn (searching, complete, unavailable…). */
+  onSearch?: (notice: SearchNotice) => void;
   onDelta: (text: string) => void;
   onError?: (message: string) => void;
   onDone?: () => void;
@@ -100,6 +103,16 @@ export async function streamJarvis(
       case "meta":
         meta = event as unknown as AssistantMeta;
         handlers.onMeta?.(meta);
+        break;
+      case "search":
+        handlers.onSearch?.({
+          status: event.status as SearchNotice["status"],
+          query: typeof event.query === "string" ? event.query : undefined,
+          sources: Array.isArray(event.sources)
+            ? (event.sources as SearchNotice["sources"])
+            : undefined,
+          message: typeof event.message === "string" ? event.message : undefined,
+        });
         break;
       case "delta":
         if (typeof event.text === "string") handlers.onDelta(event.text);

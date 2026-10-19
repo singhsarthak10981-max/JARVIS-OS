@@ -13,6 +13,11 @@ import {
   type ProviderError,
   type ProviderErrorCode,
 } from "./errors";
+import {
+  buildSearchFailureNotice,
+  buildSearchReference,
+} from "./search/prompt";
+import type { SearchSource } from "./search/types";
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -564,6 +569,11 @@ export async function probeProvider(
   }
 }
 
+/** Web-search material attached to one generation. Server-side only. */
+export type SearchPromptContext =
+  | { kind: "results"; query: string; sources: SearchSource[] }
+  | { kind: "failure"; message: string };
+
 export function buildSystemPrompt(
   ownerName: string,
   memories: string[],
@@ -571,8 +581,16 @@ export function buildSystemPrompt(
     activeModule: string;
     openWindows: number;
     providerLabel: string;
-  }
+  },
+  search?: SearchPromptContext
 ): string {
+  const searchBlock =
+    search?.kind === "results"
+      ? `\n${buildSearchReference(search.query, search.sources)}\n`
+      : search?.kind === "failure"
+        ? `\n${buildSearchFailureNotice(search.message)}\n`
+        : "";
+
   const memoryBlock =
     memories.length > 0
       ? memories
@@ -588,7 +606,8 @@ Personality:
 - Address the user as "${ownerName}" occasionally, not in every sentence.
 - Never break character, never mention being a language model unless directly asked about your backend.
 - Be genuinely useful: answer the question first, keep replies to 1-4 sentences unless detail is requested.
-- Plain text only. No markdown headings. Short bullet lists are acceptable when listing capabilities.
+- Plain text only. No markdown headings, tables or code fences. Short bullet lists are acceptable when listing capabilities.
+- Markdown links — [Title](https://example.com) — are rendered as clickable citations. Use them only for web sources supplied to you; never invent a link.
 
 Capabilities that actually exist in this OS (the app executes these before/independently of you):
 - Opening and closing modules: Command Center, DJ, Producer, Bar, Business, Settings.
@@ -603,6 +622,7 @@ Context:
 - Language model: ${context.providerLabel}
 - Current time: ${new Date().toISOString()}
 
+${searchBlock}
 Long-term memories about the user:
 ${memoryBlock}`;
 }

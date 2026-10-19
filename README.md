@@ -89,6 +89,16 @@ Then **restart** the dev server (`npm run dev`) — Next.js does not hot-reload
 
 Every model name is editable.
 
+#### Web search (optional)
+
+Add `TAVILY_API_KEY` to `.env.local` and the connected model can answer with
+current information and clickable source links. JARVIS searches only when you
+ask it to or when a question is clearly about something that changes — news,
+releases, prices, versions, specs. At most five results per query; retrieved
+pages are passed to the model as **untrusted data**, never as instructions.
+Without a key, JARVIS says live search is unavailable instead of guessing.
+Queries go to Tavily; the key never leaves the server.
+
 **If the selected provider has no server-side key, JARVIS says so.** It does not
 silently answer with the local core and present it as a model response — a
 connection test for Google fails, with the specific variable to set. Local Core
@@ -177,6 +187,7 @@ See [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) and [`docs/ARCHITECTURE.md`
 - The browser cannot supply a key to `/api/jarvis` — a key in the request body is ignored.
 - Provider status is exposed as booleans only ("configured / not configured"), never as key material.
 - Gemini credentials travel in the `x-goog-api-key` header, so they cannot leak into proxy logs or URLs.
+- Tavily search runs server-side only: the endpoint is a code constant (never a request field), and `TAVILY_API_KEY` is never sent to the browser or returned by the API. Only the query and up to five results leave the machine.
 - The custom / Ollama base URL is user-controlled. **Do not expose this app publicly without adding authentication** — the route is an open proxy to whatever URL the client supplies.
 - Voice recognition is provided by the browser; Chrome may send audio to its own speech service. Speech synthesis is local.
 
@@ -188,6 +199,7 @@ See [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) and [`docs/ARCHITECTURE.md`
 | --- | --- |
 | OS shell (boot, HUD, windows, dock, palette) | ✅ Complete |
 | AI core, streaming, providers, local mode | ✅ Complete |
+| Web search with cited sources (Tavily) | ✅ Complete — needs `TAVILY_API_KEY` |
 | Voice input, wake word, spoken replies | ✅ Complete |
 | Memory, timers, activity log | ✅ Complete |
 | Settings + live Command Center | ✅ Complete |

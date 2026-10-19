@@ -312,6 +312,53 @@ function formatDuration(seconds: number): string {
   return parts.join(" ") || "0 seconds";
 }
 
+/**
+ * Phrases that ask for the built-in capability list as the *whole* request.
+ *
+ * These are anchored on purpose. The previous implementation matched bare
+ * substrings (`help`, `capabilities`, `commands`) anywhere in the message, so
+ * any longer question containing one of those words was swallowed by this
+ * branch and never reached the configured language model.
+ */
+const CAPABILITY_PATTERNS: RegExp[] = [
+  /^(what|which) (can|could) (you|u) (do|help (me )?with)\b/,
+  /^what (are|r) (your|ur) (capabilities|skills|commands|functions)\b/,
+  /^(list|show)( me)? (your |the )?(capabilities|skills|commands|functions)\b/,
+  /^(capabilities|commands|help)\s*[?.!]*$/,
+  /^how (do|can) i use (you|this|jarvis)\b/,
+  /^what do you do(?![a-z])/,
+  /^what (do|can) you (actually )?do\b/,
+];
+
+/**
+ * A request that asks for reasoning, analysis or a written answer is a
+ * conversation — even when it opens with "what can you do". These markers
+ * mean the user wants an answer, not a menu.
+ */
+const CONVERSATIONAL_MARKERS =
+  /\b(explain|describe|analyz|analys|compare|contrast|why|write|draft|design|plan|debug|fix|implement|code|summar|customi[sz]e|configure|set up|review|translate|research|step by step|in detail|trade-?offs?|architecture|what if|how does|help me (with|understand|figure|write|plan|debug|decide|choose|build|set up|configure)|when|while|unless|because|so that|before|after)\b/;
+
+/** Beyond this, a message is a conversation, not a one-line menu request. */
+const CAPABILITY_MAX_WORDS = 12;
+
+/**
+ * True only when the message is clearly asking for the capability list.
+ *
+ * Deliberately conservative: when in doubt the message goes to the language
+ * model, because a model can answer a short help request but the fixed list
+ * cannot answer a long one.
+ */
+export function isCapabilityRequest(text: string): boolean {
+  const value = text.trim();
+  if (!value) return false;
+  if (!CAPABILITY_PATTERNS.some((pattern) => pattern.test(value))) return false;
+
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length > CAPABILITY_MAX_WORDS) return false;
+  if (CONVERSATIONAL_MARKERS.test(value)) return false;
+  return true;
+}
+
 export const JARVIS_CAPABILITIES = [
   "Open, close and switch modules — “open the DJ module”",
   "Change theme and wallpaper — “switch to stealth theme”",
@@ -966,18 +1013,20 @@ export function resolveIntent(
     };
   }
 
-  if (
-    /(what can you do|help|capabilities|commands|what are your functions|how do i use you)/.test(
-      t
-    )
-  ) {
+  if (isCapabilityRequest(t)) {
     return {
       kind: "answer",
       reply: `Here's what I can do, ${owner}:\n${JARVIS_CAPABILITIES.map((c) => `• ${c}`).join("\n")}`,
     };
   }
 
-  if (/(who are you|what are you|introduce yourself|your name)/.test(t)) {
+  // Anchored so that "what are you capable of?" is a conversation, not an
+  // introduction. A bare "your name" substring was equally too broad.
+  if (
+    /^(who|what) (are|r) (you|u)( exactly| even)?[?.!]*$/.test(t) ||
+    /\bintroduce yourself\b/.test(t) ||
+    /\b(what'?s|what is|tell me) your name\b/.test(t)
+  ) {
     return {
       kind: "answer",
       reply: `I'm JARVIS — Just A Rather Very Intelligent System. I run this desktop: windows, modules, themes, timers and memory. ${

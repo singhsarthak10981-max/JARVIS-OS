@@ -107,7 +107,7 @@ export default function AssistantPanel() {
     if (provider === "local") {
       return {
         label: "LOCAL CORE",
-        color: "#E50000",
+        color: "var(--jarvis-red)",
         title: "Running on the built-in local intelligence core.",
       };
     }

@@ -1,26 +1,42 @@
 import "server-only";
 
 import { decideWebSearch } from "./decision";
-import { searchConfigured, searchWeb } from "./tavily";
-import type { SearchNotice, SearchSource } from "./types";
+import { assessOfficialEvidence } from "./official";
+import { MAX_RESULTS, searchConfigured, searchWeb } from "./tavily";
+import type { SearchMode, SearchNotice, SearchSource, SearchStatus } from "./types";
 
 /**
  * Server-side web search orchestration.
  *
- * Runs before generation: one focused Tavily query, bounded results, then the
- * model answers with that material in its prompt. No tool-calling framework,
- * no loop, no client-supplied endpoint.
+ * Normal turns run one focused Tavily query. Official-source turns run one
+ * domain-restricted query first, then — only if the validated evidence is
+ * insufficient — at most one broad fallback. No tool-calling framework, no
+ * loop, no client-supplied endpoint.
  */
+
+/** Everything except the in-flight state; the orchestrator never returns it. */
+export type WebSearchStatus = Exclude<SearchStatus, "searching">;
 
 export type WebSearchOutcome =
   | { status: "skipped" }
-  | { status: "complete"; query: string; sources: SearchSource[] }
-  | { status: "empty"; query: string; message: string }
   | {
-      status: "unavailable" | "disabled" | "error";
+      status: WebSearchStatus;
       query: string;
-      message: string;
+      mode: SearchMode;
+      sources: SearchSource[];
+      vendorLabel?: string | null;
+      domains?: string[];
+      /** True when the single broad fallback ran. */
+      fallbackUsed?: boolean;
+      /** Short, user-facing explanation. Never an upstream body. */
+      message?: string;
     };
+
+export interface SearchingInfo {
+  mode: SearchMode;
+  vendorLabel?: string | null;
+  domains?: string[];
+}
 
 export interface RunWebSearchInput {
   /** The current user turn. */
@@ -32,8 +48,26 @@ export interface RunWebSearchInput {
   /** Local Core cannot consume retrieved sources. */
   providerIsLocal: boolean;
   signal?: AbortSignal;
-  /** Fired once, immediately before the network call. */
-  onSearching?: (query: string) => void;
+  /** Fired once, immediately before the first network call. */
+  onSearching?: (query: string, info: SearchingInfo) => void;
+}
+
+function failure(
+  status: "empty" | "unavailable" | "disabled" | "error",
+  query: string,
+  message: string,
+  mode: SearchMode = "web",
+  extra: { vendorLabel?: string | null; domains?: string[] } = {}
+): WebSearchOutcome {
+  return {
+    status,
+    query,
+    mode,
+    sources: [],
+    message,
+    vendorLabel: extra.vendorLabel,
+    domains: extra.domains ?? [],
+  };
 }
 
 export async function runWebSearch(
@@ -43,71 +77,224 @@ export async function runWebSearch(
   if (!decision.shouldSearch) return { status: "skipped" };
 
   const query = decision.query;
+  const official = decision.official;
+  const mode: SearchMode = official.active ? "official" : "web";
+  const vendorLabel = official.vendorLabel;
 
   if (!input.enabled) {
-    return {
-      status: "disabled",
+    return failure(
+      "disabled",
       query,
-      message: "Web search is turned off in Settings → Intelligence.",
-    };
+      "Web search is turned off in Settings → Intelligence.",
+      mode,
+      { vendorLabel, domains: official.domains }
+    );
   }
 
   if (input.providerIsLocal) {
-    return {
-      status: "unavailable",
+    return failure(
+      "unavailable",
       query,
-      message:
-        "Live web search needs a connected language model. The built-in Local Core cannot read or summarise sources — select a cloud provider in Settings → Intelligence.",
-    };
+      "Live web search needs a connected language model. The built-in Local Core cannot read or summarise sources — select a cloud provider in Settings → Intelligence.",
+      mode,
+      { vendorLabel, domains: official.domains }
+    );
   }
 
   if (!searchConfigured()) {
-    return {
-      status: "unavailable",
+    return failure(
+      "unavailable",
       query,
+      "Web search is not configured. Add TAVILY_API_KEY to .env.local on the server, then restart JARVIS.",
+      mode,
+      { vendorLabel, domains: official.domains }
+    );
+  }
+
+  // ── Normal search ───────────────────────────────────────
+  // No domain restriction, exactly as before.
+  if (!official.active) {
+    input.onSearching?.(query, { mode: "web" });
+    const result = await searchWeb(query, { signal: input.signal });
+
+    if (!result.ok) return failure("error", query, result.message, "web");
+    if (result.sources.length === 0) {
+      return failure("empty", query, "No sources were found for that query.", "web");
+    }
+    return { status: "complete", query, mode: "web", sources: result.sources };
+  }
+
+  // ── Official source requested, vendor unknown ───────────
+  // Never invent a domain: search normally and say so.
+  if (official.domains.length === 0) {
+    input.onSearching?.(query, { mode: "official", vendorLabel });
+    const result = await searchWeb(query, { signal: input.signal });
+
+    if (!result.ok) {
+      return failure("error", query, result.message, "official", {
+        vendorLabel,
+        domains: [],
+      });
+    }
+    if (result.sources.length === 0) {
+      return failure(
+        "empty",
+        query,
+        "No sources were found for that query.",
+        "official"
+      );
+    }
+
+    return {
+      status: "official-unverified",
+      query,
+      mode: "official",
+      domains: [],
+      vendorLabel,
+      sources: result.sources.map((source) => ({ ...source, official: false })),
       message:
-        "Web search is not configured. Add TAVILY_API_KEY to .env.local on the server, then restart JARVIS.",
+        "No official documentation domain could be identified for this request. These are general web results, not confirmed official sources.",
     };
   }
 
-  input.onSearching?.(query);
-  const result = await searchWeb(query, { signal: input.signal });
+  // ── Official-only retrieval ─────────────────────────────
+  const domains = official.domains;
+  input.onSearching?.(query, { mode: "official", vendorLabel, domains });
 
-  if (!result.ok) {
-    return { status: "error", query, message: result.message };
+  const restricted = await searchWeb(query, {
+    includeDomains: domains,
+    signal: input.signal,
+  });
+
+  if (!restricted.ok) {
+    // The network/provider is unhealthy; a second call would not help.
+    return failure("error", query, restricted.message, "official", {
+      vendorLabel,
+      domains,
+    });
   }
 
-  if (result.sources.length === 0) {
+  const firstPass = assessOfficialEvidence(restricted.sources, domains);
+  if (firstPass.sufficient) {
     return {
-      status: "empty",
+      status: "official-complete",
       query,
-      message: "No sources were found for that query.",
+      mode: "official",
+      domains,
+      vendorLabel,
+      fallbackUsed: false,
+      sources: firstPass.official,
     };
   }
 
-  return { status: "complete", query, sources: result.sources };
+  // ── One controlled broad fallback ───────────────────────
+  const broad = await searchWeb(query, { signal: input.signal });
+  const merged = mergeSources(
+    firstPass.official,
+    broad.ok ? broad.sources : [],
+    MAX_RESULTS
+  );
+  // The broad pass can itself surface a registered host; validate again rather
+  // than trusting which query found it.
+  const evidence = assessOfficialEvidence(merged, domains);
+
+  if (evidence.officialCount === 0) {
+    return {
+      status: "official-insufficient",
+      query,
+      mode: "official",
+      domains,
+      vendorLabel,
+      fallbackUsed: true,
+      sources: evidence.secondary,
+      message: broad.ok
+        ? "No official sources were found for this request. Any results below are third-party and are not official."
+        : "No official sources were found, and the broader fallback search failed.",
+    };
+  }
+
+  if (evidence.secondary.length === 0) {
+    // Still thin, and the fallback added nothing usable (failed, or returned
+    // only more official pages). Keep the official pages, report honestly.
+    return {
+      status: "official-insufficient",
+      query,
+      mode: "official",
+      domains,
+      vendorLabel,
+      fallbackUsed: true,
+      sources: evidence.official,
+      message: broad.ok
+        ? `Only ${evidence.officialCount} official source${
+            evidence.officialCount === 1 ? " was" : "s were"
+          } confirmed, which is not enough to treat the official evidence as complete.`
+        : `Only ${evidence.officialCount} official source${
+            evidence.officialCount === 1 ? " was" : "s were"
+          } confirmed, and the broader fallback search failed.`,
+    };
+  }
+
+  return {
+    status: "official-fallback",
+    query,
+    mode: "official",
+    domains,
+    vendorLabel,
+    fallbackUsed: true,
+    sources: [...evidence.official, ...evidence.secondary],
+    message: `Only ${evidence.officialCount} official source${
+      evidence.officialCount === 1 ? " was" : "s were"
+    } confirmed. The other results are third-party and are marked as secondary evidence.`,
+  };
+}
+
+/** Official first, deduplicated, capped at the per-query result limit. */
+function mergeSources(
+  official: SearchSource[],
+  fallback: SearchSource[],
+  limit: number
+): SearchSource[] {
+  const merged: SearchSource[] = [];
+  const seen = new Set<string>();
+
+  for (const source of [...official, ...fallback]) {
+    if (merged.length >= limit) break;
+    if (seen.has(source.url)) continue;
+    seen.add(source.url);
+    merged.push(source);
+  }
+
+  return merged;
 }
 
 /** Converts an outcome into the wire-safe frame the UI renders. */
 export function toSearchNotice(outcome: WebSearchOutcome): SearchNotice | null {
   if (outcome.status === "skipped") return null;
 
-  if (outcome.status === "complete") {
-    return {
-      status: "complete",
-      query: outcome.query,
-      // Snippets stay server-side; the browser only needs titles and links.
-      sources: outcome.sources.map(({ title, url, publishedDate }) => ({
+  const notice: SearchNotice = {
+    status: outcome.status,
+    query: outcome.query,
+    mode: outcome.mode,
+  };
+
+  if (outcome.mode === "official") {
+    notice.vendor = outcome.vendorLabel ?? undefined;
+    notice.domains = outcome.domains ?? [];
+  }
+
+  if (outcome.message) notice.message = outcome.message;
+
+  if (outcome.sources.length > 0) {
+    // Snippets stay server-side; the browser only needs titles and links.
+    notice.sources = outcome.sources.map(
+      ({ title, url, publishedDate, official }) => ({
         title,
         url,
         publishedDate,
-      })),
-    };
+        official: official === true,
+      })
+    );
   }
 
-  return {
-    status: outcome.status,
-    query: outcome.query,
-    message: outcome.message,
-  };
+  return notice;
 }

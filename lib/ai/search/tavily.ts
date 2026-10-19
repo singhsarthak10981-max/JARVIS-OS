@@ -1,5 +1,6 @@
 import "server-only";
 
+import { sanitizeOfficialDomains } from "./official";
 import type { SearchSource } from "./types";
 
 /**
@@ -232,6 +233,14 @@ function errorForStatus(status: number): SearchError {
 
 export interface SearchWebOptions {
   signal?: AbortSignal;
+  /**
+   * Restrict results to these hosts (`include_domains`).
+   *
+   * Only registered official domains survive validation; anything else is
+   * dropped, so a caller cannot widen the allow-list or point the key at an
+   * unapproved host.
+   */
+  includeDomains?: string[];
 }
 
 export async function searchWeb(
@@ -246,6 +255,9 @@ export async function searchWeb(
       message: "The web search query was empty.",
     };
   }
+
+  // Validated before any network activity: unknown hosts never leave the app.
+  const includeDomains = sanitizeOfficialDomains(options.includeDomains);
 
   const apiKey = serverKey();
   if (!apiKey) {
@@ -285,6 +297,10 @@ export async function searchWeb(
         include_raw_content: false,
         include_images: false,
         include_published_date: true,
+        // Omitted entirely for normal searches, so behaviour is unchanged.
+        ...(includeDomains.length > 0
+          ? { include_domains: includeDomains }
+          : {}),
       }),
       signal: controller.signal,
     });

@@ -141,6 +141,69 @@ The Tavily endpoint is a constant in `lib/ai/search/tavily.ts`. It cannot be
 set from Settings, the request body or an environment variable, so a browser
 cannot redirect the search key to another host.
 
+### Official-source mode
+
+When you ask for official, primary, vendor or manufacturer sources, JARVIS
+restricts the first search to the relevant first-party domains instead of
+trusting general web ranking.
+
+A request enters official mode only when it asks for a **source-like artefact**
+— documentation, docs, pricing, release notes, specs — *and* mentions official
+or primary sourcing. Ordinary conversation that merely contains the word
+"official" ("what's the official national dish of Spain?") and creative writing
+never trigger it, and the normal search opt-out still applies.
+
+| Vendor / product | Domains used |
+| --- | --- |
+| Google Gemini API | `ai.google.dev` |
+| Google Cloud | `cloud.google.com` |
+| OpenAI API | `platform.openai.com` |
+| OpenAI announcements | `openai.com` |
+| Anthropic / Claude | `docs.anthropic.com` |
+| GitHub | `docs.github.com` |
+| Microsoft / Azure | `learn.microsoft.com` |
+| Apple developer | `developer.apple.com` |
+| Spotify developer | `developer.spotify.com` |
+| Tavily | `docs.tavily.com` |
+
+The registry lives in `lib/ai/search/official.ts`. Domains are matched exactly
+— `ai.google.dev` never matches `ai.google.dev.evil.com`, an arbitrary
+subdomain, or a lookalike. When a query names a product, the more specific
+domain wins (Gemini → `ai.google.dev`; Google Cloud → `cloud.google.com`;
+OpenAI API pricing → `platform.openai.com`; an OpenAI announcement →
+`openai.com`).
+
+**Sufficiency.** Official retrieval counts as sufficient only when at least
+**two** returned results match a requested first-party host exactly *and* at
+least one of them is a documentation or pricing path. A vendor homepage alone
+is not enough.
+
+**Controlled fallback.** If official evidence is insufficient, JARVIS runs
+**one** broader, unrestricted search. Official results stay first; fallback
+results are marked as third-party **secondary** evidence in both the UI and the
+model prompt. The application never relabels a third-party source as official,
+and it never runs more than two searches for one turn. If the restricted
+search itself fails (network, timeout, rejected key), no fallback is attempted —
+the failure is reported instead.
+
+**Unknown vendors.** If no first-party domain can be identified from the
+request, JARVIS does not invent one. It runs a normal search and tells you that
+official-source verification was unavailable. The same message appears in the
+assistant panel.
+
+**What the model is told.** In official mode it must prefer the official
+sources, keep third-party fallback clearly secondary, cite only supplied URLs,
+include the model or product name, unit, currency and conditions only when the
+source carries them, give dates only when the evidence has them, and say when
+something cannot be verified. It is explicitly told it has only each result's
+title, URL and snippet — so it must not claim a fact was "verified against the
+page".
+
+**Status labels.** The assistant panel distinguishes a normal live search, an
+official-only search, an official search with third-party fallback, a search
+with insufficient official evidence, and an unidentified-vendor search. Official
+links carry a check mark; secondary links do not.
+
 ### What the model sees
 
 Bounded results (title, URL, snippet, optional publication date) inside a
@@ -149,9 +212,15 @@ page contents as evidence, never as instructions, and to cite only the supplied
 URLs. If retrieval fails, the model is told to say that live search could not
 be completed.
 
+This section applies to official mode too: the official/primary instruction is
+added *inside* the same untrusted-evidence model. A retrieved page is still
+never treated as an instruction, and its text cannot close the fence.
+
 ### Limits
 
 - Up to **five** results per query, `search_depth: basic` (one Tavily credit).
+- Official mode uses at most **two** searches per turn (one restricted, one
+  optional fallback), so it costs at most two Tavily credits.
 - Search is skipped when Local Core is selected — a local core has no model to
   read the sources.
 - A search runs before generation, not as an iterative tool loop.
@@ -197,3 +266,7 @@ You must re-enter the key in `.env.local`.
 Automated tests use mocked provider responses and assert request shape,
 streaming behaviour, cancellation and error classification. They do **not**
 prove your account can reach the model — only a live "Test connection" does.
+
+The web-search suites mock Tavily as well. They need **no** API keys, make no
+network calls and spend no Tavily credits; a fake `TAVILY_API_KEY` is used only
+to assert that the key travels in the authorization header rather than the URL.

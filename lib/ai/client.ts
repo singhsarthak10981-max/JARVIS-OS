@@ -112,6 +112,12 @@ export async function streamJarvis(
             ? (event.sources as SearchNotice["sources"])
             : undefined,
           message: typeof event.message === "string" ? event.message : undefined,
+          // Added in Sprint 12; older servers simply omit these.
+          mode: event.mode === "official" ? "official" : undefined,
+          vendor: typeof event.vendor === "string" ? event.vendor : undefined,
+          domains: Array.isArray(event.domains)
+            ? event.domains.filter((item): item is string => typeof item === "string")
+            : undefined,
         });
         break;
       case "delta":

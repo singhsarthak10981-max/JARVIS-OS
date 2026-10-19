@@ -16,6 +16,7 @@ import {
 import {
   buildSearchFailureNotice,
   buildSearchReference,
+  type OfficialPromptContext,
 } from "./search/prompt";
 import type { SearchSource } from "./search/types";
 
@@ -571,7 +572,13 @@ export async function probeProvider(
 
 /** Web-search material attached to one generation. Server-side only. */
 export type SearchPromptContext =
-  | { kind: "results"; query: string; sources: SearchSource[] }
+  | {
+      kind: "results";
+      query: string;
+      sources: SearchSource[];
+      /** Present when the user asked for official / primary sources. */
+      official?: OfficialPromptContext;
+    }
   | { kind: "failure"; message: string };
 
 export function buildSystemPrompt(
@@ -586,7 +593,11 @@ export function buildSystemPrompt(
 ): string {
   const searchBlock =
     search?.kind === "results"
-      ? `\n${buildSearchReference(search.query, search.sources)}\n`
+      ? `\n${buildSearchReference(
+          search.query,
+          search.sources,
+          search.official
+        )}\n`
       : search?.kind === "failure"
         ? `\n${buildSearchFailureNotice(search.message)}\n`
         : "";

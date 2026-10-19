@@ -54,6 +54,14 @@
   --jarvis-text-muted: #7A7A7A;
   --jarvis-text-disabled: #555555;
   --jarvis-glow-rgb: 229, 0, 0;
+  --jarvis-orb-idle: #7A0000;
+  --jarvis-orb-idle-highlight: #E50000;
+  --jarvis-orb-listening: #2ECC71;
+  --jarvis-orb-thinking: #4AA3FF;
+  --jarvis-orb-speaking: #FF6600;
+  --jarvis-orb-executing: #FF3333;
+  --jarvis-orb-offline: #555555;
+  --jarvis-orb-error: #FF0000;
 }
 
 [data-theme="arc-reactor"] {
@@ -62,7 +70,18 @@
   --jarvis-red-bright: #66F3FF;
   --jarvis-hover-red: #4DEBFF;
   --jarvis-crimson: #00697A;
+  --jarvis-orange: #A4F5FF;
+  --jarvis-success: #70F5C4;
+  --jarvis-info: #78BFFF;
   --jarvis-glow-rgb: 0, 229, 255;
+  --jarvis-orb-idle: #07506A;
+  --jarvis-orb-idle-highlight: #00E5FF;
+  --jarvis-orb-listening: #70F5C4;
+  --jarvis-orb-thinking: #78BFFF;
+  --jarvis-orb-speaking: #A4F5FF;
+  --jarvis-orb-executing: #00E5FF;
+  --jarvis-orb-offline: #526C80;
+  --jarvis-orb-error: #FF5C73;
 }
 
 [data-theme="stealth"] {
@@ -71,7 +90,47 @@
   --jarvis-red-bright: #FFDD55;
   --jarvis-hover-red: #FFD633;
   --jarvis-crimson: #6B5800;
+  --jarvis-orange: #FFD56B;
   --jarvis-glow-rgb: 241, 196, 15;
+  --jarvis-orb-idle: #5B4700;
+  --jarvis-orb-idle-highlight: #F1C40F;
+  --jarvis-orb-listening: #8EFFB2;
+  --jarvis-orb-thinking: #81C7FF;
+  --jarvis-orb-speaking: #FFD56B;
+  --jarvis-orb-executing: #FFDD55;
+  --jarvis-orb-offline: #6A6340;
+  --jarvis-orb-error: #FF5C73;
+}
+
+[data-theme="stark-interface"] {
+  --background: #020812;
+  --foreground: #DDF4FF;
+  --jarvis-red: #31E7FF;
+  --jarvis-red-dim: #056178;
+  --jarvis-red-bright: #B4F8FF;
+  --jarvis-hover-red: #8AF2FF;
+  --jarvis-crimson: #0A3850;
+  --jarvis-orange: #FFB86B;
+  --jarvis-success: #70F5C4;
+  --jarvis-warning: #FFD36A;
+  --jarvis-info: #78BFFF;
+  --jarvis-bg-primary: #020812;
+  --jarvis-bg-secondary: #06111F;
+  --jarvis-surface: #081B2B;
+  --jarvis-panel: #0B2235;
+  --jarvis-glass: rgba(5, 22, 37, 0.78);
+  --jarvis-text: #DDF4FF;
+  --jarvis-text-muted: #86A9BD;
+  --jarvis-text-disabled: #526C80;
+  --jarvis-glow-rgb: 49, 231, 255;
+  --jarvis-orb-idle: #07506A;
+  --jarvis-orb-idle-highlight: #31E7FF;
+  --jarvis-orb-listening: #70F5C4;
+  --jarvis-orb-thinking: #78BFFF;
+  --jarvis-orb-speaking: #A1F3FF;
+  --jarvis-orb-executing: #31E7FF;
+  --jarvis-orb-offline: #526C80;
+  --jarvis-orb-error: #FF5C73;
 }
 
 .dark {
@@ -84,8 +143,8 @@
     box-sizing: border-box;
   }
   body {
-    background-color: #050505;
-    color: #B8B8B8;
+    background-color: var(--jarvis-bg-primary);
+    color: var(--jarvis-text);
     overflow: hidden;
   }
   html {
@@ -256,3 +315,91 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Stark reticle cursor: a quiet precision overlay, never an input blocker. */
+.jarvis-reticle {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  color: rgb(var(--jarvis-glow-rgb) / 0.9);
+  filter: drop-shadow(0 0 5px rgb(var(--jarvis-glow-rgb) / 0.28));
+  transition: opacity 120ms ease, scale 140ms ease;
+  contain: layout style;
+}
+
+.jarvis-reticle__ring {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.jarvis-reticle__ring::before,
+.jarvis-reticle__ring::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgb(var(--jarvis-glow-rgb) / 0.35);
+  border-radius: 50%;
+}
+
+.jarvis-reticle__ring::after {
+  inset: 9px;
+  border-color: currentColor;
+  background: rgb(var(--jarvis-glow-rgb) / 0.18);
+}
+
+.jarvis-reticle__tick {
+  position: absolute;
+  display: block;
+  background: currentColor;
+  box-shadow: 0 0 4px rgb(var(--jarvis-glow-rgb) / 0.65);
+}
+
+.jarvis-reticle__tick--vertical {
+  width: 1px;
+  height: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.jarvis-reticle__tick--horizontal {
+  width: 4px;
+  height: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.jarvis-reticle__tick--top { top: 0; }
+.jarvis-reticle__tick--bottom { bottom: 0; }
+.jarvis-reticle__tick--left { left: 0; }
+.jarvis-reticle__tick--right { right: 0; }
+
+.jarvis-reticle[data-interactive="true"] {
+  scale: 1.18;
+}
+
+@media (pointer: fine) {
+  html.jarvis-reticle-active,
+  html.jarvis-reticle-active body,
+  html.jarvis-reticle-active button,
+  html.jarvis-reticle-active a,
+  html.jarvis-reticle-active [role="button"],
+  html.jarvis-reticle-active select,
+  html.jarvis-reticle-active [data-cursor-interactive] {
+    cursor: none !important;
+  }
+
+  html.jarvis-reticle-active input,
+  html.jarvis-reticle-active textarea,
+  html.jarvis-reticle-active [contenteditable="true"] {
+    cursor: text !important;
+  }
+
+}
+

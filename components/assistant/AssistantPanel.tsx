@@ -107,7 +107,7 @@ export default function AssistantPanel() {
     if (provider === "local") {
       return {
         label: "LOCAL CORE",
-        color: "#E50000",
+        color: "var(--jarvis-red)",
         title: "Running on the built-in local intelligence core.",
       };
     }
@@ -227,7 +227,7 @@ export default function AssistantPanel() {
                 />
                 <span
                   className="relative flex h-7 w-7 items-center justify-center rounded-full border"
-                  style={{ borderColor: `${stateColor}66` }}
+                  style={{ borderColor: `color-mix(in srgb, ${stateColor} 40%, transparent)` }}
                 >
                   <motion.span
                     className="h-3 w-3 rounded-full"

@@ -233,7 +233,10 @@ See [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) and [`docs/ARCHITECTURE.md`
 | Settings + live Command Center | ✅ Complete |
 | DJ / Producer / Bar / Business modules | 🚧 Scaffolded — next milestones |
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full plan.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the release plan.
+
+- [Stark Interface sprint](docs/STARK_INTERFACE_SPRINT.md) — visual direction and acceptance checks.
+- [Integrations roadmap](docs/INTEGRATIONS_ROADMAP.md) — current connection boundaries, local-file permissions and planned external adapters.
 
 ---
 

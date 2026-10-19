@@ -15,7 +15,6 @@ import {
 import { useAppStore } from "@/lib/store";
 import { tokens } from "@/lib/tokens";
 
-const c = tokens.color;
 const dur = tokens.duration;
 
 function formatTime(date: Date) {
@@ -42,13 +41,13 @@ interface TopHUDProps {
 }
 
 const AI_STATE_COLORS: Record<string, string> = {
-  idle: c.textDisabled,
-  listening: c.success,
-  thinking: c.jarvisRed,
-  speaking: "#FF6600",
-  executing: c.info,
-  offline: c.textDisabled,
-  error: c.redBright,
+  idle: "var(--jarvis-text-disabled)",
+  listening: "var(--jarvis-success)",
+  thinking: "var(--jarvis-info)",
+  speaking: "var(--jarvis-orange)",
+  executing: "var(--jarvis-red-bright)",
+  offline: "var(--jarvis-text-disabled)",
+  error: "#FF5C73",
 };
 
 export default function TopHUD({ activeModule = "command-center" }: TopHUDProps) {
@@ -138,8 +137,8 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
           <span
             className="h-1.5 w-1.5 rounded-full"
             style={{
-              backgroundColor: AI_STATE_COLORS[aiState] ?? c.textDisabled,
-              boxShadow: `0 0 6px ${AI_STATE_COLORS[aiState] ?? c.textDisabled}80`,
+              backgroundColor: AI_STATE_COLORS[aiState] ?? "var(--jarvis-text-disabled)",
+              boxShadow: `0 0 6px color-mix(in srgb, ${AI_STATE_COLORS[aiState] ?? "var(--jarvis-text-disabled)"} 50%, transparent)`,
             }}
           />
           <span className="hidden text-[10px] tracking-wider text-jarvis-text-muted uppercase transition-colors group-hover:text-jarvis-text-secondary sm:inline">
@@ -255,10 +254,10 @@ function StatusIndicator({
 }) {
   const color =
     status.tone === "ready"
-      ? c.success
+      ? "var(--jarvis-success)"
       : status.tone === "problem"
-        ? c.redBright
-        : c.textDisabled;
+        ? "var(--jarvis-red-bright)"
+        : "var(--jarvis-text-disabled)";
 
   return (
     <div
@@ -272,7 +271,7 @@ function StatusIndicator({
           className="h-1.5 w-1.5 rounded-full"
           style={{
             backgroundColor: color,
-            boxShadow: status.tone === "ready" ? `0 0 6px ${color}80` : undefined,
+            boxShadow: status.tone === "ready" ? `0 0 6px color-mix(in srgb, ${color} 50%, transparent)` : undefined,
           }}
         />
         {status.tone === "ready" && (

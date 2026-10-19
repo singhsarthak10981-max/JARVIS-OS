@@ -38,7 +38,7 @@ function OrbRingsInner({ state, wakeUp }: OrbRingsProps) {
           style={{
             borderRadius: r.orb,
             inset: `${ring.inset}px`,
-            borderColor: `${coreColor}${Math.round(ringOpacity * 255).toString(16).padStart(2, "0")}`,
+            borderColor: `color-mix(in srgb, ${coreColor} ${Math.round(ringOpacity * 100)}%, transparent)`,
           }}
           initial={{ rotate: 0, opacity: 0 }}
           animate={
@@ -72,7 +72,7 @@ function OrbRingsInner({ state, wakeUp }: OrbRingsProps) {
         style={{
           borderRadius: r.orb,
           inset: "-30px",
-          background: `conic-gradient(from 0deg, transparent, ${coreColor}15, transparent, ${coreColor}08, transparent)`,
+          background: `conic-gradient(from 0deg, transparent, color-mix(in srgb, ${coreColor} 8%, transparent), transparent, color-mix(in srgb, ${coreColor} 4%, transparent), transparent)`,
         }}
         animate={{
           rotate: 360,

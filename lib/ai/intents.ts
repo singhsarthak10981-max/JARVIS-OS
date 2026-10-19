@@ -106,6 +106,10 @@ const THEME_ALIASES: Record<string, ThemeId> = {
   "stealth": "stealth",
   "amber": "stealth",
   "yellow": "stealth",
+  "stark": "stark-interface",
+  "stark interface": "stark-interface",
+  "iron man": "stark-interface",
+  "jarvis blue": "stark-interface",
 };
 
 const WALLPAPER_ALIASES: Record<string, string> = {
@@ -203,10 +207,13 @@ function matchModule(text: string): ModuleId | null {
 }
 
 function matchTheme(text: string): ThemeId | null {
+  let best: { id: ThemeId; length: number } | null = null;
   for (const [alias, id] of Object.entries(THEME_ALIASES)) {
-    if (hasWord(text, alias)) return id;
+    if (hasWord(text, alias) && (!best || alias.length > best.length)) {
+      best = { id, length: alias.length };
+    }
   }
-  return null;
+  return best?.id ?? null;
 }
 
 function matchWallpaper(text: string): string | null {
@@ -511,7 +518,7 @@ export function resolveIntent(
     }
   }
 
-  if (/(switch|change|set|use|activate|load).*(arc reactor|stealth|tactical red)/.test(t)) {
+  if (/(switch|change|set|use|activate|load).*(arc reactor|stealth|tactical red|stark(?: interface)?|iron man|jarvis blue)/.test(t)) {
     const theme = matchTheme(t);
     if (theme) {
       const label = THEMES.find((x) => x.id === theme)?.label ?? theme;

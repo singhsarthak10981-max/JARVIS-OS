@@ -174,6 +174,21 @@ describe("appearance", () => {
     });
   });
 
+  it.each(["switch to Stark Interface theme", "use the Iron Man theme", "switch to Jarvis blue"])(
+    "selects the Stark Interface theme from the command %s",
+    (command) => {
+      expect(resolve(command)).toMatchObject({
+        action: { type: "set-theme", theme: "stark-interface" },
+      });
+    }
+  );
+
+  it("keeps the shorter blue alias mapped to Arc Reactor", () => {
+    expect(resolve("switch to blue theme")).toMatchObject({
+      action: { type: "set-theme", theme: "arc-reactor" },
+    });
+  });
+
   it("changes the wallpaper preset", () => {
     expect(resolve("set the wallpaper to emerald")).toMatchObject({
       action: { type: "set-wallpaper", preset: "emerald" },

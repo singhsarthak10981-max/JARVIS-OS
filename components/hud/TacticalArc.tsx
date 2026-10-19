@@ -4,7 +4,7 @@ import { memo } from "react";
 import { motion } from "framer-motion";
 
 const TacticalArc = memo(function TacticalArc() {
-  const red = "#e50000";
+  const red = "var(--jarvis-red)";
 
   return (
     <div

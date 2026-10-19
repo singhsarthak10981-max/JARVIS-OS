@@ -37,14 +37,14 @@ export const tokens = {
   },
   orb: {
     core: {
-      idle: "#7A0000",
-      idleHighlight: "#E50000",
-      listening: "#2ECC71",
-      thinking: "#4AA3FF",
-      speaking: "#FF6600",
-      executing: "#FF3333",
-      offline: "#555555",
-      error: "#FF0000",
+      idle: "var(--jarvis-orb-idle)",
+      idleHighlight: "var(--jarvis-orb-idle-highlight)",
+      listening: "var(--jarvis-orb-listening)",
+      thinking: "var(--jarvis-orb-thinking)",
+      speaking: "var(--jarvis-orb-speaking)",
+      executing: "var(--jarvis-orb-executing)",
+      offline: "var(--jarvis-orb-offline)",
+      error: "var(--jarvis-orb-error)",
     },
     glow: {
       idle: 0.35,

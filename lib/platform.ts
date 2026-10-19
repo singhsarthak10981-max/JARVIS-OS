@@ -29,6 +29,29 @@ function keyToken(token: string): string {
       return "Backspace";
     case "↩":
       return "Enter";
+    // Punctuation is named, not drawn. A bare "," at hint sizes is two pixels
+    // tall and reads as a full stop ("Ctrl ," looked like "Ctrl ."). Naming
+    // the key matches how Backspace and Enter are already presented.
+    case ",":
+      return "Comma";
+    case ".":
+      return "Period";
+    case "/":
+      return "Slash";
+    case ";":
+      return "Semicolon";
+    case "'":
+      return "Quote";
+    case "-":
+      return "Minus";
+    case "=":
+      return "Equals";
+    case "[":
+      return "Left Bracket";
+    case "]":
+      return "Right Bracket";
+    case "`":
+      return "Backtick";
     default:
       return token;
   }

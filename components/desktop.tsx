@@ -82,6 +82,14 @@ export default function Desktop() {
           navigate(modules[idx]);
           openModuleWindow(modules[idx]);
         }
+        return;
+      }
+      // Settings advertises Ctrl+, in the sidebar, the HUD hint strip and its
+      // tooltip; without this branch the hint pointed at nothing.
+      if (isMod && e.key === ",") {
+        e.preventDefault();
+        navigate("settings");
+        openModuleWindow("settings");
       }
     };
     window.addEventListener("keydown", handler);

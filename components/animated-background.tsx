@@ -25,7 +25,7 @@ export default function AnimatedBackground() {
     const accent =
       getComputedStyle(document.documentElement)
         .getPropertyValue("--jarvis-glow-rgb")
-        .trim() || "229, 0, 0";
+        .trim() || "229 0 0";
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -82,12 +82,12 @@ export default function AnimatedBackground() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${accent}, ${p.opacity})`;
+        ctx.fillStyle = `rgb(${accent} / ${p.opacity})`;
         ctx.fill();
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${accent}, ${p.opacity * 0.15})`;
+        ctx.fillStyle = `rgb(${accent} / ${p.opacity * 0.15})`;
         ctx.fill();
       }
 
@@ -99,7 +99,7 @@ export default function AnimatedBackground() {
       for (const p of particlesRef.current) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${accent}, ${p.opacity})`;
+        ctx.fillStyle = `rgb(${accent} / ${p.opacity})`;
         ctx.fill();
       }
     };

@@ -55,7 +55,11 @@
      surfaces and were below a comfortable reading contrast. */
   --jarvis-text-muted: #8F8F8F;
   --jarvis-text-disabled: #6B6B6B;
-  --jarvis-glow-rgb: 229, 0, 0;
+  /* Space-separated channels: the focus ring, selection, scrollbar and
+     reticle use `rgb(var(--jarvis-glow-rgb) / <alpha>)`. Comma-separated
+     channels are only valid in the legacy form, so mixing them with slash
+     alpha silently drops the whole declaration. */
+  --jarvis-glow-rgb: 229 0 0;
   --jarvis-orb-idle: #7A0000;
   --jarvis-orb-idle-highlight: #E50000;
   --jarvis-orb-listening: #2ECC71;
@@ -75,7 +79,7 @@
   --jarvis-orange: #A4F5FF;
   --jarvis-success: #70F5C4;
   --jarvis-info: #78BFFF;
-  --jarvis-glow-rgb: 0, 229, 255;
+  --jarvis-glow-rgb: 0 229 255;
   --jarvis-orb-idle: #07506A;
   --jarvis-orb-idle-highlight: #00E5FF;
   --jarvis-orb-listening: #70F5C4;
@@ -93,7 +97,7 @@
   --jarvis-hover-red: #FFD633;
   --jarvis-crimson: #6B5800;
   --jarvis-orange: #FFD56B;
-  --jarvis-glow-rgb: 241, 196, 15;
+  --jarvis-glow-rgb: 241 196 15;
   --jarvis-orb-idle: #5B4700;
   --jarvis-orb-idle-highlight: #F1C40F;
   --jarvis-orb-listening: #8EFFB2;
@@ -124,7 +128,7 @@
   --jarvis-text: #DDF4FF;
   --jarvis-text-muted: #86A9BD;
   --jarvis-text-disabled: #526C80;
-  --jarvis-glow-rgb: 49, 231, 255;
+  --jarvis-glow-rgb: 49 231 255;
   --jarvis-orb-idle: #07506A;
   --jarvis-orb-idle-highlight: #31E7FF;
   --jarvis-orb-listening: #70F5C4;

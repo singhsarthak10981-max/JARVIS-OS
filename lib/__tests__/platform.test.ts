@@ -8,7 +8,9 @@ import { formatShortcut, shortcutLabel } from "../platform";
 describe("shortcut formatting", () => {
   it("translates separated shortcuts for Windows and Linux", () => {
     expect(formatShortcut("⌘+1", "other")).toBe("Ctrl 1");
-    expect(formatShortcut("⌘+,", "other")).toBe("Ctrl ,");
+    // A bare comma reads as a full stop at hint sizes; name the key instead.
+    expect(formatShortcut("⌘+,", "other")).toBe("Ctrl Comma");
+    expect(formatShortcut("⌘+,", "other")).not.toContain(".");
     expect(formatShortcut("⌘B", "other")).toBe("Ctrl B");
   });
 

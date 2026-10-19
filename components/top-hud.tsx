@@ -42,13 +42,13 @@ interface TopHUDProps {
 }
 
 const AI_STATE_COLORS: Record<string, string> = {
-  idle: c.textDisabled,
-  listening: c.success,
-  thinking: c.jarvisRed,
-  speaking: "#FF6600",
-  executing: c.info,
-  offline: c.textDisabled,
-  error: c.redBright,
+  idle: "var(--jarvis-text-disabled)",
+  listening: "var(--jarvis-success)",
+  thinking: "var(--jarvis-info)",
+  speaking: "var(--jarvis-orange)",
+  executing: "var(--jarvis-red-bright)",
+  offline: "var(--jarvis-text-disabled)",
+  error: "#FF5C73",
 };
 
 export default function TopHUD({ activeModule = "command-center" }: TopHUDProps) {
@@ -139,7 +139,7 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
             className="h-1.5 w-1.5 rounded-full"
             style={{
               backgroundColor: AI_STATE_COLORS[aiState] ?? c.textDisabled,
-              boxShadow: `0 0 6px ${AI_STATE_COLORS[aiState] ?? c.textDisabled}80`,
+              boxShadow: `0 0 6px color-mix(in srgb, ${AI_STATE_COLORS[aiState] ?? "var(--jarvis-text-disabled)"} 50%, transparent)`,
             }}
           />
           <span className="hidden text-[10px] tracking-wider text-jarvis-text-muted uppercase transition-colors group-hover:text-jarvis-text-secondary sm:inline">

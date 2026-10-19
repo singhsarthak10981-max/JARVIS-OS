@@ -51,7 +51,11 @@ export interface StreamHandlers {
   /** Web search lifecycle for this turn (searching, complete, unavailable…). */
   onSearch?: (notice: SearchNotice) => void;
   onDelta: (text: string) => void;
-  onError?: (message: string) => void;
+  /**
+   * `code` is the server's safe failure category (`ProviderErrorCode`), when
+   * one was supplied. It is never a raw upstream body.
+   */
+  onError?: (message: string, code?: string) => void;
   onDone?: () => void;
   signal?: AbortSignal;
 }
@@ -127,7 +131,8 @@ export async function streamJarvis(
         handlers.onError?.(
           typeof event.message === "string"
             ? event.message
-            : "The intelligence uplink failed."
+            : "The intelligence uplink failed.",
+          typeof event.code === "string" ? event.code : undefined
         );
         break;
       case "done":

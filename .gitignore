@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local runtime data (telemetry, Sprint 13)
+# Generated on the machine that runs JARVIS. Never commit it.
+/.jarvis-data/

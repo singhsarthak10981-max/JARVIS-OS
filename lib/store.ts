@@ -72,6 +72,11 @@ export interface SettingsState {
   aiBaseUrl: string;
   /** Live web search (Tavily) for questions that need current information. */
   webSearchEnabled: boolean;
+  /**
+   * Local, opt-in operational telemetry. Metadata only; stored on the JARVIS
+   * server filesystem, never uploaded. Defaults to off.
+   */
+  localTelemetryEnabled: boolean;
 
   // Voice
   voiceEnabled: boolean;
@@ -93,6 +98,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   aiModel: "",
   aiBaseUrl: "",
   webSearchEnabled: true,
+  localTelemetryEnabled: false,
   voiceEnabled: false,
   voiceRate: 1,
   voicePitch: 0.9,

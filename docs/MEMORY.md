@@ -29,7 +29,9 @@ memory_log     id, action ('read'|'search'|'write'|'delete'|'use'),
 Timestamps are ISO-8601 UTC strings. Facts are upserted by `key` and skills
 by `name`, so re-saving updates in place. Every fact/skill read, search,
 write and delete is recorded in `memory_log` (reading the log itself is not
-logged, and a bulk wipe does not leave a fresh entry behind).
+logged, and a bulk wipe does not leave a fresh entry behind). The log keeps
+only the newest 1,000 rows, and search queries that look like secrets are
+recorded as `[redacted]`.
 
 ## API
 
@@ -91,17 +93,23 @@ Deletes (responds with how many rows were removed):
 
 ```bash
 curl -X DELETE 'localhost:3000/api/memory?conversation=3'      # one conversation + its messages
-curl -X DELETE 'localhost:3000/api/memory?scope=facts'         # facts | skills | conversations | log
-curl -X DELETE 'localhost:3000/api/memory?scope=all&confirm=true'  # everything
+curl -X DELETE 'localhost:3000/api/memory?scope=facts&confirm=true'  # facts | skills | conversations | log
+curl -X DELETE 'localhost:3000/api/memory?scope=all&confirm=true'    # everything
 ```
 
-`scope=all` requires `confirm=true` so a stray call cannot wipe the whole
-memory. Conversations are written via the data layer
+Every scoped wipe requires `confirm=true` so a stray (or model-hallucinated)
+call cannot bulk-delete memory; deleting a single item needs no confirmation.
+Conversations are written via the data layer
 (`createConversation` / `appendMessage` in `lib/memory/db.ts`); there is
 intentionally no public POST route for them yet.
 
 ## Notes
 
+- **Secrets are refused at write time.** POSTs are scanned for card numbers
+  (Luhn-checked, so order numbers pass), known API-key/token shapes,
+  `password: …`-style assignments, JWTs and private-key headers. A match
+  returns 400 and nothing is stored or logged. It is a heuristic guardrail,
+  not a vault — real credentials belong in a password manager.
 - **Search is `LIKE`-based** (wildcards escaped). At personal scale (hundreds
   of facts) this is instant. If the store grows large, add an FTS5 virtual
   table over `facts(key, value)` without changing the API.

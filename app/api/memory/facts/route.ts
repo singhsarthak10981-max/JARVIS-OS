@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listFacts, upsertFact } from "@/lib/memory/db";
+import { findSecret, secretRejection } from "@/lib/memory/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +56,16 @@ export async function POST(request: Request) {
   if (!value) {
     return NextResponse.json(
       { error: "value is required (non-empty string)." },
+      { status: 400 }
+    );
+  }
+
+  // Memory is a plain local database, not a vault: anything that looks
+  // like a credential is refused before it is stored (or logged).
+  const secret = findSecret([key, value]);
+  if (secret !== null) {
+    return NextResponse.json(
+      { error: secretRejection(secret) },
       { status: 400 }
     );
   }

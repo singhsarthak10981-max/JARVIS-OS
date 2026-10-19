@@ -65,13 +65,14 @@ const WIPE_SCOPES: readonly WipeScope[] = [
  * Delete endpoint: remove one conversation, or wipe a whole category.
  *
  *   DELETE /api/memory?conversation=3
- *   DELETE /api/memory?scope=facts|skills|conversations|log
+ *   DELETE /api/memory?scope=facts|skills|conversations|log&confirm=true
  *   DELETE /api/memory?scope=all&confirm=true
  *
- * `scope=all` additionally needs `confirm=true` so a stray (or
- * model-hallucinated) call cannot nuke the entire memory in one request.
- * Single facts/skills are deleted via /api/memory/facts/:id and
- * /api/memory/skills/:id. Responds with the number of rows removed.
+ * Every scoped wipe needs `confirm=true` so a stray (or model-hallucinated)
+ * call cannot bulk-delete memory by accident. Single items need no
+ * confirmation: facts/skills go via /api/memory/facts/:id and
+ * /api/memory/skills/:id, one conversation via `?conversation=<id>`.
+ * Responds with the number of rows removed.
  */
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -104,9 +105,11 @@ export async function DELETE(request: Request) {
       { status: 400 }
     );
   }
-  if (scope === "all" && searchParams.get("confirm") !== "true") {
+  if (searchParams.get("confirm") !== "true") {
     return NextResponse.json(
-      { error: "Wiping all memory requires ?scope=all&confirm=true." },
+      {
+        error: `Wiping memory requires confirmation: ?scope=${scope}&confirm=true.`,
+      },
       { status: 400 }
     );
   }

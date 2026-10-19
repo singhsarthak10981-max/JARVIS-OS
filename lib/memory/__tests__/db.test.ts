@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  MAX_MEMORY_LOG_ROWS,
   appendMessage,
   createConversation,
   deleteConversation,
@@ -191,6 +192,29 @@ describe("memory_log, overview and wipe", () => {
     expect(entries.map((e) => e.action)).toContain("search");
     expect(entries.map((e) => e.action)).toContain("delete");
     expect(entries[0].detail).toContain("city");
+  });
+
+  it("caps memory_log at the newest 1000 rows", () => {
+    const seedRow = db.prepare(
+      "INSERT INTO memory_log (action, entity_type, entity_id, detail, created_at) VALUES ('read', 'fact', NULL, 'seed', '2026-01-01T00:00:00.000Z')"
+    );
+    const seed = db.transaction(() => {
+      for (let i = 0; i < MAX_MEMORY_LOG_ROWS + 500; i++) seedRow.run();
+    });
+    seed();
+
+    // The next logged operation prunes the overflow, keeping itself.
+    upsertFact({ key: "trigger", value: "prunes the log" }, db);
+    expect(memoryOverview(db).logEntries).toBe(MAX_MEMORY_LOG_ROWS);
+    expect(listMemoryLog({ limit: 1 }, db)[0].detail).toContain("trigger");
+  });
+
+  it("redacts secret-looking search queries in the log", () => {
+    listFacts({ q: "4242 4242 4242 4242" }, db);
+    const [entry] = listMemoryLog({ entityType: "fact", limit: 1 }, db);
+    expect(entry.action).toBe("search");
+    expect(entry.detail).toContain("[redacted]");
+    expect(entry.detail).not.toContain("4242");
   });
 
   it("reports counts and wipes only the requested scope", () => {

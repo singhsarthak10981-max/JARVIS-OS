@@ -3,6 +3,7 @@ import "server-only";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { findSecret } from "./guard";
 
 /**
  * Long-term AI memory, stored server-side in SQLite.
@@ -24,7 +25,8 @@ import Database from "better-sqlite3";
  *   conversations  chat sessions (title + timestamps)
  *   messages       turns inside a conversation, cascade-deleted with it
  *   skills         learned procedures, `steps` stored as a JSON array
- *   memory_log     audit trail: what was retrieved/written/deleted, when
+ *   memory_log     audit trail: what was retrieved/written/deleted, when;
+ *                  capped at the newest MAX_MEMORY_LOG_ROWS rows
  *
  * All accessors accept an optional `db` so tests can run against `:memory:`.
  * Routes call them bare and get the process-wide singleton from `getDb()`.
@@ -220,6 +222,9 @@ export function getDb(): MemoryDb {
 
 // ── memory_log ────────────────────────────────────────────────────────────
 
+/** Oldest audit entries are pruned on write; only the newest this many stay. */
+export const MAX_MEMORY_LOG_ROWS = 1000;
+
 function log(
   db: MemoryDb,
   action: MemoryAction,
@@ -230,6 +235,22 @@ function log(
   db.prepare(
     "INSERT INTO memory_log (action, entity_type, entity_id, detail, created_at) VALUES (?, ?, ?, ?, ?)"
   ).run(action, entityType, entityId, detail.slice(0, 200), nowIso());
+  // Ids are monotonic (AUTOINCREMENT), so "keep the newest N" is a single
+  // indexed range delete — normally zero or one rows.
+  db.prepare(
+    "DELETE FROM memory_log WHERE id <= (SELECT COALESCE(MAX(id), 0) FROM memory_log) - ?"
+  ).run(MAX_MEMORY_LOG_ROWS);
+}
+
+/**
+ * How a search query appears in the audit log. A query that looks like a
+ * secret is redacted: the log records *that* a search happened, never a
+ * credential someone pasted into the search box.
+ */
+function queryDetail(q: string, total: number): string {
+  return findSecret([q])
+    ? `q=[redacted] (${total} match)`
+    : `q="${q}" (${total} match)`;
 }
 
 export function listMemoryLog(
@@ -351,7 +372,7 @@ export function listFacts(
     q ? "search" : "read",
     "fact",
     null,
-    q ? `q="${q}" (${total} match)` : `list (${total} total)`
+    q ? queryDetail(q, total) : `list (${total} total)`
   );
   return { facts, total };
 }
@@ -597,7 +618,7 @@ export function listSkills(
     q ? "search" : "read",
     "skill",
     null,
-    q ? `q="${q}" (${total} match)` : `list (${total} total)`
+    q ? queryDetail(q, total) : `list (${total} total)`
   );
   return { skills: rows.map(toSkill), total };
 }

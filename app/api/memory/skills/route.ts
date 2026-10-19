@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listSkills, upsertSkill } from "@/lib/memory/db";
+import { findSecret, secretRejection } from "@/lib/memory/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,11 +68,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const { skill, created } = upsertSkill({
-    name,
-    description: readString(body.description, MAX_DESCRIPTION_CHARS) ?? "",
-    steps,
-  });
+  const description = readString(body.description, MAX_DESCRIPTION_CHARS) ?? "";
+
+  // Same rule as facts: no credentials in memory, including inside steps.
+  const secret = findSecret([name, description, ...steps]);
+  if (secret !== null) {
+    return NextResponse.json(
+      { error: secretRejection(secret) },
+      { status: 400 }
+    );
+  }
+
+  const { skill, created } = upsertSkill({ name, description, steps });
   return NextResponse.json({ skill, created });
 }
 

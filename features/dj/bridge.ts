@@ -43,6 +43,11 @@ export interface BridgeHealth {
   platform?: string;
   /** Targets this bridge is configured to control. */
   targets?: string[];
+  /**
+   * Process state, reported only by the `rekordbox.status` action.
+   * Absent means unknown — never assume the application is running.
+   */
+  rekordbox?: { running?: boolean };
 }
 
 export interface BridgeActionResult {

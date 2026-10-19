@@ -280,6 +280,7 @@ export default function DjModule() {
           <PerformanceModule
             tracks={tracks}
             meta={meta}
+            libraryLoaded={!loading}
             onOpenLaunchpad={() => setView("launchpad")}
             onOpenLibrary={() => setView("library")}
             onImport={() => fileInputRef.current?.click()}

@@ -4,6 +4,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import Waveform from "@/features/dj/components/performance/Waveform";
 import StatusBar from "@/features/dj/components/performance/StatusBar";
 import Deck from "@/features/dj/components/performance/Deck";
+import {
+  LAUNCH_REQUESTED,
+  describeLaunchOutcome,
+  runtimeFromHealth,
+  runtimeLabel,
+} from "@/features/dj/system";
 import type { DjTrack } from "@/features/dj/types";
 
 const track: DjTrack = {
@@ -57,8 +63,9 @@ describe("Status bar truthfulness", () => {
       <StatusBar
         bridgeState="offline"
         bridgeOnline={false}
-        hasSpotifyLaunch
+        rekordboxRuntime="unknown"
         libraryCount={5}
+        assignedDecks={0}
       />
     );
 
@@ -76,12 +83,74 @@ describe("Status bar truthfulness", () => {
       <StatusBar
         bridgeState="online"
         bridgeOnline
-        hasSpotifyLaunch
+        rekordboxRuntime="unknown"
         libraryCount={1234}
+        assignedDecks={3}
       />
     );
     expect(html).toContain("1234 TRACKS");
-    expect(html).toContain("REKORDBOX · BRIDGED");
+    expect(html).toContain("3 ASSIGNED");
+  });
+
+  it("never claims Rekordbox is running without a verified report", () => {
+    const html = renderToStaticMarkup(
+      <StatusBar
+        bridgeState="online"
+        bridgeOnline
+        rekordboxRuntime="unknown"
+        libraryCount={5}
+        assignedDecks={1}
+      />
+    );
+
+    expect(html).toContain("STATUS UNKNOWN");
+    expect(html).not.toContain("RUNNING");
+    expect(html).not.toContain("STOPPED");
+  });
+
+  it("shows a verified running state only when one is supplied", () => {
+    const html = renderToStaticMarkup(
+      <StatusBar
+        bridgeState="online"
+        bridgeOnline
+        rekordboxRuntime="running"
+        libraryCount={5}
+        assignedDecks={1}
+      />
+    );
+    expect(html).toContain("RUNNING");
+  });
+});
+
+describe("Rekordbox runtime reporting", () => {
+  it("treats a missing report as unknown, never as running", () => {
+    expect(runtimeFromHealth(null)).toBe("unknown");
+    expect(runtimeFromHealth({})).toBe("unknown");
+    expect(runtimeFromHealth({ rekordbox: {} })).toBe("unknown");
+  });
+
+  it("only accepts an explicit boolean", () => {
+    expect(runtimeFromHealth({ rekordbox: { running: true } })).toBe("running");
+    expect(runtimeFromHealth({ rekordbox: { running: false } })).toBe("stopped");
+  });
+
+  it("labels unknown explicitly", () => {
+    expect(runtimeLabel("unknown")).toBe("STATUS UNKNOWN");
+  });
+
+  it("a successful launch request still reports unknown status", () => {
+    const message = describeLaunchOutcome({ ok: true });
+    expect(message).toBe(LAUNCH_REQUESTED);
+    expect(message.toLowerCase()).toContain("unknown");
+    // Must never assert the process started.
+    expect(message.toLowerCase()).not.toContain("rekordbox is running");
+    expect(message.toLowerCase()).not.toContain("launched successfully");
+  });
+
+  it("passes through a bridge error instead of reporting success", () => {
+    expect(describeLaunchOutcome({ ok: false, error: "No such action" })).toBe(
+      "No such action"
+    );
   });
 });
 
@@ -90,7 +159,7 @@ describe("Deck state", () => {
     const html = renderToStaticMarkup(
       <Deck
         index={1}
-        deck={{ track }}
+        deck={{ track, missingId: null }}
         candidates={candidates}
         onClear={() => {}}
         onLoadSuggestion={() => {}}
@@ -106,11 +175,24 @@ describe("Deck state", () => {
     expect(html.toLowerCase()).toContain("inert");
   });
 
+  it("marks a stored assignment whose track left the library", () => {
+    const html = renderToStaticMarkup(
+      <Deck
+        index={3}
+        deck={{ track: null, missingId: "removed-id" }}
+        candidates={candidates}
+        onClear={() => {}}
+        onLoadSuggestion={() => {}}
+      />
+    );
+    expect(html).toContain("Track no longer in library");
+  });
+
   it("labels an empty deck instead of showing fake content", () => {
     const html = renderToStaticMarkup(
       <Deck
         index={2}
-        deck={{ track: null }}
+        deck={{ track: null, missingId: null }}
         candidates={[]}
         onClear={() => {}}
         onLoadSuggestion={() => {}}
@@ -124,7 +206,7 @@ describe("Deck state", () => {
     const html = renderToStaticMarkup(
       <Deck
         index={1}
-        deck={{ track }}
+        deck={{ track, missingId: null }}
         candidates={candidates}
         onClear={() => {}}
         onLoadSuggestion={() => {}}

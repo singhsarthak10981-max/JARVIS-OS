@@ -67,32 +67,37 @@ export default function SpotifyPanel() {
         </div>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        <button
-          type="button"
-          onClick={() => {
-            openSpotifyWeb();
-            setLaunched("Spotify web player opened in a new tab.");
-          }}
-          className="rounded border border-jarvis-red/30 bg-jarvis-red/10 px-2 py-1.5 text-[7.5px] tracking-[0.14em] text-jarvis-red uppercase transition-colors hover:bg-jarvis-red/20"
-        >
-          Open web player ↗
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const ok = openSpotifyApp();
-            setLaunched(
-              ok
-                ? "Asked Windows to open the Spotify app. If nothing happens, it is not installed."
-                : "This environment cannot open the Spotify app."
-            );
-          }}
-          className="rounded border border-jarvis-red/15 px-2 py-1.5 text-[7.5px] tracking-[0.14em] text-jarvis-text-muted uppercase transition-colors hover:border-jarvis-red/35 hover:text-jarvis-red"
-        >
-          Open desktop app
-        </button>
-      </div>
+      {/* The web player is the default path by decision: it works in Brave with
+          no install and no account linking in JARVIS. */}
+      <button
+        type="button"
+        onClick={() => {
+          openSpotifyWeb();
+          setLaunched("Spotify web player opened in a new tab.");
+        }}
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-jarvis-red/40 bg-jarvis-red/12 px-2 py-2 text-[7.5px] font-semibold tracking-[0.14em] text-jarvis-red uppercase transition-colors hover:bg-jarvis-red/20"
+      >
+        Open web player ↗
+        <span className="rounded-sm border border-jarvis-red/30 px-1 py-[1px] text-[6px] font-normal tracking-[0.1em] text-jarvis-red/70">
+          Default
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          const ok = openSpotifyApp();
+          setLaunched(
+            ok
+              ? "Asked Windows to open the Spotify app. If nothing happens, it is not installed."
+              : "This environment cannot open the Spotify app."
+          );
+        }}
+        className="mt-1 w-full rounded border border-jarvis-red/12 px-2 py-1 text-[7px] tracking-[0.12em] text-jarvis-text-disabled uppercase transition-colors hover:border-jarvis-red/30 hover:text-jarvis-text-muted"
+        title="Optional alternative. Uses the spotify: protocol; the browser shows a prompt if no app is installed."
+      >
+        Try desktop app
+      </button>
 
       <p className="mt-1.5 text-[7px] leading-relaxed text-jarvis-text-disabled">
         Spotify Free pauses after 30 s on demand and cannot be routed into

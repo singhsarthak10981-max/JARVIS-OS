@@ -4,6 +4,47 @@ All notable changes to JARVIS OS are documented here.
 
 ---
 
+# v1.4.0 — Persistent Decks & Bridge Design
+Date: 19 October 2026
+
+## Added
+- **Persistent deck assignments.** Deck contents survive a reload. Only track
+  ids are stored (`jarvis-dj-decks-v1`, versioned, 4 fixed slots, ids capped at
+  128 chars), never audio. Decoded waveforms are not persistable and the UI says
+  so via the "Assignments saved" indicator.
+- A stored assignment whose track has left the library is shown as "Track no
+  longer in library" rather than silently disappearing, and the id is not
+  dropped until you unload it.
+- `libraryLoaded` distinguishes "library still loading" from "track is gone", so
+  a slow IndexedDB read never looks like four deleted tracks.
+- **`docs/BRIDGE.md` rewritten as an approval artefact**: exact four-action
+  allowlist, CSPRNG bearer token with constant-time comparison, loopback-only
+  bind, origin allowlist, 8-step request validation that rejects unknown
+  properties, 1 KB body cap, rate limiting, manual start/stop/revoke, and a
+  24-case Windows test plan including autostart-absence checks.
+- Rekordbox runtime state type (`unknown | running | stopped`) with
+  `runtimeFromHealth` — absent report resolves to **unknown**, never running.
+
+## Changed
+- Status bar now reports `REKORDBOX: STATUS UNKNOWN` instead of conflating
+  process state with bridge connectivity.
+- A successful launch request reports "status unknown until the bridge reports
+  it" — it never implies the application started.
+- Spotify web player is now the single primary action (default), with the
+  desktop app demoted to an optional "Try desktop app" link.
+- Performance header states "Rekordbox status unknown".
+
+## Tests
+- 19 new tests (deck store: sanitisation, round-trip, corrupt JSON, version
+  mismatch, missing-track resolution; runtime reporting: unknown-never-running,
+  explicit-boolean-only, launch-request honesty) — 133 total.
+
+## Not implemented
+- `tools/bridge/` does not exist. Nothing is installed, running, or scheduled to
+  autostart. Bridge creation and a first run both require explicit approval.
+
+---
+
 # v1.3.0 — DJ Performance Surface
 Date: 19 October 2026
 

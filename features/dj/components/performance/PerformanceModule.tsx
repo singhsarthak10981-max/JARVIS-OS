@@ -4,9 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { DjLibraryMeta, DjTrack } from "@/features/dj/types";
 import { useDjBridge } from "@/features/dj/hooks/useDjBridge";
+import {
+  countAssigned,
+  loadDeckState,
+  resolveDecks,
+  saveDeckSlots,
+  type DeckSlots,
+} from "@/features/dj/deckStore";
+import {
+  describeLaunchOutcome,
+  runtimeFromHealth,
+  type RekordboxRuntime,
+} from "@/features/dj/system";
 import { useAppStore } from "@/lib/store";
 import LibraryTable from "../LibraryTable";
-import Deck, { type DeckState } from "./Deck";
+import Deck from "./Deck";
 import VoiceActivationPanel from "./VoiceActivationPanel";
 import SpotifyPanel from "./SpotifyPanel";
 import SessionLog from "./SessionLog";
@@ -15,6 +27,8 @@ import StatusBar from "./StatusBar";
 interface PerformanceModuleProps {
   tracks: DjTrack[];
   meta: DjLibraryMeta | null;
+  /** False while the library is still being read from IndexedDB. */
+  libraryLoaded: boolean;
   onOpenLaunchpad: () => void;
   onOpenLibrary: () => void;
   onImport: () => void;
@@ -41,6 +55,7 @@ function formatClock(date: Date): string {
 export default function PerformanceModule({
   tracks,
   meta,
+  libraryLoaded,
   onOpenLaunchpad,
   onOpenLibrary,
   onImport,
@@ -50,14 +65,19 @@ export default function PerformanceModule({
   const logActivity = useAppStore((s) => s.logActivity);
 
   const [now, setNow] = useState<Date | null>(null);
-  const [decks, setDecks] = useState<DeckState[]>([
-    { track: null },
-    { track: null },
-    { track: null },
-    { track: null },
-  ]);
+
+  // Deck assignments persist as track ids only. The stored array is read once
+  // and then becomes the single source of truth for slot occupancy.
+  const [initialDeckState] = useState(() => loadDeckState());
+  const [slots, setSlots] = useState<DeckSlots>(initialDeckState.slots);
+  const [decksPersisted, setDecksPersisted] = useState(initialDeckState.available);
   const [activeDeck, setActiveDeck] = useState(0);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
+
+  // There is no bridge implementation yet, so this is always "unknown". The
+  // resolver already returns "unknown" when health carries no explicit process
+  // state, which keeps the rule in one place.
+  const rekordboxRuntime: RekordboxRuntime = runtimeFromHealth(status.health);
 
   useEffect(() => {
     setNow(new Date());
@@ -65,32 +85,56 @@ export default function PerformanceModule({
     return () => clearInterval(interval);
   }, []);
 
+  // Persist after every change; the flag drives the honesty label.
+  useEffect(() => {
+    setDecksPersisted(saveDeckSlots(slots));
+  }, [slots]);
+
+  const decks = useMemo(
+    () => resolveDecks(slots, tracks, libraryLoaded),
+    [slots, tracks, libraryLoaded]
+  );
+
+  const assignedCount = useMemo(() => countAssigned(decks), [decks]);
+
   const assign = useCallback(
     (track: DjTrack, slot?: number) => {
-      setDecks((previous) => {
-        // Explicit slot wins; otherwise fill the first empty deck, and if all
-        // are full replace the active deck.
-        const target =
-          slot ??
-          previous.findIndex((deck) => deck.track === null);
-
-        const index = target >= 0 ? target : activeDeck;
+      setSlots((previous) => {
+        // Explicit slot wins; otherwise the first free slot; otherwise the
+        // deck the user last touched.
+        const firstFree = previous.findIndex((id) => id === null);
+        const index = slot ?? (firstFree >= 0 ? firstFree : activeDeck);
         const next = [...previous];
-        next[index] = { track };
+        next[index] = track.id;
         return next;
       });
-      setActiveDeck((current) => {
-        const filled = decks.findIndex((deck) => deck.track === null);
-        return filled >= 0 ? filled : current;
-      });
+
+      if (slot === undefined) {
+        setActiveDeck((current) => {
+          const firstFree = slots.findIndex((id) => id === null);
+          return firstFree >= 0 ? firstFree : current;
+        });
+      }
+
       logActivity(`Deck ${(slot ?? 0) + 1} ← ${track.title}`, "info");
     },
-    [activeDeck, decks, logActivity]
+    [activeDeck, slots, logActivity]
+  );
+
+  const unload = useCallback(
+    (index: number) => {
+      setSlots((previous) => {
+        const next = [...previous];
+        next[index] = null;
+        return next;
+      });
+    },
+    []
   );
 
   const assignedIds = useMemo(
-    () => new Set(decks.map((deck) => deck.track?.id).filter(Boolean) as string[]),
-    [decks]
+    () => new Set(slots.filter((id): id is string => Boolean(id))),
+    [slots]
   );
 
   const libraryPreview = useMemo(() => tracks.slice(0, 40), [tracks]);
@@ -102,12 +146,11 @@ export default function PerformanceModule({
       );
       return;
     }
+
+    // A successful request only proves the request left this page. Runtime
+    // state stays unknown until the bridge reports it explicitly.
     const result = await run("rekordbox.launch");
-    setLaunchMessage(
-      result.ok
-        ? result.message ?? "Rekordbox launch requested."
-        : result.error ?? "The bridge could not launch Rekordbox."
-    );
+    setLaunchMessage(describeLaunchOutcome(result));
   }
 
   return (
@@ -120,7 +163,7 @@ export default function PerformanceModule({
           </h2>
           <p className="flex items-center gap-1.5 text-[6.5px] tracking-[0.2em] text-jarvis-red/70 uppercase">
             <span className="h-1 w-1 rounded-full bg-jarvis-red" />
-            Monitor session · no audio engine
+            Monitor session · no audio engine · Rekordbox status unknown
           </p>
         </div>
 
@@ -201,13 +244,7 @@ export default function PerformanceModule({
                   deck={deck}
                   candidates={tracks}
                   onLoadSuggestion={(track) => assign(track, index)}
-                  onClear={() => {
-                    setDecks((previous) => {
-                      const next = [...previous];
-                      next[index] = { track: null };
-                      return next;
-                    });
-                  }}
+                  onClear={() => unload(index)}
                 />
               </div>
             ))}
@@ -266,10 +303,29 @@ export default function PerformanceModule({
                   onAdd={(track) => assign(track)}
                   addedIds={assignedIds}
                 />
-                <p className="shrink-0 border-t border-jarvis-red/10 px-2 py-1 text-[6.5px] tracking-wider text-jarvis-text-disabled uppercase">
-                  + assigns to deck {activeDeck + 1} (or the first empty deck)
-                  {meta ? ` · ${meta.fileName}` : ""}
-                </p>
+                <div className="flex shrink-0 items-center justify-between gap-2 border-t border-jarvis-red/10 px-2 py-1">
+                  <p className="truncate text-[6.5px] tracking-wider text-jarvis-text-disabled uppercase">
+                    + assigns to deck {activeDeck + 1} (or the first empty deck)
+                    {meta ? ` · ${meta.fileName}` : ""}
+                  </p>
+                  <span
+                    className="shrink-0 text-[6.5px] tracking-wider text-jarvis-text-disabled uppercase"
+                    title={
+                      decksPersisted
+                        ? "Deck assignments are saved in this browser. Decoded waveforms are not persisted."
+                        : "Browser storage is unavailable — assignments last for this session only."
+                    }
+                  >
+                    <span
+                      className={
+                        decksPersisted ? "text-jarvis-success/70" : "text-jarvis-warning/80"
+                      }
+                    >
+                      ●
+                    </span>{" "}
+                    {decksPersisted ? "Assignments saved" : "Session only"}
+                  </span>
+                </div>
               </div>
             )}
           </section>
@@ -286,8 +342,9 @@ export default function PerformanceModule({
       <StatusBar
         bridgeState={status.state}
         bridgeOnline={bridgeOnline}
-        hasSpotifyLaunch
+        rekordboxRuntime={rekordboxRuntime}
         libraryCount={tracks.length}
+        assignedDecks={assignedCount}
       />
     </div>
   );

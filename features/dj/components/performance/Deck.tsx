@@ -5,12 +5,10 @@ import type { DjTrack } from "@/features/dj/types";
 import { formatBpm, formatDuration } from "@/features/dj/format";
 import { useAudioPeaks } from "@/features/dj/hooks/useAudioPeaks";
 import { transitionScore } from "@/services/library/camelot";
+import type { ResolvedDeck } from "@/features/dj/deckStore";
 import Waveform from "./Waveform";
 
-export interface DeckState {
-  /** Track assigned from the user's imported collection. */
-  track: DjTrack | null;
-}
+export type DeckState = ResolvedDeck;
 
 interface DeckProps {
   index: number;
@@ -146,6 +144,15 @@ export default function Deck({
               </span>
             </div>
           </>
+        ) : deck.missingId ? (
+          <div className="py-2 text-center">
+            <p className="text-[8px] tracking-[0.16em] text-jarvis-warning uppercase">
+              Track no longer in library
+            </p>
+            <p className="mt-0.5 text-[7px] leading-relaxed text-jarvis-text-disabled/70">
+              Saved assignment kept until you unload it
+            </p>
+          </div>
         ) : (
           <div className="py-2 text-center">
             <p className="text-[8px] tracking-[0.16em] text-jarvis-text-disabled uppercase">
@@ -164,7 +171,13 @@ export default function Deck({
           peaks={peaks}
           analyzing={analyzing}
           fileName={state.status === "ready" ? state.fileName : undefined}
-          emptyLabel={deck.track ? "LOAD AUDIO FOR WAVEFORM" : "NO AUDIO"}
+          emptyLabel={
+            deck.track
+              ? "LOAD AUDIO FOR WAVEFORM"
+              : deck.missingId
+                ? "TRACK UNAVAILABLE"
+                : "NO AUDIO"
+          }
           className="h-11 w-full rounded-sm"
         />
         {state.status === "error" && (
@@ -273,7 +286,7 @@ export default function Deck({
               Clear
             </button>
           )}
-          {deck.track && (
+          {(deck.track || deck.missingId) && (
             <button
               type="button"
               onClick={onClear}

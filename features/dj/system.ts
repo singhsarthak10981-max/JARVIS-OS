@@ -80,3 +80,47 @@ export function audioInterfaceLabel(bridgeOnline: boolean): {
       "A browser cannot read Rekordbox's audio device or buffer. Install the local bridge to report it, or read it in Rekordbox → Preferences → Audio.",
   };
 }
+
+/** Copy shown when a launch request was accepted by the bridge. */
+export const LAUNCH_REQUESTED =
+  "Launch request sent. Rekordbox status is unknown until the bridge reports it — check the window on your PC.";
+
+/**
+ * Rekordbox runtime state.
+ *
+ * `unknown` is the only honest default: nothing in a browser can see whether
+ * the application is running. A launch request does NOT imply `running`.
+ */
+export type RekordboxRuntime = "unknown" | "running" | "stopped";
+
+/**
+ * Derives runtime state from a bridge health payload.
+ *
+ * Without an explicit `rekordbox.running` boolean the answer is `unknown`.
+ */
+export function runtimeFromHealth(
+  health: { rekordbox?: { running?: boolean } } | null
+): RekordboxRuntime {
+  const running = health?.rekordbox?.running;
+  if (typeof running !== "boolean") return "unknown";
+  return running ? "running" : "stopped";
+}
+
+export function runtimeLabel(runtime: RekordboxRuntime): string {
+  if (runtime === "running") return "RUNNING";
+  if (runtime === "stopped") return "STOPPED";
+  return "STATUS UNKNOWN";
+}
+
+/** Turns a bridge action result into UI copy that never overstates success. */
+export function describeLaunchOutcome(result: {
+  ok: boolean;
+  message?: string;
+  error?: string;
+}): string {
+  if (!result.ok) {
+    return result.error ?? "The bridge could not launch Rekordbox.";
+  }
+  // Even on success, the bridge only confirms the request — not the process.
+  return LAUNCH_REQUESTED;
+}

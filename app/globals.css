@@ -54,6 +54,14 @@
   --jarvis-text-muted: #7A7A7A;
   --jarvis-text-disabled: #555555;
   --jarvis-glow-rgb: 229, 0, 0;
+  --jarvis-orb-idle: #7A0000;
+  --jarvis-orb-idle-highlight: #E50000;
+  --jarvis-orb-listening: #2ECC71;
+  --jarvis-orb-thinking: #4AA3FF;
+  --jarvis-orb-speaking: #FF6600;
+  --jarvis-orb-executing: #FF3333;
+  --jarvis-orb-offline: #555555;
+  --jarvis-orb-error: #FF0000;
 }
 
 [data-theme="arc-reactor"] {
@@ -95,6 +103,14 @@
   --jarvis-text-muted: #86A9BD;
   --jarvis-text-disabled: #526C80;
   --jarvis-glow-rgb: 49, 231, 255;
+  --jarvis-orb-idle: #07506A;
+  --jarvis-orb-idle-highlight: #31E7FF;
+  --jarvis-orb-listening: #70F5C4;
+  --jarvis-orb-thinking: #78BFFF;
+  --jarvis-orb-speaking: #A1F3FF;
+  --jarvis-orb-executing: #31E7FF;
+  --jarvis-orb-offline: #526C80;
+  --jarvis-orb-error: #FF5C73;
 }
 
 .dark {

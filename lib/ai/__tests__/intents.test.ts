@@ -174,6 +174,15 @@ describe("appearance", () => {
     });
   });
 
+  it.each(["switch to Stark Interface theme", "use the Iron Man theme", "Jarvis blue"])(
+    "selects the Stark Interface theme from the command %s",
+    (command) => {
+      expect(resolve(command)).toMatchObject({
+        action: { type: "set-theme", theme: "stark-interface" },
+      });
+    }
+  );
+
   it("changes the wallpaper preset", () => {
     expect(resolve("set the wallpaper to emerald")).toMatchObject({
       action: { type: "set-wallpaper", preset: "emerald" },

@@ -3,8 +3,6 @@
 import { memo, useCallback } from "react";
 import { tokens } from "@/lib/tokens";
 
-const dur = tokens.duration;
-
 interface WindowControlsProps {
   closable: boolean;
   minimized: boolean;
@@ -16,7 +14,6 @@ interface WindowControlsProps {
 
 function WindowControlsInner({
   closable,
-  minimized,
   maximized,
   onClose,
   onMinimize,

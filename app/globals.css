@@ -10,23 +10,23 @@
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
 
-  --color-jarvis-red: #E50000;
-  --color-jarvis-red-dim: #7A0000;
-  --color-jarvis-red-bright: #FF3333;
-  --color-jarvis-hover-red: #FF2D2D;
-  --color-jarvis-crimson: #7A0000;
-  --color-jarvis-orange: #FF6600;
-  --color-jarvis-success: #2ECC71;
-  --color-jarvis-warning: #F1C40F;
-  --color-jarvis-info: #4AA3FF;
-  --color-jarvis-bg-primary: #050505;
-  --color-jarvis-bg-secondary: #0A0A0A;
-  --color-jarvis-surface: #111111;
-  --color-jarvis-panel: #171717;
-  --color-jarvis-glass: rgba(18,18,18,0.65);
-  --color-jarvis-text: #B8B8B8;
-  --color-jarvis-text-muted: #7A7A7A;
-  --color-jarvis-text-disabled: #555555;
+  --color-jarvis-red: var(--jarvis-red);
+  --color-jarvis-red-dim: var(--jarvis-red-dim);
+  --color-jarvis-red-bright: var(--jarvis-red-bright);
+  --color-jarvis-hover-red: var(--jarvis-hover-red);
+  --color-jarvis-crimson: var(--jarvis-crimson);
+  --color-jarvis-orange: var(--jarvis-orange);
+  --color-jarvis-success: var(--jarvis-success);
+  --color-jarvis-warning: var(--jarvis-warning);
+  --color-jarvis-info: var(--jarvis-info);
+  --color-jarvis-bg-primary: var(--jarvis-bg-primary);
+  --color-jarvis-bg-secondary: var(--jarvis-bg-secondary);
+  --color-jarvis-surface: var(--jarvis-surface);
+  --color-jarvis-panel: var(--jarvis-panel);
+  --color-jarvis-glass: var(--jarvis-glass);
+  --color-jarvis-text: var(--jarvis-text);
+  --color-jarvis-text-muted: var(--jarvis-text-muted);
+  --color-jarvis-text-disabled: var(--jarvis-text-disabled);
 
   --radius: 0.625rem;
 }
@@ -34,6 +34,44 @@
 :root {
   --background: #050505;
   --foreground: #B8B8B8;
+
+  /* Semantic accent palette — overridden per theme below. */
+  --jarvis-red: #E50000;
+  --jarvis-red-dim: #7A0000;
+  --jarvis-red-bright: #FF3333;
+  --jarvis-hover-red: #FF2D2D;
+  --jarvis-crimson: #7A0000;
+  --jarvis-orange: #FF6600;
+  --jarvis-success: #2ECC71;
+  --jarvis-warning: #F1C40F;
+  --jarvis-info: #4AA3FF;
+  --jarvis-bg-primary: #050505;
+  --jarvis-bg-secondary: #0A0A0A;
+  --jarvis-surface: #111111;
+  --jarvis-panel: #171717;
+  --jarvis-glass: rgba(18,18,18,0.65);
+  --jarvis-text: #B8B8B8;
+  --jarvis-text-muted: #7A7A7A;
+  --jarvis-text-disabled: #555555;
+  --jarvis-glow-rgb: 229, 0, 0;
+}
+
+[data-theme="arc-reactor"] {
+  --jarvis-red: #00E5FF;
+  --jarvis-red-dim: #00697A;
+  --jarvis-red-bright: #66F3FF;
+  --jarvis-hover-red: #4DEBFF;
+  --jarvis-crimson: #00697A;
+  --jarvis-glow-rgb: 0, 229, 255;
+}
+
+[data-theme="stealth"] {
+  --jarvis-red: #F1C40F;
+  --jarvis-red-dim: #6B5800;
+  --jarvis-red-bright: #FFDD55;
+  --jarvis-hover-red: #FFD633;
+  --jarvis-crimson: #6B5800;
+  --jarvis-glow-rgb: 241, 196, 15;
 }
 
 .dark {
@@ -56,15 +94,15 @@
 }
 
 @utility jarvis-glow-sm {
-  box-shadow: 0 0 8px rgba(229,0,0,0.30);
+  box-shadow: 0 0 8px rgb(var(--jarvis-glow-rgb) / 0.30);
 }
 
 @utility jarvis-glow-md {
-  box-shadow: 0 0 18px rgba(229,0,0,0.35);
+  box-shadow: 0 0 18px rgb(var(--jarvis-glow-rgb) / 0.35);
 }
 
 @utility jarvis-glow-lg {
-  box-shadow: 0 0 40px rgba(229,0,0,0.50);
+  box-shadow: 0 0 40px rgb(var(--jarvis-glow-rgb) / 0.50);
 }
 
 @utility jarvis-shadow-sm {
@@ -80,15 +118,15 @@
 }
 
 @utility text-glow-sm {
-  text-shadow: 0 0 8px rgba(229,0,0,0.30);
+  text-shadow: 0 0 8px rgb(var(--jarvis-glow-rgb) / 0.30);
 }
 
 @utility text-glow-md {
-  text-shadow: 0 0 18px rgba(229,0,0,0.35);
+  text-shadow: 0 0 18px rgb(var(--jarvis-glow-rgb) / 0.35);
 }
 
 @utility text-glow-lg {
-  text-shadow: 0 0 40px rgba(229,0,0,0.50);
+  text-shadow: 0 0 40px rgb(var(--jarvis-glow-rgb) / 0.50);
 }
 
 @keyframes breathe {

@@ -5,24 +5,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { tokens } from "@/lib/tokens";
 
-const c = tokens.color;
 const r = tokens.radius;
 const dur = tokens.duration;
 
-export interface CommandItem {
-  id: string;
-  label: string;
-  description?: string;
-  icon?: string;
-  shortcut?: string;
-  section?: string;
-  action: () => void;
-}
+export type { CommandItem } from "@/types/command";
+
+import type { CommandItem } from "@/types/command";
 
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
   commands: CommandItem[];
+  onAskJarvis?: (query: string) => void;
 }
 
 const DEFAULT_RECENT_IDS = [
@@ -35,6 +29,7 @@ export default function CommandPalette({
   open,
   onClose,
   commands,
+  onAskJarvis,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -42,7 +37,23 @@ export default function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const filtered = commands.filter((cmd) => {
+  const trimmedQuery = query.trim();
+  const askCommand: CommandItem | null =
+    trimmedQuery && onAskJarvis
+      ? {
+          id: "ask-jarvis",
+          label: `Ask JARVIS: “${trimmedQuery}”`,
+          description: "Send this directive straight to JARVIS",
+          icon: "◉",
+          shortcut: "↵",
+          section: "JARVIS",
+          action: () => onAskJarvis(trimmedQuery),
+        }
+      : null;
+
+  const availableCommands = askCommand ? [askCommand, ...commands] : commands;
+
+  const filtered = availableCommands.filter((cmd) => {
     if (!query) return true;
     const q = query.toLowerCase();
     return (
@@ -70,11 +81,15 @@ export default function CommandPalette({
     {}
   );
 
+  // Derived on every render; manual memoisation conflicts with the React
+  // Compiler, so allow the stable-render effect below to re-subscribe.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const flatList = query
     ? filtered
-    : [...recentNotInFiltered, ...filtered.filter(
-        (cmd) => !recentIds.includes(cmd.id)
-      )];
+    : [
+        ...recentNotInFiltered,
+        ...filtered.filter((cmd) => !recentIds.includes(cmd.id)),
+      ];
 
   const sections = Object.keys(grouped);
 
@@ -134,7 +149,9 @@ export default function CommandPalette({
   }, [open, onClose, flatList, selectedIndex, selectedCommand, executeCommand]);
 
   useEffect(() => {
-    const el = listRef.current?.children[selectedIndex] as HTMLElement;
+    const el = listRef.current?.querySelector(
+      `[data-command-index="${selectedIndex}"]`
+    ) as HTMLElement | null;
     el?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
@@ -176,7 +193,7 @@ export default function CommandPalette({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search commands..."
+                placeholder="Search commands or ask JARVIS…"
                 className="flex-1 bg-transparent font-mono text-sm text-jarvis-text-primary placeholder-jarvis-text-disabled outline-none"
               />
               <kbd className="rounded-md border border-jarvis-text-disabled/30 bg-jarvis-panel px-1.5 py-0.5 font-mono text-[10px] text-jarvis-text-muted">
@@ -207,6 +224,7 @@ export default function CommandPalette({
                           <CommandRow
                             key={cmd.id}
                             command={cmd}
+                            index={idx}
                             selected={idx === selectedIndex}
                             onSelect={() => executeCommand(cmd)}
                             onHover={() => setSelectedIndex(idx)}
@@ -221,6 +239,7 @@ export default function CommandPalette({
                       <CommandRow
                         key={cmd.id}
                         command={cmd}
+                        index={flatList.indexOf(cmd)}
                         selected={flatList.indexOf(cmd) === selectedIndex}
                         onSelect={() => executeCommand(cmd)}
                         onHover={() =>
@@ -268,12 +287,14 @@ export default function CommandPalette({
 
 function CommandRow({
   command,
+  index,
   selected,
   onSelect,
   onHover,
   badge,
 }: {
   command: CommandItem;
+  index: number;
   selected: boolean;
   onSelect: () => void;
   onHover: () => void;
@@ -281,6 +302,8 @@ function CommandRow({
 }) {
   return (
     <button
+      type="button"
+      data-command-index={index}
       className={cn(
         "group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-100",
         selected

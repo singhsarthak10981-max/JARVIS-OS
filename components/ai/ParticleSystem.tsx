@@ -2,9 +2,7 @@
 
 import { memo, useMemo } from "react";
 import { motion } from "framer-motion";
-import { tokens } from "@/lib/tokens";
 
-const dur = tokens.duration;
 
 interface ParticleSystemProps {
   count: number;

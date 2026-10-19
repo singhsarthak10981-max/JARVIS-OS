@@ -1,20 +1,22 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// Fonts are bundled locally through the `geist` package so builds work
+// offline and in CI without reaching Google Fonts.
 
 export const metadata: Metadata = {
   title: "JARVIS OS",
-  description: "Just A Rather Very Intelligent System - Operating Environment",
+  description:
+    "Just A Rather Very Intelligent System — a voice-first AI operating environment for your desktop.",
+  applicationName: "JARVIS OS",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#050505",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -25,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
     >
       <body className="h-screen w-screen overflow-hidden bg-jarvis-bg-secondary text-jarvis-text">
         {children}

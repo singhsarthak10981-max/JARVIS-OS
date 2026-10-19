@@ -22,8 +22,9 @@ export function getConfig(): SoundConfig {
   return { ...config };
 }
 
-export function play(_event: SoundEvent): void {
+export function play(event: SoundEvent): void {
   if (!config.enabled) return;
+  void event;
   // Placeholder — implement sound playback here
 }
 

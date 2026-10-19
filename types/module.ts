@@ -1,1 +1,1 @@
-export interface Module {}
+export type { ModuleDefinition, ModuleId } from "@/lib/modules";

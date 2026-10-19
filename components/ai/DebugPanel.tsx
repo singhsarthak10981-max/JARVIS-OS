@@ -8,7 +8,6 @@ import type { OrbState } from "./OrbStateMachine";
 import {
   getValidTransitions,
   getTransitionCount,
-  getLastTransitionTime,
 } from "./OrbStateMachine";
 
 const dur = tokens.duration;

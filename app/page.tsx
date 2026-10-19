@@ -9,6 +9,9 @@ import BootSequence from "@/components/boot-sequence";
 import Desktop from "@/components/desktop";
 import CommandPalette from "@/components/command-palette";
 import DebugPanel from "@/components/ai/DebugPanel";
+import { JarvisProvider } from "@/components/assistant/JarvisProvider";
+import AssistantPanel from "@/components/assistant/AssistantPanel";
+import SystemEffects from "@/components/system-effects";
 
 export default function Home() {
   const booted = useAppStore((s) => s.booted);
@@ -17,6 +20,7 @@ export default function Home() {
   const togglePalette = useAppStore((s) => s.togglePalette);
   const commands = useMemo(() => createDefaultCommands(), []);
   const restoreSession = useAppStore((s) => s.restoreSession);
+  const openAssistant = useAppStore((s) => s.openAssistant);
 
   useEffect(() => {
     if (restoreSession) {
@@ -42,24 +46,30 @@ export default function Home() {
   }, [togglePalette]);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
-      <AnimatedBackground />
+    <JarvisProvider>
+      <div className="relative h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
+        <AnimatedBackground />
 
-      <AnimatePresence mode="wait">
-        {!booted ? (
-          <BootSequence key="boot" />
-        ) : (
-          <Desktop key="desktop" />
-        )}
-      </AnimatePresence>
+        <AnimatePresence mode="wait">
+          {!booted ? (
+            <BootSequence key="boot" />
+          ) : (
+            <Desktop key="desktop" />
+          )}
+        </AnimatePresence>
 
-      <CommandPalette
-        open={paletteOpen}
-        onClose={closePalette}
-        commands={commands}
-      />
+        <CommandPalette
+          open={paletteOpen}
+          onClose={closePalette}
+          commands={commands}
+          onAskJarvis={(query) => openAssistant(query)}
+        />
 
-      {process.env.NODE_ENV === "development" && <DebugPanel />}
-    </div>
+        <AssistantPanel />
+        <SystemEffects />
+
+        {process.env.NODE_ENV === "development" && <DebugPanel />}
+      </div>
+    </JarvisProvider>
   );
 }

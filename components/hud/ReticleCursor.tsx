@@ -2,9 +2,14 @@
 
 import { useEffect, useRef } from "react";
 
+const TEXT_ENTRY_SELECTOR =
+  'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="range"]), textarea, [contenteditable="true"]';
+
 /**
- * A small, theme-aware reticle for desktop pointers. It never receives pointer
- * events, and is not enabled for touch-only devices.
+ * A compact, theme-aware precision reticle for desktop pointers.
+ *
+ * Position is written directly to a compositor-friendly transform rather than
+ * animated toward the pointer. The overlay never intercepts pointer events.
  */
 export default function ReticleCursor() {
   const reticleRef = useRef<HTMLDivElement>(null);
@@ -14,46 +19,39 @@ export default function ReticleCursor() {
     if (!finePointer.matches) return;
 
     const root = document.documentElement;
-    root.classList.add("jarvis-reticle-active");
+    const element = reticleRef.current;
+    if (!element) return;
+
+    let cursorActive = false;
 
     const handlePointerMove = (event: PointerEvent) => {
-      const element = reticleRef.current;
-      if (!element) return;
-
       if (event.pointerType === "touch") {
         element.style.opacity = "0";
         return;
       }
 
       const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest(
-          'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="range"]), textarea, [contenteditable="true"]'
-        )
-      ) {
+      if (target instanceof Element && target.closest(TEXT_ENTRY_SELECTOR)) {
         // Keep the native text caret easy to see while editing.
         element.style.opacity = "0";
         return;
       }
 
+      // No easing or trailing interpolation: the reticle tracks the real
+      // pointer position immediately, with transform-only updates.
       element.style.transform =
-        `translate3d(${event.clientX}px, ${event.clientY}px, 0) translate(-50%, -50%)`;
-      const interactive =
-        target instanceof Element &&
-        Boolean(
-          target.closest(
-            'button, a, select, [role="button"], [data-cursor-interactive]'
-          )
-        );
-
-      element.dataset.interactive = String(interactive);
+        `translate3d(${event.clientX}px, ${event.clientY}px, 0) translate3d(-50%, -50%, 0)`;
       element.style.opacity = "1";
+
+      if (!cursorActive) {
+        root.classList.add("jarvis-reticle-active");
+        cursorActive = true;
+      }
     };
 
     const handlePointerOut = (event: PointerEvent) => {
-      if (event.relatedTarget === null && reticleRef.current) {
-        reticleRef.current.style.opacity = "0";
+      if (event.relatedTarget === null) {
+        element.style.opacity = "0";
       }
     };
 

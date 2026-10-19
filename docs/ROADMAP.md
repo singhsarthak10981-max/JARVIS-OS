@@ -153,3 +153,74 @@ Personal ERP
 - Finance
 - Health
 - Knowledge Base
+
+---
+
+## ✅ Sprint 13 — Capability Runtime + Local Performance Telemetry
+
+- Typed capability registry, with `implemented`, `unavailable`, and `planned` states
+- Standard action result contract
+- Opt-in, local-only, metadata-only telemetry and aggregate diagnostics
+- Strict event validation, bounded request bodies, bounded local rotation
+- Cross-platform storage availability detection, including Windows path-layout cases
+
+Status: Complete — PRs #8 and #9 merged; Windows verification passed.
+
+---
+
+## ✅ Sprint 14 — Truthful HUD Indicators
+
+- Replace decorative always-green status lights with qualified network/API/voice states
+- Accessible descriptions explain what a state does and does not prove
+- Tests for unknown, ready, inactive and problem states
+
+Status: Merged in PR #10; production build and local verification passed.
+
+---
+
+## 🚧 Sprint 15 — Stark Interface v1
+
+- Add the graphite/cyan Stark Interface theme while preserving existing themes
+- Make ambient arc, neural core and HUD state colors theme-aware
+- Add a fine-pointer circular reticle cursor
+- Replace the conventional collapsed sidebar with a 14px left-edge reveal tray, auto-hide and pin control
+- Audit keyboard navigation, reduced motion and responsive layouts
+
+Status: In progress on `feat/stark-interface-v1`. Not merged or visually signed off yet. See [Stark Interface Sprint](./STARK_INTERFACE_SPRINT.md).
+
+---
+
+## 🔜 Sprint 16 — Local File Access
+
+- Start with an explicit, user-selected file or directory and read-only access
+- Bound file sizes and traversal depth; validate supported file formats
+- No system-wide scanning, execution, or write/delete actions in the first release
+- Maintain explicit permission, cancellation and revocation states
+
+Status: Planned. See [Integrations Roadmap](./INTEGRATIONS_ROADMAP.md).
+
+---
+
+## 🔜 Sprint 17 — Read-Only External Integrations
+
+- Weather: validated forecast results with timestamp/source and clear offline states
+- Calendar: OAuth read-only access first
+- Email: metadata/read-only first, after permissions and deployment model are defined
+- Keep tokens and personal content out of localStorage, desktop snapshots and telemetry
+
+Status: Planned. Each adapter requires its own real implementation, setup flow and tests before the registry can say implemented.
+
+---
+
+## 🔒 Sprint 18 — Optional Local Desktop Bridge
+
+- Loopback-only, authenticated helper with a fixed allowlist
+- First candidate actions: status and launch/focus an approved named application
+- No shell-command endpoint, arbitrary paths or silent autostart
+- Preserve the existing approval gates for creating and manually running the bridge
+
+Status: Design-only; not implemented. See [Local Bridge](./BRIDGE.md).
+
+---
+
+**Roadmap note:** Sprints 15–18 are planned milestones, not shipped capabilities. Check the capability registry for what the current build can actually do.

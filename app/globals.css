@@ -390,6 +390,7 @@
   html.jarvis-reticle-active button,
   html.jarvis-reticle-active a,
   html.jarvis-reticle-active [role="button"],
+  html.jarvis-reticle-active select,
   html.jarvis-reticle-active [data-cursor-interactive] {
     cursor: none !important;
   }
@@ -400,8 +401,5 @@
     cursor: text !important;
   }
 
-  html.jarvis-reticle-active select {
-    cursor: pointer !important;
-  }
 }
 

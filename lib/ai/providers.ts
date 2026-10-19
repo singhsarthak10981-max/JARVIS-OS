@@ -144,6 +144,12 @@ export const THEMES = [
     description: "Low-visibility amber for late-night ops.",
     swatch: "#F1C40F",
   },
+  {
+    id: "stark-interface",
+    label: "Stark Interface",
+    description: "Graphite depth, cyan instrumentation and holographic contrast.",
+    swatch: "#31E7FF",
+  },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]["id"];

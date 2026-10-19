@@ -22,10 +22,14 @@ export default function AnimatedBackground() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const accent =
-      getComputedStyle(document.documentElement)
-        .getPropertyValue("--jarvis-glow-rgb")
-        .trim() || "229 0 0";
+    let accent = "229 0 0";
+    const readAccent = () => {
+      accent =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--jarvis-glow-rgb")
+          .trim() || "229 0 0";
+    };
+    readAccent();
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -124,8 +128,17 @@ export default function AnimatedBackground() {
     if (prefersReducedMotion.matches) drawStaticFrame();
     else if (!document.hidden) start();
 
+    // `data-theme` is applied by SystemEffects in a sibling effect, which can
+    // run after this one. Re-read the accent once the frame is committed so the
+    // particles use the active theme instead of the boot default.
+    const accentFrame = requestAnimationFrame(() => {
+      readAccent();
+      if (prefersReducedMotion.matches) drawStaticFrame();
+    });
+
     return () => {
       stop();
+      cancelAnimationFrame(accentFrame);
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", handleVisibility);
       prefersReducedMotion.removeEventListener("change", handleReducedMotion);

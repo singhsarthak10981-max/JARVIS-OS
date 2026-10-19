@@ -33,6 +33,7 @@ import {
 } from "@/lib/ai/memory";
 import { executeJarvisAction } from "@/lib/ai/actions";
 import LocalDiagnosticsPanel from "./settings/LocalDiagnosticsPanel";
+import LocalFileImportPanel from "./settings/LocalFileImportPanel";
 
 type TabId = "intelligence" | "voice" | "interface" | "system" | "about";
 
@@ -977,6 +978,13 @@ export default function SettingsModule() {
                     )}
                   </div>
                 )}
+              </Section>
+
+              <Section
+                title="Local file access"
+                description="Inspect one text file you explicitly choose. The preview stays in this browser and is never uploaded automatically."
+              >
+                <LocalFileImportPanel />
               </Section>
 
               <Section

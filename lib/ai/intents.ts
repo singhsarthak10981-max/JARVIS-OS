@@ -207,10 +207,13 @@ function matchModule(text: string): ModuleId | null {
 }
 
 function matchTheme(text: string): ThemeId | null {
+  let best: { id: ThemeId; length: number } | null = null;
   for (const [alias, id] of Object.entries(THEME_ALIASES)) {
-    if (hasWord(text, alias)) return id;
+    if (hasWord(text, alias) && (!best || alias.length > best.length)) {
+      best = { id, length: alias.length };
+    }
   }
-  return null;
+  return best?.id ?? null;
 }
 
 function matchWallpaper(text: string): string | null {

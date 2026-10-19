@@ -304,3 +304,91 @@ describe("secret handling", () => {
     expect(JSON.stringify(result)).not.toContain(KEY);
   });
 });
+
+describe("official domain restrictions", () => {
+  it("sends include_domains for a restricted search", async () => {
+    const calls = stubFetch(async () => okJson(SAMPLE));
+
+    const result = await searchWeb("latest gemini pricing", {
+      includeDomains: ["ai.google.dev"],
+    });
+
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>;
+    expect(body.include_domains).toEqual(["ai.google.dev"]);
+    // The existing bounded request shape is untouched.
+    expect(body.max_results).toBe(MAX_RESULTS);
+    expect(body.include_raw_content).toBe(false);
+    expect(body.include_images).toBe(false);
+  });
+
+  it("keeps the existing behaviour for normal searches", async () => {
+    const calls = stubFetch(async () => okJson(SAMPLE));
+
+    await searchWeb("latest gemini pricing");
+
+    const body = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>;
+    expect(body).not.toHaveProperty("include_domains");
+  });
+
+  it("drops unapproved and malformed domains", async () => {
+    const calls = stubFetch(async () => okJson(SAMPLE));
+
+    await searchWeb("latest gemini pricing", {
+      includeDomains: [
+        "evil.example.com",
+        "google.com",
+        "ai.google.dev.evil.com",
+        "https://ai.google.dev",
+        "ai.google.dev",
+      ],
+    });
+
+    const body = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>;
+    expect(body.include_domains).toEqual(["ai.google.dev"]);
+  });
+
+  it("omits the restriction entirely when every domain is rejected", async () => {
+    const calls = stubFetch(async () => okJson(SAMPLE));
+
+    await searchWeb("latest gemini pricing", {
+      includeDomains: ["evil.example.com", "not-a-domain"],
+    });
+
+    const body = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>;
+    expect(body).not.toHaveProperty("include_domains");
+  });
+
+  it("never places the key in the URL or body", async () => {
+    const calls = stubFetch(async () => okJson(SAMPLE));
+
+    await searchWeb("latest gemini pricing", { includeDomains: ["ai.google.dev"] });
+
+    expect(calls[0].url).toBe("https://api.tavily.com/search");
+    expect(calls[0].url).not.toContain(KEY);
+    expect(String(calls[0].init.body)).not.toContain(KEY);
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe(`Bearer ${KEY}`);
+  });
+
+  it("still times out and caps oversized responses for restricted searches", async () => {
+    vi.useFakeTimers();
+    stubFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        })
+    );
+
+    const pending = searchWeb("latest gemini pricing", {
+      includeDomains: ["ai.google.dev"],
+    });
+    await vi.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS + 50);
+    const result = await pending;
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("timeout");
+  });
+});

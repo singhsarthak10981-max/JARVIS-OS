@@ -290,20 +290,37 @@ export async function POST(request: Request) {
           enabled: webSearchEnabled,
           providerIsLocal: config.provider === "local",
           signal: abort.signal,
-          onSearching: (query) => send({ type: "search", status: "searching", query }),
+          onSearching: (query, info) =>
+            send({ type: "search", status: "searching", query, ...info }),
         });
 
         const notice = toSearchNotice(outcome);
         if (notice) send({ type: "search", ...notice });
 
-        if (outcome.status === "complete") {
-          searchPrompt = {
-            kind: "results",
-            query: outcome.query,
-            sources: outcome.sources,
-          };
-        } else if (outcome.status !== "skipped") {
-          searchPrompt = { kind: "failure", message: outcome.message };
+        if (outcome.status !== "skipped") {
+          if (outcome.sources.length > 0) {
+            searchPrompt = {
+              kind: "results",
+              query: outcome.query,
+              sources: outcome.sources,
+              official:
+                outcome.mode === "official"
+                  ? {
+                      vendorLabel: outcome.vendorLabel ?? null,
+                      domains: outcome.domains ?? [],
+                      fallbackUsed: Boolean(outcome.fallbackUsed),
+                      insufficient: outcome.status === "official-insufficient",
+                      unverified: outcome.status === "official-unverified",
+                    }
+                  : undefined,
+            };
+          } else {
+            searchPrompt = {
+              kind: "failure",
+              message:
+                outcome.message ?? "No sources were found for that query.",
+            };
+          }
         }
       } catch {
         // Search must never take the whole request down.

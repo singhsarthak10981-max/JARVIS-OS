@@ -99,6 +99,15 @@ pages are passed to the model as **untrusted data**, never as instructions.
 Without a key, JARVIS says live search is unavailable instead of guessing.
 Queries go to Tavily; the key never leaves the server.
 
+Ask for **official sources** ("find the official Gemini API pricing") and the
+first search is restricted to that vendor's first-party domains
+(`ai.google.dev`, `platform.openai.com`, `docs.github.com`, …). If fewer than
+two validated official documents or pricing pages come back, one broader
+fallback runs; third-party results it returns stay marked as secondary, and a
+fallback that completes the official evidence is reported as official rather
+than as a shortfall. Unknown vendors get a normal search plus a "no official
+domain identified" notice — never a made-up domain.
+
 **If the selected provider has no server-side key, JARVIS says so.** It does not
 silently answer with the local core and present it as a model response — a
 connection test for Google fails, with the specific variable to set. Local Core

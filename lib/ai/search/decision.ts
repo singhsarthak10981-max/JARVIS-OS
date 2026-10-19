@@ -8,7 +8,14 @@
  * analysis, writing and the deterministic desktop commands — stays local.
  */
 
-export type SearchReason = "explicit" | "freshness";
+import {
+  CREATIVE_TASK,
+  detectOfficialIntent,
+  selectOfficialDomains,
+  type OfficialIntent,
+} from "./official";
+
+export type SearchReason = "explicit" | "freshness" | "official";
 
 export interface SearchDecision {
   shouldSearch: boolean;
@@ -17,6 +24,8 @@ export interface SearchDecision {
   reason: SearchReason | null;
   /** Best-effort focused query. Empty when no search is warranted. */
   query: string;
+  /** Official-source intent and the validated domains it resolved to. */
+  official: OfficialIntent;
 }
 
 /** "Don't search", "answer from your own knowledge", etc. */
@@ -54,10 +63,6 @@ const STANDALONE_FRESHNESS: RegExp[] = [
   /\bwhat (is|are) the (current|latest) (price|cost|version|release)\b/,
   /\bhas .{1,60} (changed|been released|launched)\b/,
 ];
-
-/** Creative writing may mention "news" or "current" without needing sources. */
-const CREATIVE_TASK =
-  /\b(write|draft|compose|imagine|invent|story|poem|song|lyrics|essay|fiction|roleplay|role-play)\b/;
 
 /** A short follow-up that leans on the previous turn for its subject. */
 const FOLLOW_UP = /^(and|but|what about|how about|what'?s|whats|any)\b/;
@@ -103,6 +108,12 @@ export function decideWebSearch(
     explicit: false,
     reason: null,
     query: "",
+    official: {
+      active: false,
+      vendorId: null,
+      vendorLabel: null,
+      domains: [],
+    },
   };
 
   if (!text || SEARCH_OPT_OUT.test(text)) return none;
@@ -111,15 +122,54 @@ export function decideWebSearch(
   const freshness = explicit
     ? false
     : isFreshnessSensitive(text, previous.length > 0);
+  const official = detectOfficialIntent(text);
 
-  if (!explicit && !freshness) return none;
+  // An official-source request is itself a reason to search: asking for
+  // "the official pricing page" is a retrieval request even without the word
+  // "search". Ordinary conversation still never reaches this branch because
+  // detectOfficialIntent requires a source noun.
+  if (!explicit && !freshness && !official.active) return none;
+
+  const query = official.active
+    ? stripOfficialMeta(buildSearchQuery(text, explicit || official.active, previous))
+    : buildSearchQuery(text, explicit, previous);
 
   return {
     shouldSearch: true,
     explicit,
-    reason: explicit ? "explicit" : "freshness",
-    query: buildSearchQuery(text, explicit, previous),
+    reason: official.active ? "official" : explicit ? "explicit" : "freshness",
+    query,
+    official: official.active
+      ? {
+          ...official,
+          domains: official.vendorId
+            ? selectOfficialDomains(official.vendorId, query || text)
+            : [],
+        }
+      : official,
   };
+}
+
+/**
+ * Removes request framing that is noise inside a domain-restricted query:
+ * "official", "primary sources", "right now", "not just existing knowledge".
+ * The vendor and product words are preserved.
+ */
+export function stripOfficialMeta(value: string): string {
+  return value
+    .replace(/^(right now|now|today|immediately)\b[\s,]*/i, "")
+    .replace(/^for\s+(the\s+)?/i, "")
+    .replace(/\b(official(ly)?|authoritative)\b/gi, " ")
+    .replace(/\b(primary|first[- ]party)\s+sources?\b/gi, " ")
+    .replace(/\b(vendor'?s?|manufacturer'?s?)\b/gi, " ")
+    .replace(/\b(use|using|check|checking)\b/gi, " ")
+    .replace(/\b(to\s+)?(verify|verifying|confirm|confirming)\b/gi, " ")
+    .replace(/\bnot just (existing|your own) knowledge\b/gi, " ")
+    .replace(/\b(on the web|on the internet|online|live)\b/gi, " ")
+    .replace(/\bplease\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,;:–—-]+|[\s,;:]+$/g, "")
+    .trim();
 }
 
 /**

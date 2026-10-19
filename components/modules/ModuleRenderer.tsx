@@ -4,6 +4,7 @@ import type { ModuleId } from "@/lib/modules";
 import ModuleShell from "./ModuleShell";
 import CommandCenterDashboard from "../command-center-dashboard";
 import SettingsModule from "./SettingsModule";
+import DjModule from "@/features/dj/components/DjModule";
 
 function Placeholder({
   moduleId,
@@ -37,7 +38,7 @@ export default function ModuleRenderer({ moduleId }: { moduleId: ModuleId }) {
     case "producer":
       return <Placeholder moduleId="producer" title="Producer" description="Production workspace — beat business arrives here next." />;
     case "dj":
-      return <Placeholder moduleId="dj" title="DJ" description="DJ workflow and performance operations." />;
+      return <DjModule />;
     case "bar":
       return <Placeholder moduleId="bar" title="Bar" description="Bar operations and performance metrics." />;
     case "business":

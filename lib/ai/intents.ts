@@ -1,6 +1,9 @@
 import { MODULES, type ModuleId } from "@/lib/modules";
 import { THEMES, WALLPAPER_PRESETS, type ThemeId } from "./providers";
 import { evaluateMath, formatNumber, looksLikeMath } from "./math";
+import { getLibrarySnapshot } from "@/services/library/libraryIndex";
+import { toCamelot } from "@/services/library/camelot";
+import { loadSetlists } from "@/features/dj/setlistStore";
 
 /**
  * JARVIS intent router.
@@ -12,7 +15,14 @@ import { evaluateMath, formatNumber, looksLikeMath } from "./math";
  */
 
 export type JarvisAction =
-  | { type: "open-module"; moduleId: ModuleId }
+  | {
+      type: "open-module";
+      moduleId: ModuleId;
+      /** Ask the DJ module to attempt a launch through the local bridge. */
+      launch?: "rekordbox";
+      /** Open the DJ module directly on a specific surface. */
+      view?: "launchpad" | "performance" | "library";
+    }
   | { type: "close-module"; moduleId: ModuleId }
   | { type: "close-all-windows" }
   | { type: "set-theme"; theme: ThemeId | "next" }
@@ -30,7 +40,8 @@ export type JarvisAction =
   | { type: "clear-session" }
   | { type: "open-palette" }
   | { type: "export-logs" }
-  | { type: "stop-speaking" };
+  | { type: "stop-speaking" }
+  | { type: "set-dj-view"; view: "launchpad" | "performance" | "library" };
 
 export interface IntentContext {
   ownerName: string;
@@ -63,7 +74,20 @@ const MODULE_ALIASES: Record<ModuleId, string[]> = {
     "mission control",
     "home",
   ],
-  dj: ["dj", "decks", "turntables", "music deck"],
+  dj: [
+    "dj",
+    "dj mode",
+    "dj setup",
+    "dj workspace",
+    "decks",
+    "turntables",
+    "music deck",
+    "rekordbox",
+    "rekordbox dj",
+    "mix",
+    "mixing",
+    "groove",
+  ],
   producer: ["producer", "production", "studio", "fl studio", "beat lab"],
   bar: ["bar", "bar manager", "inventory"],
   business: ["business", "finance", "revenue", "contracts"],
@@ -196,6 +220,34 @@ function moduleLabel(id: ModuleId): string {
   return MODULES.find((m) => m.id === id)?.label ?? id;
 }
 
+/** True when the user named the deck software rather than the workspace. */
+function isRekordboxTarget(target: string): boolean {
+  return /rekordbox/.test(target);
+}
+
+/**
+ * Opening the DJ workspace is always possible; launching Rekordbox is only
+ * possible through the local bridge. The reply never claims a launch happened.
+ */
+function djResolution(owner: string, wantsLaunch: boolean): IntentResolution {
+  return {
+    kind: "action",
+    action: {
+      type: "open-module",
+      moduleId: "dj",
+      launch: wantsLaunch ? "rekordbox" : undefined,
+    },
+    thought: wantsLaunch ? "Opening DJ workspace · requesting Rekordbox" : "Mounting DJ workspace",
+    reply: wantsLaunch
+      ? `DJ workspace online, ${owner}. I'll bring Rekordbox forward if the local bridge is running — otherwise open it from the Start menu, because I won't pretend it launched.`
+      : pick([
+          `DJ workspace online, ${owner}. The decks are yours.`,
+          `Let's get you mixing — DJ workspace is up.`,
+          `DJ workspace ready. Rekordbox handles the decks; I'll handle the rest.`,
+        ]),
+  };
+}
+
 function formatTime(now: Date): string {
   return now.toLocaleTimeString("en-GB", {
     hour: "2-digit",
@@ -266,6 +318,8 @@ export const JARVIS_CAPABILITIES = [
   "Report system status, time and date",
   "Set timers and reminders — “set a timer for 10 minutes”",
   "Remember facts — “remember that the studio lights are on channel 4”",
+  "Search your Traktor library — “find tracks at 128 BPM in 8A”",
+  "Report library and setlist status — “how many tracks do I have?”",
   "Toggle voice, scanlines, particles and sound",
   "Reboot, clear the session or export the activity log",
   "Answer open-ended questions when a language model is connected",
@@ -273,11 +327,11 @@ export const JARVIS_CAPABILITIES = [
 
 export const SUGGESTED_PROMPTS = [
   "System status report",
+  "How many tracks are in my DJ library?",
   "Open the Producer module",
   "Switch to arc reactor theme",
   "Set a timer for 5 minutes",
   "What can you do?",
-  "Remember my studio is in Madrid",
 ];
 
 export function resolveIntent(
@@ -532,13 +586,96 @@ export function resolveIntent(
     }
   }
 
+  // Accept natural openers ("let me groove", "let's open my DJ setup",
+  // "time to mix") as well as bare imperatives.
+  // ── DJ performance surface ────────────────────────────────
+  if (
+    /\bperformance\b/.test(t) &&
+    /(open|show|enter|start|switch|go\s+to|launch|view|mode|screen)/.test(t) &&
+    !/(exit|close|leave|back)/.test(t)
+  ) {
+    return {
+      kind: "action",
+      action: { type: "open-module", moduleId: "dj", view: "performance" },
+      thought: "Entering performance view",
+      reply: "Performance view online. Decks, library and voice control are live — transport stays with Rekordbox.",
+    };
+  }
+
+  if (
+    /(exit|close|leave|back\s+from)/.test(t) &&
+    /(performance|decks?\s+view|dj\s+view)/.test(t)
+  ) {
+    return {
+      kind: "action",
+      action: { type: "set-dj-view", view: "launchpad" },
+      thought: "Leaving performance view",
+      reply: "Back to the DJ launchpad.",
+    };
+  }
+
+  if (/(launchpad|dj\s+launchpad|dj\s+home)/.test(t) && /(show|open|back|go|switch)/.test(t)) {
+    return {
+      kind: "action",
+      action: { type: "open-module", moduleId: "dj" },
+      thought: "Returning to the DJ launchpad",
+      reply: "DJ launchpad online.",
+    };
+  }
+
+  // "recommend energy 126" / "suggest something at 124 bpm"
+  const energyMatch = t.match(
+    /(?:recommend|suggest|pick|give\s+me)\b[^\d]{0,24}(\d{2,3})/
+  );
+  if (energyMatch) {
+    const target = Number(energyMatch[1]);
+    const snapshot = getLibrarySnapshot();
+    if (!snapshot || snapshot.trackCount === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "I can recommend tracks near a BPM once your collection is imported. Open the DJ module, Library tab, and import a Rekordbox XML export.",
+      };
+    }
+
+    const candidates = snapshot.tracks
+      .filter((track) => typeof track.bpm === "number" && track.bpm > 0)
+      .map((track) => ({ track, delta: Math.abs((track.bpm ?? 0) - target) }))
+      .sort((a, b) => a.delta - b.delta)
+      .slice(0, 3);
+
+    if (candidates.length === 0) {
+      return {
+        kind: "answer",
+        reply: `No tracks in your library carry a BPM, so I cannot pick for ${target} BPM.`,
+      };
+    }
+
+    const list = candidates
+      .map(
+        ({ track, delta }) =>
+          `${track.title} by ${track.artist} (${track.bpm?.toFixed(1)} BPM${
+            track.camelot ? `, ${track.camelot}` : ""
+          }, ${delta.toFixed(1)} away)`
+      )
+      .join("; ");
+
+    return {
+      kind: "answer",
+      reply: `Closest to ${target} BPM: ${list}. Assign one to a deck from the performance view.`,
+    };
+  }
+
   const openMatch = t.match(
-    /^(?:please\s+)?(?:can you\s+|could you\s+|would you\s+)?(?:open|launch|run|start|show|bring up|go to|take me to|navigate to|switch to|focus)\s+(?:the\s+|my\s+|a\s+)?(.+?)(?:\s+(?:module|app|window|workspace|please|for me))?[.!]?$/
+    /^(?:please\s+|hey\s+|ok(?:ay)?\s+|so\s+)?(?:(?:let\s+me|let'?s|i\s+want\s+to|i'?d\s+like\s+to|time\s+to|gonna|going\s+to)\s+(?:go\s+|get\s+)?|(?:can you\s+|could you\s+|would you\s+)?)(?:open|launch|run|start|show|bring up|go to|take me to|navigate to|switch to|focus|fire up|load)\s+(?:the\s+|my\s+|a\s+)?(.+?)(?:\s+(?:module|app|window|workspace|please|for me|up))?[.!]?$/
   );
 
   if (openMatch) {
     const target = openMatch[1].trim();
     const moduleId = matchModule(target);
+    if (moduleId === "dj") {
+      return djResolution(owner, isRekordboxTarget(target));
+    }
     if (moduleId) {
       return {
         kind: "action",
@@ -553,6 +690,14 @@ export function resolveIntent(
     }
   }
 
+  // Bare mood phrases: "let me groove", "let's mix", "time to groove".
+  const bareDj = t.match(
+    /^(?:let\s+me|let'?s|time\s+to|i\s+wanna|i\s+want\s+to)\s+(?:groove|mix|spin|play\s+some\s+(?:music|tunes))[.!]?$/
+  );
+  if (bareDj) {
+    return djResolution(owner, false);
+  }
+
   const exactModule = matchModule(t);
   if (exactModule && t.split(" ").length <= 3) {
     return {
@@ -560,6 +705,231 @@ export function resolveIntent(
       action: { type: "open-module", moduleId: exactModule },
       thought: `Mounting ${moduleLabel(exactModule)}`,
       reply: `Opening ${moduleLabel(exactModule)}.`,
+    };
+  }
+
+  // ── DJ library ────────────────────────────────────────────
+  const libraryWord = /(library|collection|track ?list|(my )?(tracks|songs|tunes))/.test(t);
+  const wantsLibraryStatus =
+    libraryWord &&
+    /(status|size|count|how many|stats|summary|report|what('s| is) in)/.test(t);
+
+  if (wantsLibraryStatus) {
+    const snapshot = getLibrarySnapshot();
+    if (!snapshot || snapshot.trackCount === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "Your DJ library is empty, " +
+          owner +
+          ". Open the DJ module and import your Traktor collection export — right-click the Collection in Traktor, choose Export Collection, save it as NML or CSV, then drop it into the DJ window.",
+      };
+    }
+
+    const parts = [
+      `Your DJ library holds ${snapshot.trackCount.toLocaleString("en-US")} tracks`,
+    ];
+    if (snapshot.bpmRange) {
+      parts.push(
+        `spanning ${Math.round(snapshot.bpmRange.min)}–${Math.round(snapshot.bpmRange.max)} BPM`
+      );
+    }
+    if (snapshot.topKeys.length > 0) {
+      parts.push(
+        `most common keys ${snapshot.topKeys
+          .map((entry) => `${entry.key} (${entry.count})`)
+          .join(", ")}`
+      );
+    }
+    const source = snapshot.fileName ? ` Imported from ${snapshot.fileName}.` : "";
+    return {
+      kind: "answer",
+      reply: `${parts.join(", ")}.${source}${
+        snapshot.persistent ? "" : " It is stored for this session only."
+      }`,
+    };
+  }
+
+  const hasTrackWord = /(tracks?|songs?|tunes?)/.test(t);
+  const librarySearchIntent =
+    hasTrackWord &&
+    !/\b(add|remove|delete|play|queue|skip)\b/.test(t) &&
+    /(find|search|look for|show|list|pull up|any|which|what|in|at|have|got)/.test(
+      t
+    );
+  const bareFilterIntent =
+    /\d{2,3}\s*bpm/.test(t) || /\bin\s+key\b/.test(t);
+
+  if (librarySearchIntent || bareFilterIntent) {
+    const snapshot = getLibrarySnapshot();
+    if (!snapshot || snapshot.trackCount === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "There is no DJ library loaded yet. Import your Traktor collection in the DJ module and I can search it by BPM and key.",
+      };
+    }
+
+    const bpmRangeMatch = t.match(
+      /(?:between\s+)?(\d{2,3})\s*(?:-|–|to|and)\s*(\d{2,3})\s*(?:bpm)?/
+    );
+    const singleBpmMatch = t.match(/(\d{2,3})\s*bpm/);
+    const toleranceMatch = t.match(/[±+\-]\s*(\d{1,2})\s*bpm/);
+
+    let minBpm: number | undefined;
+    let maxBpm: number | undefined;
+
+    if (bpmRangeMatch) {
+      const first = Number(bpmRangeMatch[1]);
+      const second = Number(bpmRangeMatch[2]);
+      minBpm = Math.min(first, second);
+      maxBpm = Math.max(first, second);
+    } else if (singleBpmMatch) {
+      const target = Number(singleBpmMatch[1]);
+      const tolerance = toleranceMatch ? Number(toleranceMatch[1]) : 3;
+      minBpm = target - tolerance;
+      maxBpm = target + tolerance;
+    }
+
+    const camelotMatch = t.match(/\b(\d{1,2})\s*([ab])\b/);
+    const musicalMatch = t.match(
+      /\b([a-g][#b]?)\s*(minor|major|min|maj|m)\b/
+    );
+    const keyFilter = camelotMatch
+      ? `${Number(camelotMatch[1])}${camelotMatch[2].toUpperCase()}`
+      : musicalMatch
+        ? toCamelot(`${musicalMatch[1]} ${musicalMatch[2]}`)
+        : undefined;
+
+    const stopWords = new Set([
+      "find",
+      "search",
+      "look",
+      "for",
+      "show",
+      "me",
+      "list",
+      "any",
+      "which",
+      "what",
+      "tracks",
+      "track",
+      "songs",
+      "song",
+      "tunes",
+      "tune",
+      "in",
+      "at",
+      "my",
+      "the",
+      "a",
+      "an",
+      "do",
+      "i",
+      "have",
+      "got",
+      "are",
+      "there",
+      "is",
+      "bpm",
+      "key",
+      "around",
+      "about",
+      "between",
+      "and",
+      "to",
+      "of",
+      "with",
+    ]);
+    const textFilter = t
+      .replace(/(\d{2,3})\s*bpm/g, " ")
+      .replace(/\b\d{1,2}\s*[ab]\b/g, " ")
+      .replace(/\b[a-g][#b]?\s*(minor|major|min|maj|m)\b/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 1 && !stopWords.has(word))
+      .join(" ")
+      .trim();
+
+    const matches = snapshot.tracks.filter((track) => {
+      if (minBpm !== undefined && (track.bpm === undefined || track.bpm < minBpm)) {
+        return false;
+      }
+      if (maxBpm !== undefined && (track.bpm === undefined || track.bpm > maxBpm)) {
+        return false;
+      }
+      if (keyFilter && track.camelot !== keyFilter) return false;
+      if (textFilter) {
+        const haystack = `${track.title} ${track.artist}`.toLowerCase();
+        if (!textFilter.split(" ").every((word) => haystack.includes(word))) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const filters: string[] = [];
+    if (minBpm !== undefined && maxBpm !== undefined) {
+      filters.push(`${Math.round(minBpm)}–${Math.round(maxBpm)} BPM`);
+    }
+    if (keyFilter) filters.push(`key ${keyFilter}`);
+    if (textFilter) filters.push(`“${textFilter}”`);
+
+    if (matches.length === 0) {
+      return {
+        kind: "answer",
+        reply: `No tracks match ${filters.join(" and ") || "that search"} across your ${snapshot.trackCount.toLocaleString("en-US")} imported tracks.`,
+      };
+    }
+
+    const lines = matches.slice(0, 5).map((track) => {
+      const bpm = track.bpm ? `${Math.round(track.bpm)} BPM` : "no BPM";
+      const key = track.camelot ? `, ${track.camelot}` : "";
+      return `• ${track.artist} — ${track.title} (${bpm}${key})`;
+    });
+
+    const suffix =
+      matches.length > 5 ? `\n…and ${matches.length - 5} more.` : "";
+    return {
+      kind: "answer",
+      reply: `${matches.length} match${matches.length === 1 ? "" : "es"} for ${
+        filters.join(" · ") || "your library"
+      }:\n${lines.join("\n")}${suffix}`,
+    };
+  }
+
+  if (
+    /(set ?list|my set)\b/.test(t) &&
+    /(what|show|list|how|which|status)/.test(t)
+  ) {
+    const setlists = loadSetlists();
+    if (setlists.length === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "You have no sets saved yet. Open the DJ module, create a set on the right, then add tracks from your library.",
+      };
+    }
+
+    const snapshot = getLibrarySnapshot();
+    const durationById = new Map(
+      (snapshot?.tracks ?? []).map((track) => [track.id, track.durationSec ?? 0])
+    );
+
+    const summaries = setlists.slice(0, 3).map((setlist) => {
+      const seconds = setlist.trackIds.reduce(
+        (sum, id) => sum + (durationById.get(id) ?? 0),
+        0
+      );
+      const runtime =
+        seconds > 0 ? ` · ${Math.round(seconds / 60)} min` : "";
+      return `• ${setlist.name}: ${setlist.trackIds.length} track${
+        setlist.trackIds.length === 1 ? "" : "s"
+      }${runtime}`;
+    });
+
+    return {
+      kind: "answer",
+      reply: `${setlists.length} saved set${setlists.length === 1 ? "" : "s"}:\n${summaries.join("\n")}`,
     };
   }
 

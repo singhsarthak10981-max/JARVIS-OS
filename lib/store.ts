@@ -6,6 +6,8 @@ import type { WallpaperConfig, DesktopShortcutConfig } from "@/services/storage/
 import { desktopPersistence } from "@/services/storage/DesktopPersistence";
 import type { AiProviderId } from "@/lib/ai/providers";
 
+export type DjView = "launchpad" | "performance" | "library";
+
 // ── AI State ──────────────────────────────────────────────
 
 export type AiState =
@@ -125,6 +127,19 @@ export interface AppState {
   isThinking: boolean;
   isSpeaking: boolean;
   lastInteraction: number;
+
+  /**
+   * Set when a voice/typed intent asks for the DJ workspace to be opened *and*
+   * a launch attempt made. Holds a monotonically increasing request id so the
+   * launchpad can react once per request. Nothing launches unless a local
+   * bridge answers.
+   */
+  djLaunchRequest: number;
+  requestDjLaunch: () => void;
+
+  /** Which surface the DJ module shows. Driven by UI and by voice intents. */
+  djView: DjView;
+  setDjView: (view: DjView) => void;
 
   // Assistant
   assistantOpen: boolean;
@@ -255,6 +270,14 @@ export const useAppStore = create<AppState>((set) => ({
       assistantOpen: !s.assistantOpen,
       assistantSeed: s.assistantOpen ? "" : s.assistantSeed,
     })),
+
+  // ── DJ ──────────────────────────────────────────────────
+  djLaunchRequest: 0,
+  requestDjLaunch: () =>
+    set((s) => ({ djLaunchRequest: s.djLaunchRequest + 1 })),
+
+  djView: "launchpad",
+  setDjView: (view) => set({ djView: view }),
 
   // ── Activity ────────────────────────────────────────────
   activity: [],

@@ -8,7 +8,7 @@ export default function DesktopGrid() {
   const shortcuts = useAppStore((s) => s.desktopShortcuts);
 
   return (
-    <div className="relative h-full w-full">
+    <div className="pointer-events-none absolute inset-0 z-0">
       <AnimatePresence>
         {shortcuts.map((shortcut) => (
           <DesktopShortcut

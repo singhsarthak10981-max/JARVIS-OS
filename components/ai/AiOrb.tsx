@@ -17,6 +17,12 @@ interface AiOrbProps {
   className?: string;
   wakeUp?: boolean;
   overrideState?: import("./OrbStateMachine").OrbState;
+  /**
+   * Dense layouts (dashboard cards) use a small orb. In compact mode the
+   * fixed-size wordmark is omitted and the ring spacing scales with `size`,
+   * so decoration stays inside the layout instead of overlapping text.
+   */
+  compact?: boolean;
 }
 
 export default function AiOrb({
@@ -24,6 +30,7 @@ export default function AiOrb({
   className = "",
   wakeUp = false,
   overrideState,
+  compact = false,
 }: AiOrbProps) {
   const storeState = useAppStore((s) => s.aiState);
   const state = overrideState ?? storeState;
@@ -46,11 +53,15 @@ export default function AiOrb({
     >
       <OrbCore state={state} size={size} wakeUp={wakeUp} />
 
-      <OrbGlow state={state} size={size} wakeUp={wakeUp} />
+      <OrbGlow state={state} size={size} wakeUp={wakeUp} compact={compact} />
 
-      <OrbRings state={state} wakeUp={wakeUp} />
+      <OrbRings
+        state={state}
+        wakeUp={wakeUp}
+        scale={compact ? Math.max(0.28, size / 200) : 1}
+      />
 
-      <OrbParticles state={state} radius={size / 2} />
+      <OrbParticles state={state} radius={size / 2} compact={compact} />
 
       <motion.div
         className="absolute border"
@@ -80,6 +91,7 @@ export default function AiOrb({
         }
       />
 
+      {!compact && (
       <motion.span
         className="relative z-10 font-mono text-sm font-bold tracking-[0.3em] uppercase"
         style={{
@@ -93,6 +105,7 @@ export default function AiOrb({
       >
         J.A.R.V.I.S.
       </motion.span>
+      )}
     </div>
   );
 }

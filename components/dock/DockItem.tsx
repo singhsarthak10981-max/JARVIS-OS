@@ -46,12 +46,14 @@ function DockItemInner({
 
   return (
     <motion.button
-      className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-jarvis-red/10 bg-jarvis-surface/40 backdrop-blur-[10px] transition-colors duration-200 hover:border-jarvis-red/20 hover:bg-jarvis-red/5"
+      type="button"
+      aria-label={`${module.label} — ${runningState === "closed" ? "not open" : runningState}`}
+      className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.07] bg-jarvis-surface/50 transition-colors duration-200 hover:border-jarvis-red/25 hover:bg-jarvis-red/[0.06]"
       onClick={handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      whileHover={{ y: -4, scale: 1.15 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={{ y: -2, scale: 1.06 }}
+      whileTap={{ scale: 0.97 }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       style={{
         boxShadow: isFocused ? tokens.glow.small : "none",

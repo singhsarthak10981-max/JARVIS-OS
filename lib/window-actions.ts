@@ -5,7 +5,7 @@ export const MODULE_WINDOW_DEFAULTS: Record<
   ModuleId,
   { width: number; height: number; title: string }
 > = {
-  "command-center": { width: 1000, height: 760, title: "Command Center" },
+  "command-center": { width: 1120, height: 800, title: "Command Center" },
   dj: { width: 1180, height: 740, title: "DJ Workspace" },
   producer: { width: 900, height: 600, title: "Producer" },
   bar: { width: 800, height: 550, title: "Bar" },
@@ -39,7 +39,7 @@ export function openModuleWindow(moduleId: ModuleId): void {
   // windows opened taller than the usable area and their content was cut off.
   const pane = document.querySelector("[data-desktop-pane]");
   const paneRect = pane?.getBoundingClientRect();
-  const paneWidth = paneRect?.width ?? window.innerWidth - 280;
+  const paneWidth = paneRect?.width ?? window.innerWidth - 240;
   const paneHeight = paneRect?.height ?? window.innerHeight - 72;
 
   const MARGIN = 20;

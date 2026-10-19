@@ -29,18 +29,21 @@ function ModuleShell({
       className="flex h-full min-h-0 flex-col bg-jarvis-bg-secondary/35 text-jarvis-text"
     >
       {!hideHeader && (
-      <header className="flex shrink-0 items-center justify-between border-b border-jarvis-red/10 px-5 py-4">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.24em] text-jarvis-red/70">
-            {moduleId}
+        <header className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <div className="text-[9px] tracking-[0.24em] text-jarvis-red/70 uppercase">
+              {moduleId}
+            </div>
+            <h2 className="mt-0.5 truncate text-[13px] font-medium tracking-wide text-jarvis-text-primary">
+              {title}
+            </h2>
+            {description && (
+              <p className="mt-0.5 truncate text-[10.5px] text-jarvis-text-muted">
+                {description}
+              </p>
+            )}
           </div>
-          <h2 className="mt-1 text-sm font-semibold tracking-wide">{title}</h2>
-          {description && (
-            <p className="mt-1 text-xs text-jarvis-text-muted">{description}</p>
-          )}
-        </div>
-        <div className="h-2 w-2 rounded-full bg-jarvis-red shadow-[0_0_12px_rgba(229,0,0,0.7)]" />
-      </header>
+        </header>
       )}
       <div
         className={

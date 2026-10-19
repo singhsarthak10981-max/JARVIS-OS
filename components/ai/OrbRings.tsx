@@ -12,6 +12,12 @@ const dur = tokens.duration;
 interface OrbRingsProps {
   state: OrbState;
   wakeUp: boolean;
+  /**
+   * Ring spacing multiplier. Rings are positioned with fixed pixel insets
+   * tuned for the 200px orb; at smaller sizes they must shrink with the
+   * core or they read as a giant halo around a tiny dot.
+   */
+  scale?: number;
 }
 
 const RING_CONFIGS = [
@@ -21,7 +27,7 @@ const RING_CONFIGS = [
   { inset: -34, speed: 35, index: 3 },
 ];
 
-function OrbRingsInner({ state, wakeUp }: OrbRingsProps) {
+function OrbRingsInner({ state, wakeUp, scale = 1 }: OrbRingsProps) {
   const coreColor = orb.core[state];
   const ringOpacity = orb.ringOpacity[state];
   const isOffline = state === "offline";
@@ -37,7 +43,7 @@ function OrbRingsInner({ state, wakeUp }: OrbRingsProps) {
           className="absolute border"
           style={{
             borderRadius: r.orb,
-            inset: `${ring.inset}px`,
+            inset: `${ring.inset * scale}px`,
             borderColor: `${coreColor}${Math.round(ringOpacity * 255).toString(16).padStart(2, "0")}`,
           }}
           initial={{ rotate: 0, opacity: 0 }}
@@ -71,7 +77,7 @@ function OrbRingsInner({ state, wakeUp }: OrbRingsProps) {
         className="absolute"
         style={{
           borderRadius: r.orb,
-          inset: "-30px",
+          inset: `${-30 * scale}px`,
           background: `conic-gradient(from 0deg, transparent, ${coreColor}15, transparent, ${coreColor}08, transparent)`,
         }}
         animate={{

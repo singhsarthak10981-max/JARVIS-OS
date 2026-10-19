@@ -11,18 +11,28 @@ export const tokens = {
     success: "#2ECC71",
     warning: "#F1C40F",
     info: "#4AA3FF",
-    textPrimary: "#FFFFFF",
+    textPrimary: "#F2F2F2",
     textSecondary: "#B8B8B8",
-    textMuted: "#7A7A7A",
-    textDisabled: "#555555",
+    textMuted: "#8F8F8F",
+    textDisabled: "#6B6B6B",
     crimson: "#7A0000",
     redBright: "#FF3333",
+    // Hairlines separate content without adding another glowing edge.
+    line: "rgba(255,255,255,0.07)",
+    lineAccent: "rgba(229,0,0,0.20)",
+    // Windows are near-opaque: overlapping translucent windows made text
+    // behind a focused window compete with its own content.
+    windowSurface: "rgba(12,12,12,0.94)",
+    panelSurface: "rgba(17,17,17,0.62)",
   },
+  // One tight scale: 14px cards, 12px windows, 10px controls. Rounder
+  // values made dense operational panels read as generic admin cards.
   radius: {
-    card: "20px",
-    button: "14px",
-    input: "12px",
-    window: "18px",
+    card: "14px",
+    panel: "12px",
+    button: "10px",
+    input: "10px",
+    window: "12px",
     orb: "9999px",
   },
   shadow: {
@@ -31,9 +41,9 @@ export const tokens = {
     large: "0 0 60px rgba(0,0,0,0.6)",
   },
   glow: {
-    small: "0 0 8px rgba(229,0,0,0.30)",
-    medium: "0 0 18px rgba(229,0,0,0.35)",
-    large: "0 0 40px rgba(229,0,0,0.50)",
+    small: "0 0 8px rgba(229,0,0,0.20)",
+    medium: "0 0 18px rgba(229,0,0,0.26)",
+    large: "0 0 40px rgba(229,0,0,0.40)",
   },
   orb: {
     core: {
@@ -107,9 +117,9 @@ export const tokens = {
     border: "1px solid rgba(255,255,255,0.06)",
   },
   sidebar: {
-    collapsedWidth: 90,
-    expandedWidth: 280,
-    iconSize: 24,
+    collapsedWidth: 64,
+    expandedWidth: 240,
+    iconSize: 20,
   },
   hud: {
     height: 72,

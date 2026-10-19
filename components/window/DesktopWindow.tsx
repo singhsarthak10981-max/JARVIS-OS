@@ -137,12 +137,20 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
     <>
       <SnapOverlay position={snapPreview} containerWidth={containerWidth} containerHeight={containerHeight} />
       <motion.div
-        className="absolute flex flex-col overflow-hidden border border-jarvis-red/10 bg-jarvis-surface/65"
+        className="absolute flex flex-col overflow-hidden border"
         style={{
           ...windowStyle,
           borderRadius: isAnimatingMaximize ? 0 : r.window,
+          // Nearly opaque: two stacked translucent windows made the text of
+          // the window behind compete with the focused one.
+          backgroundColor: tokens.color.windowSurface,
+          borderColor: win.focused
+            ? "rgba(229,0,0,0.28)"
+            : "rgba(255,255,255,0.07)",
           backdropFilter: `blur(${tokens.glass.blur})`,
-          boxShadow: win.focused ? `${tokens.glow.medium}, ${tokens.shadow.large}` : tokens.shadow.medium,
+          boxShadow: win.focused
+            ? `0 24px 64px rgba(0,0,0,0.65), ${tokens.glow.small}`
+            : "0 18px 44px rgba(0,0,0,0.55)",
         }}
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1, ...animatedGeometry, borderRadius: isAnimatingMaximize ? 0 : r.window }}
@@ -177,7 +185,7 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            style={{ border: "1px solid rgba(229,0,0,0.08)" }}
+            style={{ border: "1px solid rgba(229,0,0,0.14)" }}
           />
         )}
       </motion.div>

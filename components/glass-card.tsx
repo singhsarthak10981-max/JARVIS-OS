@@ -10,10 +10,21 @@ const dur = tokens.duration;
 interface GlassCardProps {
   children: React.ReactNode;
   className?: string;
+  /** Only interactive surfaces (buttons, links) should lift on hover. */
   hover?: boolean;
   glow?: boolean;
 }
 
+/**
+ * The shared panel surface.
+ *
+ * - One radius from the token scale.
+ * - A single hairline border; no inner gradient overlay (it was decorative
+ *   and, because the overlay was `pointer-events-none`, its hover state could
+ *   never fire).
+ * - Hover feedback is opt-in so static information panels do not pretend to
+ *   be clickable.
+ */
 export default function GlassCard({
   children,
   className,
@@ -23,32 +34,26 @@ export default function GlassCard({
   return (
     <motion.div
       className={cn(
-        "relative border border-jarvis-red/10 bg-jarvis-surface/65 backdrop-blur-[20px]",
-        glow && "border-jarvis-red/25 jarvis-glow-md",
+        "relative border bg-jarvis-surface/55 backdrop-blur-[6px]",
+        glow
+          ? "border-jarvis-red/25 jarvis-glow-sm"
+          : "border-white/[0.06]",
+        hover && "transition-colors",
+        hover && "hover:border-jarvis-red/25",
         className
       )}
       style={{ borderRadius: r.card }}
       whileHover={
         hover
           ? {
-              borderColor: "rgba(229,0,0,0.3)",
-              boxShadow: `${tokens.glow.medium}, inset 0 1px 0 rgba(229,0,0,0.1)`,
-              y: -2,
+              borderColor: "rgba(229,0,0,0.28)",
+              boxShadow: tokens.glow.small,
+              y: -1,
             }
           : undefined
       }
-      transition={{ duration: dur.medium / 1000, ease: "easeOut" }}
+      transition={{ duration: dur.small / 1000, ease: "easeOut" }}
     >
-      <div
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 hover:opacity-100"
-        style={{ borderRadius: r.card }}
-      >
-        <div
-          className="absolute inset-0 bg-gradient-to-br from-jarvis-red/5 via-transparent to-transparent"
-          style={{ borderRadius: r.card }}
-        />
-      </div>
-
       <div className="relative z-10">{children}</div>
     </motion.div>
   );

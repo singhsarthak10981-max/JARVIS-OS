@@ -110,11 +110,42 @@ Never invent custom spacing values.
 
 # Border Radius
 
-Cards: 20px
-Buttons: 14px
-Inputs: 12px
-Windows: 18px
+Cards: 14px
+Panels: 12px
+Buttons: 10px
+Inputs: 10px
+Windows: 12px
 Orb: 9999px
+
+*(Tightened from 20/14/12/18px in the UI refinement pass: dense operational
+panels read as generic admin cards at 20px, and windows at 18px looked softer
+than the tactical shell around them.)*
+
+# Surfaces
+
+- Windows are near-opaque (`rgba(12,12,12,0.94)`). Two stacked translucent
+  windows made background text compete with the focused window.
+- Panels use `bg-jarvis-surface/55` with a single `border-white/[0.06]`
+  hairline. No inner gradient overlay.
+- Red is reserved for: primary actions, active navigation, focus rings and
+  the AI state indicator. Status colours come from the semantic palette.
+- Body text never drops below `text-jarvis-text-muted` (#8F8F8F) on a
+  near-black surface; `text-jarvis-text-disabled` (#6B6B6B) is for
+  non-essential metadata only.
+
+# Motion
+
+- Transitions are 200–300 ms colour/border changes. Entrances are short
+  opacity/8px rises, and only on first render.
+- No element moves continuously unless it represents live activity (the AI
+  orb state, a checking status dot).
+- `prefers-reduced-motion: reduce` collapses all animation globally.
+
+# Keyboard hints
+
+Shortcuts are stored once in the registry (`"⌘+1"`, `"⌘⇧J"`) and rendered
+through `lib/platform.ts`, which prints `Ctrl 1` / `Ctrl Shift J` on
+Windows and Linux. Never hard-code ⌘ in visible copy.
 
 ---
 

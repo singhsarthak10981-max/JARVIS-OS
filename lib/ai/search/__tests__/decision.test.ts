@@ -169,6 +169,25 @@ describe("official-source requests", () => {
     expect(decision.official.domains[0]).toBe(domain);
   });
 
+  it("treats an explicit request for primary sources as official intent", () => {
+    const decision = decideWebSearch(
+      "Find primary sources on the latest Gemini model benchmarks."
+    );
+
+    expect(decision.reason).toBe("official");
+    expect(decision.official.active).toBe(true);
+    expect(decision.official.vendorId).toBe("google");
+    expect(decision.official.domains).toEqual(["ai.google.dev"]);
+  });
+
+  it("does not treat the word \"sources\" alone as official intent", () => {
+    const decision = decideWebSearch("Find sources on the history of Madrid.");
+
+    expect(decision.shouldSearch).toBe(true);
+    expect(decision.official.active).toBe(false);
+    expect(decision.reason).toBe("explicit");
+  });
+
   it("does not invent a domain for an unknown vendor", () => {
     const decision = decideWebSearch(
       "Find the manufacturer's documentation and tell me the supported specifications."

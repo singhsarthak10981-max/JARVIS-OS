@@ -212,7 +212,7 @@ const OFFICIAL_MARKER =
  * national dish of Spain?".
  */
 const SOURCE_NOUN =
-  /\b(documentation|docs?|api reference|reference (docs?|documentation)|pricing|prices?|price list|pricing (page|tier|table)|release notes?|changelog|announcements?|spec(ification)?s?|spec sheets?|manual|developer (docs?|documentation)|support (docs?|pages?))\b/;
+  /\b(documentation|docs?|api reference|reference (docs?|documentation)|sources?|pricing|prices?|price list|pricing (page|tier|table)|release notes?|changelog|announcements?|spec(ification)?s?|spec sheets?|manual|developer (docs?|documentation)|support (docs?|pages?))\b/;
 
 export function findVendor(text: string): OfficialVendor | null {
   let best: { vendor: OfficialVendor; length: number } | null = null;

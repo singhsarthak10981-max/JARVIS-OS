@@ -161,6 +161,47 @@ describe("official-source status", () => {
     expect(html).not.toContain("<a ");
   });
 
+  it("keeps official and secondary links labelled when evidence is insufficient", () => {
+    const html = render({
+      status: "official-insufficient",
+      mode: "official",
+      vendor: "Google",
+      domains: ["ai.google.dev"],
+      message:
+        "Official evidence is insufficient: 2 official sources were confirmed, but none is a documentation or pricing page. The other results are third-party and do not make up for missing official evidence.",
+      sources: [
+        {
+          title: "About Gemini",
+          url: "https://ai.google.dev/about",
+          publishedDate: null,
+          official: true,
+        },
+        {
+          title: "Google AI",
+          url: "https://ai.google.dev/",
+          publishedDate: null,
+          official: true,
+        },
+        {
+          title: "A blog",
+          url: "https://thirdparty.example.com/post",
+          publishedDate: null,
+          official: false,
+        },
+      ],
+    });
+
+    // The status name does not smear every link with the same label.
+    expect(html).toContain(
+      "Official evidence insufficient · 3 sources (2 official, 1 secondary)"
+    );
+    expect(html).toContain('href="https://ai.google.dev/about"');
+    expect(html).toContain('href="https://thirdparty.example.com/post"');
+    expect(html.match(/data-official="true"/g)).toHaveLength(2);
+    expect(html.match(/data-official="false"/g)).toHaveLength(1);
+    expect(html).toContain("do not make up for missing official evidence");
+  });
+
   it("explains an unidentified vendor", () => {
     const html = render({
       status: "official-unverified",

@@ -1,7 +1,10 @@
 import "server-only";
 
 import { decideWebSearch } from "./decision";
-import { assessOfficialEvidence } from "./official";
+import {
+  assessOfficialEvidence,
+  type OfficialEvidence,
+} from "./official";
 import { MAX_RESULTS, searchConfigured, searchWeb } from "./tavily";
 import type { SearchMode, SearchNotice, SearchSource, SearchStatus } from "./types";
 
@@ -213,39 +216,81 @@ export async function runWebSearch(
     };
   }
 
-  if (evidence.secondary.length === 0) {
-    // Still thin, and the fallback added nothing usable (failed, or returned
-    // only more official pages). Keep the official pages, report honestly.
+  if (evidence.sufficient) {
+    if (evidence.secondary.length === 0) {
+      // The fallback can legitimately complete the official evidence, e.g. a
+      // restricted pricing page plus an official docs page found broadly.
+      // Everything surfaced is first-party, so this is not "insufficient".
+      return {
+        status: "official-complete",
+        query,
+        mode: "official",
+        domains,
+        vendorLabel,
+        fallbackUsed: true,
+        sources: evidence.official,
+      };
+    }
+
+    // Enough official evidence, but the fallback also surfaced third-party
+    // results. Keep both, clearly separated.
     return {
-      status: "official-insufficient",
+      status: "official-fallback",
       query,
       mode: "official",
       domains,
       vendorLabel,
       fallbackUsed: true,
-      sources: evidence.official,
-      message: broad.ok
-        ? `Only ${evidence.officialCount} official source${
-            evidence.officialCount === 1 ? " was" : "s were"
-          } confirmed, which is not enough to treat the official evidence as complete.`
-        : `Only ${evidence.officialCount} official source${
-            evidence.officialCount === 1 ? " was" : "s were"
-          } confirmed, and the broader fallback search failed.`,
+      sources: [...evidence.official, ...evidence.secondary],
+      message: `${evidence.officialCount} official source${
+        evidence.officialCount === 1 ? " was" : "s were"
+      } confirmed. The other results are third-party and are marked as secondary evidence.`,
     };
   }
 
+  // The fallback ran but the official evidence is still not specific enough.
+  // Report that plainly and keep every validated source with its true label.
   return {
-    status: "official-fallback",
+    status: "official-insufficient",
     query,
     mode: "official",
     domains,
     vendorLabel,
     fallbackUsed: true,
     sources: [...evidence.official, ...evidence.secondary],
-    message: `Only ${evidence.officialCount} official source${
-      evidence.officialCount === 1 ? " was" : "s were"
-    } confirmed. The other results are third-party and are marked as secondary evidence.`,
+    message: insufficientFallbackMessage(evidence, broad.ok),
   };
+}
+
+/**
+ * Honest, non-contradictory explanation for a fallback that did not produce
+ * sufficient official evidence. Third-party results are never presented as
+ * making up the shortfall.
+ */
+function insufficientFallbackMessage(
+  evidence: OfficialEvidence,
+  broadOk: boolean
+): string {
+  const count = evidence.officialCount;
+  const confirmed = `only ${count} official source${
+    count === 1 ? " was" : "s were"
+  } confirmed`;
+  const secondary =
+    evidence.secondary.length > 0
+      ? " The other results are third-party and do not make up for missing official evidence."
+      : "";
+
+  if (!broadOk) {
+    return `Official evidence is insufficient: ${confirmed}, and the broader fallback search failed.${secondary}`;
+  }
+
+  if (!evidence.hasDocOrPricingPath) {
+    return count >= 2
+      ? `Official evidence is insufficient: ${count} official sources were confirmed, but none is a documentation or pricing page.${secondary}`
+      : `Official evidence is insufficient: ${confirmed}, and none is a documentation or pricing page.${secondary}`;
+  }
+
+  return `Official evidence is insufficient: ${confirmed}.${secondary}`;
 }
 
 /** Official first, deduplicated, capped at the per-query result limit. */

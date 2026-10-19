@@ -249,8 +249,52 @@ describe("official-source retrieval", () => {
 
     const outcome = await runWebSearch({ ...base, ...officialQuery });
 
-    expect(outcome.status).toBe("official-fallback");
+    // Two first-party hosts are still not enough when neither is a docs or
+    // pricing page: the fallback does not turn that into a success.
     expect(searchWeb).toHaveBeenCalledTimes(2);
+    expect(outcome.status).toBe("official-insufficient");
+    if (outcome.status !== "skipped") {
+      expect(outcome.fallbackUsed).toBe(true);
+      expect(outcome.sources).toHaveLength(3);
+      expect(outcome.sources.filter((source) => source.official)).toHaveLength(2);
+      expect(outcome.sources.filter((source) => source.official === false)).toHaveLength(1);
+      expect(String(outcome.message)).toMatch(/none is a documentation or pricing page/i);
+      expect(String(outcome.message)).toMatch(/do not make up for missing official evidence/i);
+    }
+  });
+
+  it("reports sufficient evidence when the fallback completes it with an official page", async () => {
+    // Case A: one restricted pricing page, then a broad fallback that finds a
+    // second official documentation page and nothing third-party.
+    searchWeb.mockImplementation(async (_query, options) =>
+      options?.includeDomains ? reply([geminiPricing]) : reply([geminiModels])
+    );
+
+    const outcome = await runWebSearch({ ...base, ...officialQuery });
+
+    expect(searchWeb).toHaveBeenCalledTimes(2);
+    expect(outcome.status).toBe("official-complete");
+    if (outcome.status !== "skipped") {
+      expect(outcome.fallbackUsed).toBe(true);
+      expect(outcome.sources).toHaveLength(2);
+      expect(outcome.sources.every((source) => source.official === true)).toBe(true);
+      expect(outcome.message).toBeUndefined();
+    }
+  });
+
+  it("keeps the official link labelled when the fallback finds nothing", async () => {
+    // One official page and an empty fallback: still insufficient, still real.
+    searchWeb.mockImplementation(async (_query, options) =>
+      options?.includeDomains ? reply([geminiPricing]) : reply([])
+    );
+
+    const outcome = await runWebSearch({ ...base, ...officialQuery });
+
+    expect(outcome.status).toBe("official-insufficient");
+    if (outcome.status !== "skipped") {
+      expect(outcome.sources).toHaveLength(1);
+      expect(outcome.sources[0].official).toBe(true);
+    }
   });
 
   it("reports insufficient evidence when no official host comes back", async () => {

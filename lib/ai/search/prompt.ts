@@ -118,7 +118,7 @@ function buildOfficialBlock(context: OfficialPromptContext): string[] {
 
   if (context.fallbackUsed) {
     lines.push(
-      "- A single broader fallback search ran because the official results were insufficient. Sources tagged SECONDARY come from that fallback."
+      "- A single broader fallback search ran because the official results were insufficient. Any results tagged SECONDARY came from that fallback."
     );
   }
 

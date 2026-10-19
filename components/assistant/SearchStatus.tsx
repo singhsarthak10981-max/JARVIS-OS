@@ -58,7 +58,13 @@ export default function SearchStatus({ notice }: { notice: SearchNotice }) {
   const tone = TONES[notice.status];
   const sources = notice.sources ?? [];
   const officialCount = sources.filter((source) => source.official).length;
+  const secondaryCount = sources.length - officialCount;
   const isOfficialMode = notice.mode === "official";
+  // Insufficient evidence can still surface real first-party links alongside
+  // third-party ones, so it counts them like any other sourced status.
+  const counted =
+    SOURCED.includes(notice.status) ||
+    (notice.status === "official-insufficient" && sources.length > 0);
 
   let heading: string;
   if (notice.status === "searching") {
@@ -69,6 +75,15 @@ export default function SearchStatus({ notice }: { notice: SearchNotice }) {
     }`;
     if (isOfficialMode && officialCount > 0) {
       heading += ` (${officialCount} official)`;
+    }
+  } else if (notice.status === "official-insufficient" && sources.length > 0) {
+    heading = `${HEADINGS[notice.status]} · ${sources.length} source${
+      sources.length === 1 ? "" : "s"
+    }`;
+    if (officialCount > 0) {
+      heading += ` (${officialCount} official${
+        secondaryCount > 0 ? `, ${secondaryCount} secondary` : ""
+      })`;
     }
   } else {
     heading = HEADINGS[notice.status];
@@ -91,7 +106,7 @@ export default function SearchStatus({ notice }: { notice: SearchNotice }) {
           <span className="h-1 w-1 animate-pulse rounded-full bg-jarvis-red" />
         )}
         <span className="tracking-[0.16em] uppercase">{heading}</span>
-        {notice.query && !SOURCED.includes(notice.status) && (
+        {notice.query && !counted && (
           <span className="truncate text-jarvis-text-disabled normal-case">
             · {notice.query}
           </span>

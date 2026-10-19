@@ -169,6 +169,10 @@ describe("official-source prompt", () => {
       insufficient: true,
     });
     expect(thin).toMatch(/official evidence was insufficient/i);
+    // The flag changes the instruction, not the per-source labels.
+    expect(thin).toContain("[1] (OFFICIAL) Gemini API pricing");
+    expect(thin).toContain("[2] (SECONDARY — third party) A third-party comparison");
+    expect(thin).toMatch(/do not present secondary sources as official verification/i);
   });
 
   it("says so when no official domain could be identified", () => {

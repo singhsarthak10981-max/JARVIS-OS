@@ -273,6 +273,89 @@ describe("controlled fallback", () => {
     expect(sources.some((source) => source.official === false)).toBe(true);
   });
 
+  it("reports sufficient evidence when the fallback completes it with an official page", async () => {
+    const network = stubNetwork([
+      tavilyPayload([GEMINI_PRICING]),
+      tavilyPayload([GEMINI_MODELS]),
+    ]);
+
+    const frames = await readFrames(
+      await POST(post(chatBody(ACCEPTANCE_PROMPT)))
+    );
+
+    expect(network.tavily).toHaveLength(2);
+    expect(network.tavily[1].body).not.toHaveProperty("include_domains");
+    expect(network.geminiBodies).toHaveLength(1);
+
+    const prompt = network.geminiBodies[0];
+    expect(prompt).toContain("[1] (OFFICIAL) Gemini API pricing");
+    expect(prompt).toContain("[2] (OFFICIAL) Gemini models");
+    expect(prompt).not.toContain("(SECONDARY");
+    // A fallback ran, but it completed the official evidence rather than
+    // leaving it short.
+    expect(prompt).not.toMatch(/official evidence was insufficient/i);
+
+    const notice = searchOutcome(frames);
+    expect(notice).toMatchObject({ status: "official-complete", mode: "official" });
+    const sources = notice?.sources as Record<string, unknown>[];
+    expect(sources).toHaveLength(2);
+    expect(sources.every((source) => source.official === true)).toBe(true);
+  });
+
+  it("tells the model when official evidence stays insufficient after fallback", async () => {
+    // Two first-party results, but neither is a docs or pricing page; the
+    // fallback only adds third-party commentary.
+    const about = {
+      ...GEMINI_PRICING,
+      title: "About Gemini",
+      url: "https://ai.google.dev/about",
+      content: "Marketing page.",
+    };
+    const home = {
+      ...GEMINI_PRICING,
+      title: "Google AI",
+      url: "https://ai.google.dev/",
+      content: "Landing page.",
+    };
+
+    const network = stubNetwork([
+      tavilyPayload([about, home]),
+      tavilyPayload([THIRD_PARTY]),
+    ]);
+
+    const frames = await readFrames(
+      await POST(post(chatBody(ACCEPTANCE_PROMPT)))
+    );
+
+    expect(network.tavily).toHaveLength(2);
+    expect(network.geminiBodies).toHaveLength(1);
+
+    const prompt = network.geminiBodies[0];
+    expect(prompt).toMatch(/official evidence was insufficient to answer with confidence/i);
+    expect(prompt).toContain("(OFFICIAL)");
+    expect(prompt).toContain("(SECONDARY — third party)");
+
+    const notice = searchOutcome(frames);
+    expect(notice).toMatchObject({
+      status: "official-insufficient",
+      mode: "official",
+      vendor: "Google",
+      domains: ["ai.google.dev"],
+    });
+    expect(String(notice?.message)).toMatch(/none is a documentation or pricing page/i);
+    expect(String(notice?.message)).toMatch(/do not make up for missing official evidence/i);
+
+    const sources = notice?.sources as Record<string, unknown>[];
+    expect(sources).toHaveLength(3);
+    expect(sources.filter((source) => source.official === true)).toHaveLength(2);
+    expect(sources.filter((source) => source.official === false)).toHaveLength(1);
+    // Labels follow the validated host, not the status name.
+    expect(sources[0].url).toBe("https://ai.google.dev/about");
+    expect(sources[0].official).toBe(true);
+    expect(sources[2].url).toBe(THIRD_PARTY.url);
+    expect(sources[2].official).toBe(false);
+  });
+
   it("never sends more than two search requests", async () => {
     const network = stubNetwork([
       tavilyPayload([]),

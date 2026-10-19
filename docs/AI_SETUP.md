@@ -186,6 +186,21 @@ and it never runs more than two searches for one turn. If the restricted
 search itself fails (network, timeout, rejected key), no fallback is attempted —
 the failure is reported instead.
 
+**After the fallback.** The final verdict follows the merged, re-validated
+evidence, not the fact that a fallback ran:
+
+- If the fallback supplies another first-party docs or pricing page and there
+  are no third-party results, the turn is reported as **official sources** —
+  adding a fallback result does not make otherwise-sufficient evidence
+  "insufficient".
+- If official evidence is sufficient but the fallback also found third-party
+  results, the turn is **official + secondary**.
+- If official evidence is still insufficient — too few first-party results, or
+  none of them a documentation/pricing page — the panel says so explicitly and
+  the model is told the same. Official links keep their check mark, third-party
+  links stay unmarked, and secondary results are never described as filling the
+  gap.
+
 **Unknown vendors.** If no first-party domain can be identified from the
 request, JARVIS does not invent one. It runs a normal search and tells you that
 official-source verification was unavailable. The same message appears in the

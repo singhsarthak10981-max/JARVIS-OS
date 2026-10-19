@@ -28,7 +28,7 @@ function OrbGlowInner({ state, size, wakeUp }: OrbGlowProps) {
         borderRadius: r.orb,
         width: size * 0.35,
         height: size * 0.35,
-        background: `radial-gradient(circle, ${coreColor}${Math.round(glowOpacity * 255).toString(16).padStart(2, "0")} 0%, ${coreColor}20 50%, transparent 70%)`,
+        background: `radial-gradient(circle, color-mix(in srgb, ${coreColor} ${Math.round(glowOpacity * 100)}%, transparent) 0%, color-mix(in srgb, ${coreColor} 12%, transparent) 50%, transparent 70%)`,
         filter: `blur(${glowRadius * 0.4}px)`,
       }}
       animate={

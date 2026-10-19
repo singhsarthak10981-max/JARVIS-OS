@@ -5,7 +5,7 @@ export const MODULE_WINDOW_DEFAULTS: Record<
   ModuleId,
   { width: number; height: number; title: string }
 > = {
-  "command-center": { width: 1000, height: 760, title: "Command Center" },
+  "command-center": { width: 1120, height: 800, title: "Command Center" },
   dj: { width: 1180, height: 740, title: "DJ Workspace" },
   producer: { width: 900, height: 600, title: "Producer" },
   bar: { width: 800, height: 550, title: "Bar" },
@@ -39,7 +39,7 @@ export function openModuleWindow(moduleId: ModuleId): void {
   // windows opened taller than the usable area and their content was cut off.
   const pane = document.querySelector("[data-desktop-pane]");
   const paneRect = pane?.getBoundingClientRect();
-  const paneWidth = paneRect?.width ?? window.innerWidth - 280;
+  const paneWidth = paneRect?.width ?? window.innerWidth - 240;
   const paneHeight = paneRect?.height ?? window.innerHeight - 72;
 
   const MARGIN = 20;
@@ -49,9 +49,12 @@ export function openModuleWindow(moduleId: ModuleId): void {
   const width = Math.min(defaults.width, availableWidth);
   const height = Math.min(defaults.height, availableHeight);
 
-  const maxX = Math.max(0, paneWidth - width - MARGIN);
+  // The sidebar is an overlay tray in the shell, so a window opened at the
+  // pane's left margin would slide underneath it. Start clear of the rail.
+  const LEFT_RAIL = 28;
+  const maxX = Math.max(LEFT_RAIL, paneWidth - width - MARGIN);
   const maxY = Math.max(0, paneHeight - height - DOCK_SPACE);
-  const x = Math.min(MARGIN + offset, maxX);
+  const x = Math.min(Math.max(MARGIN, LEFT_RAIL) + offset, maxX);
   const y = Math.min(MARGIN + offset, maxY);
 
   store.openWindow({

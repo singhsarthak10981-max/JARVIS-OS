@@ -24,10 +24,11 @@ export const CAPABILITY_IDS = [
   "dj-library-query",
   "ai-conversation",
   "web-search",
+  // Limited UI capability: explicit user-selected file preview (not an intent action)
+  "local-file-browsing",
   // Reserved / not available in this build
   "rekordbox-launch",
   "dj-hardware-control",
-  "local-file-browsing",
   "email",
   "calendar",
   "weather",

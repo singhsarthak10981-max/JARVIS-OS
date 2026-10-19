@@ -208,17 +208,21 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = [
   },
   {
     id: "local-file-browsing",
-    name: "Local file browsing",
+    name: "Local file preview",
     category: "system",
-    availability: "planned",
-    mutatesState: true,
+    availability: "implemented",
+    mutatesState: false,
     destructive: false,
-    requiresConfirmation: true,
+    requiresConfirmation: false,
     summary:
-      "Planned file browsing and management on the local machine. Not available.",
-    operations: [],
+      "Previews bounded text from one supported local file explicitly selected by the user.",
+    operations: [
+      "Select one supported local text file",
+      "Preview up to 12,000 characters",
+    ],
     actionTypes: [],
-    note: "Scheduled for a later sprint with its own permission model.",
+    note:
+      "Reads in browser memory only. No directory scanning, file writes/deletes, persistent handles, telemetry payloads or automatic AI upload.",
   },
   {
     id: "email",

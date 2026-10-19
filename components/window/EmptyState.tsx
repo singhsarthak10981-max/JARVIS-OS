@@ -1,58 +1,35 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { tokens } from "@/lib/tokens";
-
-const dur = tokens.duration;
+import { usePlatform } from "@/lib/use-platform";
+import { formatShortcut } from "@/lib/platform";
 
 export default function EmptyState() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <motion.div
-        className="flex flex-col items-center gap-4"
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: dur.large / 1000, ease: "easeOut" }}
-      >
-        <motion.div
-          className="flex h-16 w-16 items-center justify-center rounded-2xl border border-jarvis-red/20 bg-jarvis-red/5"
-          animate={{
-            boxShadow: [
-              "0 0 10px rgba(229,0,0,0.1)",
-              "0 0 25px rgba(229,0,0,0.2)",
-              "0 0 10px rgba(229,0,0,0.1)",
-            ],
-          }}
-          transition={{
-            duration: dur.max / 1000,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        >
-          <span className="text-2xl text-jarvis-red">◆</span>
-        </motion.div>
+  const platform = usePlatform();
 
-        <div className="text-center">
-          <h2 className="text-lg font-light tracking-[0.2em] text-jarvis-text-primary uppercase">
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-[14px] border border-jarvis-red/20 bg-jarvis-red/5">
+          <span className="text-[20px] text-jarvis-red">◆</span>
+        </div>
+
+        <div>
+          <h2 className="text-[15px] font-light tracking-[0.16em] text-jarvis-text-primary uppercase">
             JARVIS Desktop
           </h2>
-          <p className="mt-2 text-xs tracking-wider text-jarvis-text-muted">
-            No applications running
+          <p className="mt-1.5 text-[11.5px] text-jarvis-text-muted">
+            No applications running. Open a workspace from the dock or sidebar.
           </p>
         </div>
 
-        <motion.div
-          className="mt-2 flex items-center gap-2 text-[10px] tracking-wider text-jarvis-text-disabled"
-          animate={{ opacity: [0.4, 0.8, 0.4] }}
-          transition={{ duration: dur.large / 1000, repeat: Infinity }}
-        >
+        <div className="flex items-center gap-2 text-[10px] tracking-wider text-jarvis-text-disabled">
           <span>Press</span>
-          <kbd className="rounded border border-jarvis-red/20 bg-jarvis-surface/60 px-1.5 py-0.5 font-mono text-jarvis-red/70">
-            Ctrl+J
+          <kbd className="rounded border border-white/10 bg-jarvis-surface px-1.5 py-0.5 font-mono text-[10px] text-jarvis-text-secondary">
+            {formatShortcut("⌘K", platform)}
           </kbd>
           <span>to open Command Palette</span>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -104,12 +104,27 @@ describe("action coverage", () => {
 
 describe("availability honesty", () => {
   it("keeps planned capabilities unavailable", () => {
-    for (const id of ["local-file-browsing", "email", "calendar", "weather", "smart-home"] as const) {
+    for (const id of ["email", "calendar", "weather", "smart-home"] as const) {
       const capability = getCapability(id)!;
       expect(capability.availability).toBe("planned");
       expect(capability.operations).toHaveLength(0);
       expect(capability.actionTypes).toHaveLength(0);
     }
+  });
+
+  it("registers the implemented local-file scope honestly", () => {
+    const files = getCapability("local-file-browsing")!;
+    expect(files.availability).toBe("implemented");
+    expect(files.mutatesState).toBe(false);
+    expect(files.destructive).toBe(false);
+    expect(files.requiresConfirmation).toBe(false);
+    expect(files.operations).toEqual([
+      "Select one supported local text file",
+      "Preview up to 12,000 characters",
+    ]);
+    expect(files.actionTypes).toHaveLength(0);
+    expect(files.note).toMatch(/no directory scanning/i);
+    expect(files.note).toMatch(/automatic AI upload/i);
   });
 
   it("keeps the bridge-backed capabilities unavailable", () => {

@@ -186,7 +186,7 @@ Status: Merged in PR #10; production build and local verification passed.
 - Replace the conventional collapsed sidebar with a 14px left-edge reveal tray, auto-hide and pin control
 - Audit keyboard navigation, reduced motion and responsive layouts
 
-Status: In progress on `feat/stark-interface-v1`. Not merged or visually signed off yet. See [Stark Interface Sprint](./STARK_INTERFACE_SPRINT.md).
+Status: Core changes merged in PR #11; the smaller, latency-free reticle follow-up merged in PR #12 and was confirmed by the user. Visual sign-off across target resolutions is still pending. See [Stark Interface Sprint](./STARK_INTERFACE_SPRINT.md).
 
 ---
 
@@ -197,7 +197,7 @@ Status: In progress on `feat/stark-interface-v1`. Not merged or visually signed 
 - No system-wide scanning, execution, or write/delete actions in the first release
 - Maintain explicit permission, cancellation and revocation states
 
-Status: Planned. See [Integrations Roadmap](./INTEGRATIONS_ROADMAP.md).
+Status: First slice implemented on `feat/local-file-import-v1`: one explicitly selected text file, bounded preview, no persistent storage or automatic upload. Awaiting local Windows verification and merge; directory scanning and AI context attachment remain out of scope. See [Integrations Roadmap](./INTEGRATIONS_ROADMAP.md).
 
 ---
 
@@ -223,4 +223,4 @@ Status: Design-only; not implemented. See [Local Bridge](./BRIDGE.md).
 
 ---
 
-**Roadmap note:** Sprints 15–18 are planned milestones, not shipped capabilities. Check the capability registry for what the current build can actually do.
+**Roadmap note:** Sprint 15 core changes are merged but visual sign-off remains open; Sprint 16 has a first-slice implementation under review. Later phases remain planned. Check the capability registry for what the current build can actually do.

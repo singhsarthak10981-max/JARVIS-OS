@@ -10,12 +10,19 @@
 | Live web search | Implemented | Requires `TAVILY_API_KEY`; returned sources are evidence, not a guarantee of accuracy. |
 | Imported DJ library queries | Implemented | Answers from the imported local collection snapshot; no direct Rekordbox database writes. |
 | Rekordbox launch / desktop apps | Unavailable | The local bridge is design-only; no helper is shipped or running. |
-| Local file browsing | Planned | No arbitrary filesystem access is available to the web UI. |
+| Local file browsing | Implemented (limited first slice; pending merge) | Explicitly selected, single text-file preview in Settings → System; 1 MiB file limit, 12,000-character preview, in-memory only. No directory scan, writes/deletes, or automatic AI upload. |
 | Calendar, weather, email, smart home | Planned | No provider connection or account authorization is currently implemented. |
 
 Canonical source of truth: `lib/ai/capabilities/registry.ts`. Keep it updated with code and tests; never mark an item implemented just because a control exists.
 
 ## Phase A — Safe local-file access
+
+### First slice under review
+
+The `feat/local-file-import-v1` branch adds a picker in **Settings → System** for one explicitly selected `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.log` or `.lrc` file. Files above 1 MiB are rejected before reading, and the visible preview is capped at 12,000 characters. The file name and preview exist only in component memory; the panel does not save the file, persist a handle, log its contents, send it to a provider, or attach it to a chat automatically.
+
+This is not a full file explorer, directory scanner, or AI attachment flow. If the user later wants JARVIS to reason over a file, a separate explicit attach/send action and provider disclosure must be designed and tested. Browser read failures are shown as a generic safe error, and the user can clear the preview.
+
 
 1. Start with **user-picked, read-only imports**: choose a file or a directory explicitly from a button press; show the chosen item and the exact permitted operation before reading.
 2. Prefer metadata and preview first. Add a bounded text reader for supported formats before any indexing. File contents stay local unless the user explicitly submits selected text to a configured AI provider.

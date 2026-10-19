@@ -589,7 +589,13 @@ export function buildSystemPrompt(
     openWindows: number;
     providerLabel: string;
   },
-  search?: SearchPromptContext
+  search?: SearchPromptContext,
+  /**
+   * Relevant entries from the server-side memory store, pre-formatted and
+   * size-capped by lib/memory/context.ts. Only ever supplied for providers
+   * whose prompts stay on this machine; undefined injects nothing.
+   */
+  storedMemory?: string
 ): string {
   const searchBlock =
     search?.kind === "results"
@@ -609,6 +615,10 @@ export function buildSystemPrompt(
           .map((m) => `- ${m}`)
           .join("\n")
       : "(no stored memories yet)";
+
+  const storedBlock = storedMemory
+    ? `\nRelevant entries from the local memory store:\n${storedMemory}\n`
+    : "";
 
   return `You are J.A.R.V.I.S. — Just A Rather Very Intelligent System — the intelligence layer inside JARVIS OS, a red tactical desktop environment built by ${ownerName}.
 
@@ -635,5 +645,9 @@ Context:
 
 ${searchBlock}
 Long-term memories about the user:
-${memoryBlock}`;
+${memoryBlock}
+${storedBlock}
+Memory rules:
+- The memory notes above are all you reliably know about the user. If asked for personal details they do not cover, say you do not have that stored instead of guessing.
+- When an answer comes from these notes, say so briefly (e.g. "From your saved notes…"). Entries marked [inferred] were learned automatically and never explicitly confirmed — phrase them tentatively and never claim the user told you them directly.`;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { MODULES, type ModuleId } from "@/lib/modules";
@@ -31,21 +31,14 @@ export default function Sidebar({
   const assistantOpen = useAppStore((s) => s.assistantOpen);
   const aiState = useAppStore((s) => s.aiState);
 
+  const keyboardNavigationRef = useRef(false);
+
   useEffect(() => {
     const savedPin = window.localStorage.getItem(PIN_STORAGE_KEY);
-    if (savedPin !== null) {
-      setPinned(savedPin === "true");
-    } else {
-      // Preserve the previous expanded preference while making the old
-      // collapsed preference use the new automatic edge-reveal behaviour.
-      const legacyCollapsed = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-      const shouldPin = legacyCollapsed === "false";
-      setPinned(shouldPin);
-      if (legacyCollapsed !== null) {
-        window.localStorage.setItem(PIN_STORAGE_KEY, String(shouldPin));
-        window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-      }
-    }
+    if (savedPin !== null) setPinned(savedPin === "true");
+    // The old false value was also the default for most users, so it cannot
+    // reliably tell us that a user explicitly wanted the sidebar pinned.
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
     setPinPreferenceLoaded(true);
   }, []);
 
@@ -57,14 +50,23 @@ export default function Sidebar({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      keyboardNavigationRef.current = true;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
         event.preventDefault();
         setPinned((value) => !value);
       }
     };
+    const onPointerDown = () => {
+      keyboardNavigationRef.current = false;
+      setKeyboardFocused(false);
+    };
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+    };
   }, []);
 
   const isOpen = pinned || pointerInside || keyboardFocused;
@@ -80,7 +82,6 @@ export default function Sidebar({
   const handleEdgeAction = () => {
     if (!isOpen) {
       setPointerInside(true);
-      setKeyboardFocused(true);
       return;
     }
     setPinned((value) => !value);
@@ -99,7 +100,9 @@ export default function Sidebar({
       }}
       onMouseEnter={() => setPointerInside(true)}
       onMouseLeave={() => setPointerInside(false)}
-      onFocusCapture={() => setKeyboardFocused(true)}
+      onFocusCapture={() => {
+        if (keyboardNavigationRef.current) setKeyboardFocused(true);
+      }}
       onBlurCapture={handleSidebarBlur}
     >
       <button

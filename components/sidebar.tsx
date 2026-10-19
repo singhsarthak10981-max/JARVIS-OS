@@ -119,7 +119,7 @@ export default function Sidebar({
             <span className="text-xs font-bold text-jarvis-red">J</span>
           </div>
           <AnimatePresence initial={false}>
-            {true && (
+            {!collapsed && (
               <motion.div
                 className="min-w-0 overflow-hidden"
                 initial={{ opacity: 0, width: 0, x: -8 }}
@@ -179,7 +179,7 @@ export default function Sidebar({
             />
           </span>
 
-          {true && (
+          {!collapsed && (
             <>
               <span className="min-w-0 flex-1 text-left">
                 <span className="block text-[10px] font-semibold tracking-[0.18em] text-jarvis-red uppercase">
@@ -243,7 +243,7 @@ export default function Sidebar({
                 </span>
 
                 <AnimatePresence initial={false}>
-                  {true && (
+                  {!collapsed && (
                     <motion.span
                       className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-wide"
                       initial={{ opacity: 0, width: 0 }}
@@ -281,7 +281,7 @@ export default function Sidebar({
       <div className="border-t border-jarvis-red/10 p-3">
         <div className="flex items-center gap-2" title="System Online">
           <div className="h-2 w-2 shrink-0 rounded-full bg-jarvis-red jarvis-glow-sm" />
-          {true && (
+          {!collapsed && (
             <span className="text-[10px] tracking-wider text-jarvis-text-muted uppercase">
               System Online
             </span>

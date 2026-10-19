@@ -255,10 +255,10 @@ function StatusIndicator({
 }) {
   const color =
     status.tone === "ready"
-      ? c.success
+      ? "var(--jarvis-success)"
       : status.tone === "problem"
-        ? c.redBright
-        : c.textDisabled;
+        ? "var(--jarvis-red-bright)"
+        : "var(--jarvis-text-disabled)";
 
   return (
     <div
@@ -272,7 +272,7 @@ function StatusIndicator({
           className="h-1.5 w-1.5 rounded-full"
           style={{
             backgroundColor: color,
-            boxShadow: status.tone === "ready" ? `0 0 6px ${color}80` : undefined,
+            boxShadow: status.tone === "ready" ? `0 0 6px color-mix(in srgb, ${color} 50%, transparent)` : undefined,
           }}
         />
         {status.tone === "ready" && (

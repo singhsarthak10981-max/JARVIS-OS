@@ -9,6 +9,7 @@ import Dock from "./dock/Dock";
 import WallpaperRenderer from "./wallpaper/WallpaperRenderer";
 import DesktopGrid from "./desktop/DesktopGrid";
 import TacticalArc from "./hud/TacticalArc";
+import ReticleCursor from "./hud/ReticleCursor";
 import ContextMenu from "./context-menu/ContextMenu";
 import type { ContextMenuItem } from "./context-menu/ContextMenu";
 import { generateWorkspaceId } from "@/lib/workspaces";
@@ -131,7 +132,7 @@ export default function Desktop() {
   ];
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-jarvis-bg-secondary">
       <WallpaperRenderer />
 
       <Sidebar
@@ -159,6 +160,7 @@ export default function Desktop() {
       {contextMenu && (
         <ContextMenu items={contextMenuItems} position={contextMenu} onClose={() => setContextMenu(null)} onItemSelect={handleContextMenuAction} />
       )}
+      <ReticleCursor />
     </div>
   );
 }

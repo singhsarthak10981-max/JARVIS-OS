@@ -15,7 +15,6 @@ import {
 import { useAppStore } from "@/lib/store";
 import { tokens } from "@/lib/tokens";
 
-const c = tokens.color;
 const dur = tokens.duration;
 
 function formatTime(date: Date) {
@@ -138,7 +137,7 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
           <span
             className="h-1.5 w-1.5 rounded-full"
             style={{
-              backgroundColor: AI_STATE_COLORS[aiState] ?? c.textDisabled,
+              backgroundColor: AI_STATE_COLORS[aiState] ?? "var(--jarvis-text-disabled)",
               boxShadow: `0 0 6px color-mix(in srgb, ${AI_STATE_COLORS[aiState] ?? "var(--jarvis-text-disabled)"} 50%, transparent)`,
             }}
           />

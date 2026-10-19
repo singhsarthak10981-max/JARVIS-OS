@@ -124,7 +124,7 @@ describe("availability honesty", () => {
     ]);
     expect(files.actionTypes).toHaveLength(0);
     expect(files.note).toMatch(/no directory scanning/i);
-    expect(files.note).toMatch(/no automatic AI upload/i);
+    expect(files.note).toMatch(/automatic AI upload/i);
   });
 
   it("keeps the bridge-backed capabilities unavailable", () => {

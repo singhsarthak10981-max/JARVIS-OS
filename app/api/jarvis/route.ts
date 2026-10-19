@@ -7,9 +7,16 @@ import {
   resolveProviderConfig,
   streamChat,
   type ChatTurn,
+  type ProviderConfig,
   type SearchPromptContext,
 } from "@/lib/ai/server";
 import { buildLocalReply } from "@/lib/ai/local";
+import {
+  learnFromTurn,
+  persistTurn,
+  prepareTurnMemory,
+  type CompletionResult,
+} from "@/lib/memory/chat";
 import { classifyFetchError } from "@/lib/ai/errors";
 import { runWebSearch, toSearchNotice } from "@/lib/ai/search";
 import { searchConfigured } from "@/lib/ai/search/tavily";
@@ -109,6 +116,57 @@ function sanitizeMemories(input: unknown): string[] {
     .filter((m): m is string => typeof m === "string" && m.trim().length > 0)
     .map((m) => m.trim().slice(0, 400))
     .slice(0, 40);
+}
+
+const REFLECTION_TIMEOUT_MS = 30_000;
+const MAX_REFLECTION_CHARS = 8000;
+
+/**
+ * Completion backend for memory reflection. Deliberately Ollama-only: when
+ * the turn's own provider is Ollama its config is reused, otherwise a local
+ * config is resolved independently (model from `JARVIS_MEMORY_MODEL`, else
+ * the Ollama default). A cloud model is never asked to process the exchange
+ * for learning; when no local model is usable, learning is skipped and the
+ * reason is reported for the audit log. Uses its own timeout — the request
+ * signal may already have fired by the time learning runs.
+ */
+function reflectionCompletion(mainConfig: ProviderConfig) {
+  return async (system: string, user: string): Promise<CompletionResult> => {
+    const resolved =
+      mainConfig.provider === "ollama"
+        ? ({ ok: true, config: mainConfig } as const)
+        : resolveProviderConfig({
+            provider: "ollama",
+            model: process.env.JARVIS_MEMORY_MODEL,
+          });
+    if (!resolved.ok) {
+      return { ok: false, reason: "local model not configured" };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      REFLECTION_TIMEOUT_MS
+    );
+    try {
+      let text = "";
+      for await (const delta of streamChat(
+        resolved.config,
+        system,
+        [{ role: "user", content: user }],
+        controller.signal
+      )) {
+        if (!delta.text) continue;
+        text += delta.text;
+        if (text.length > MAX_REFLECTION_CHARS) break;
+      }
+      return { ok: true, text };
+    } catch {
+      return { ok: false, reason: "local model unreachable" };
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
 }
 
 export async function POST(request: Request) {
@@ -335,18 +393,31 @@ export async function POST(request: Request) {
         };
       }
 
+      // Long-term memory (SQLite). Retrieval is local, fail-soft, and the
+      // block is injected only when this turn's prompt stays on the machine
+      // (Ollama). Cloud providers keep receiving exactly what they received
+      // before: the browser-supplied memories, nothing from the store.
+      const turnMemory = prepareTurnMemory({
+        queryText: [lastUserMessage, previousUserMessage ?? ""].join("\n"),
+        clientMemories: memories,
+        inject: config.provider === "ollama",
+      });
+
       const system = buildSystemPrompt(
         ownerName,
         memories,
         { activeModule, openWindows, providerLabel },
-        searchPrompt
+        searchPrompt,
+        turnMemory.block || undefined
       );
 
+      let assistantText = "";
       try {
         if (config.provider === "local") {
           const lastUser =
             messages[messages.length - 1]?.content ?? "";
           const reply = buildLocalReply(lastUser, ownerName, memories.length);
+          assistantText = reply;
           const words = reply.split(/(\s+)/);
           for (const word of words) {
             if (word) send({ type: "delta", text: word });
@@ -359,11 +430,29 @@ export async function POST(request: Request) {
             messages,
             abort.signal
           )) {
-            if (delta.text) send({ type: "delta", text: delta.text });
+            if (delta.text) {
+              assistantText += delta.text;
+              send({ type: "delta", text: delta.text });
+            }
           }
         }
 
         send({ type: "done" });
+
+        // Persist the completed exchange, then let a local model review it
+        // for durable memory updates off the response path. Both steps are
+        // fail-soft: a memory problem can never affect the delivered reply,
+        // and learning never delays the stream closing.
+        persistTurn({ history: messages, assistantText });
+        void learnFromTurn(
+          {
+            userText: lastUserMessage,
+            assistantText,
+            candidateKeys: turnMemory.candidateKeys,
+            clientMemories: memories,
+          },
+          { completeText: reflectionCompletion(config) }
+        );
       } catch (error) {
         const classified = classifyFetchError(
           error,

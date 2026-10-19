@@ -1,5 +1,28 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { POST, GET } from "@/app/api/jarvis/route";
+import { getDb } from "@/lib/memory/db";
+
+// Chat turns are persisted to the long-term memory database; point it at a
+// throwaway directory so test turns never land in the checkout's real
+// `.jarvis-data/`. getDb() binds on first use within this file.
+let dataDir: string;
+
+beforeAll(() => {
+  dataDir = mkdtempSync(path.join(os.tmpdir(), "jarvis-chat-test-"));
+  process.env.JARVIS_DATA_DIR = dataDir;
+});
+
+afterAll(async () => {
+  // Let any fire-and-forget reflection from the last test settle so it does
+  // not touch a closed handle (harmless by design, but noisy).
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  getDb().close();
+  delete process.env.JARVIS_DATA_DIR;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 const ENV_KEYS = [
   "GEMINI_API_KEY",

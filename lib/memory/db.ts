@@ -243,6 +243,22 @@ function log(
 }
 
 /**
+ * Append an audit entry from outside this module — used by the chat memory
+ * façade to record what a turn injected and what its reflection stored,
+ * skipped or dropped. Same 1,000-row cap and 200-char detail clip as the
+ * internal logger.
+ */
+export function logMemoryEvent(
+  action: MemoryAction,
+  entityType: MemoryEntityType,
+  entityId: number | null,
+  detail: string,
+  db: MemoryDb = getDb()
+): void {
+  log(db, action, entityType, entityId, detail);
+}
+
+/**
  * How a search query appears in the audit log. A query that looks like a
  * secret is redacted: the log records *that* a search happened, never a
  * credential someone pasted into the search box.
@@ -714,4 +730,162 @@ export function wipeMemory(
     return result;
   });
   return wipe();
+}
+
+// ── chat support (quiet reads for the per-turn memory wiring) ─────────────
+//
+// The accessors above log every read on purpose: they serve the review API,
+// where an audit trail is the point. The chat path runs on *every* turn, so
+// per-accessor logging would flood memory_log with machinery noise and push
+// out the entries that matter. These helpers therefore do not log reads;
+// the caller (lib/memory/chat.ts) writes one compact entry describing what
+// was actually injected or learned.
+
+export interface RelevantMemory {
+  /** Scored facts, most relevant first (score, then recency). */
+  facts: Fact[];
+  /** Scored skills, most relevant first (score, then usage). */
+  skills: Skill[];
+  /**
+   * Fact keys worth showing the reflection call so a correction reuses the
+   * existing key instead of minting a near-duplicate.
+   */
+  candidateKeys: string[];
+}
+
+const MAX_FACT_CANDIDATES = 300;
+const MAX_SKILL_CANDIDATES = 100;
+
+/**
+ * Keyword-scored retrieval for one chat turn. Terms are expected already
+ * normalised (see `extractTerms` in lib/memory/context.ts`); matching is a
+ * case-insensitive substring test per field with fixed weights — key/name
+ * hits outweigh value/description hits. At personal scale the candidate
+ * set is small enough to score in memory.
+ */
+export function findRelevantMemory(
+  terms: readonly string[],
+  options: { factLimit?: number; skillLimit?: number; candidateLimit?: number } = {},
+  db: MemoryDb = getDb()
+): RelevantMemory {
+  const candidateLimit = clampLimit(options.candidateLimit, 25);
+  const recentKeys = (): string[] =>
+    (
+      db
+        .prepare(
+          "SELECT key FROM facts ORDER BY updated_at DESC, id DESC LIMIT ?"
+        )
+        .all(candidateLimit) as { key: string }[]
+    ).map((row) => row.key);
+
+  if (terms.length === 0) {
+    return { facts: [], skills: [], candidateKeys: recentKeys() };
+  }
+
+  const score = (weights: readonly (readonly [string, number])[]): number => {
+    let total = 0;
+    for (const term of terms) {
+      for (const [field, weight] of weights) {
+        if (field.includes(term)) total += weight;
+      }
+    }
+    return total;
+  };
+
+  const factRows = db
+    .prepare(
+      "SELECT * FROM facts ORDER BY updated_at DESC, id DESC LIMIT ?"
+    )
+    .all(MAX_FACT_CANDIDATES) as Fact[];
+  const scoredFacts = factRows
+    .map((fact) => ({
+      fact,
+      score: score([
+        [fact.key.toLowerCase(), 3],
+        [fact.value.toLowerCase(), 2],
+        [fact.category.toLowerCase(), 1],
+      ]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score); // stable: recency breaks ties
+
+  const skillRows = db
+    .prepare(
+      "SELECT * FROM skills ORDER BY times_used DESC, updated_at DESC, id DESC LIMIT ?"
+    )
+    .all(MAX_SKILL_CANDIDATES) as SkillRow[];
+  const scoredSkills = skillRows
+    .map((row) => {
+      const skill = toSkill(row);
+      return {
+        skill,
+        score: score([
+          [skill.name.toLowerCase(), 3],
+          [skill.description.toLowerCase(), 2],
+          [skill.steps.join(" ").toLowerCase(), 1],
+        ]),
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    facts: scoredFacts
+      .slice(0, clampLimit(options.factLimit, 8))
+      .map((entry) => entry.fact),
+    skills: scoredSkills
+      .slice(0, clampLimit(options.skillLimit, 3))
+      .map((entry) => entry.skill),
+    candidateKeys:
+      scoredFacts.length > 0
+        ? scoredFacts.slice(0, candidateLimit).map((entry) => entry.fact.key)
+        : recentKeys(),
+  };
+}
+
+export interface ChatSession {
+  conversationId: number;
+  updatedAt: string;
+  /** Last persisted message of the conversation, or null when it is empty. */
+  anchor: { role: MessageRole; content: string } | null;
+}
+
+/**
+ * The most recently active conversation and its last message — the anchor
+ * `persistTurn` aligns incoming client history against (see
+ * lib/memory/chat.ts). Null when no conversation exists yet.
+ */
+export function getChatSession(db: MemoryDb = getDb()): ChatSession | null {
+  const conversation = db
+    .prepare(
+      "SELECT id, updated_at FROM conversations ORDER BY updated_at DESC, id DESC LIMIT 1"
+    )
+    .get() as { id: number; updated_at: string } | undefined;
+  if (!conversation) return null;
+
+  const last = db
+    .prepare(
+      "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1"
+    )
+    .get(conversation.id) as
+    | { role: MessageRole; content: string }
+    | undefined;
+
+  return {
+    conversationId: conversation.id,
+    updatedAt: conversation.updated_at,
+    anchor: last ?? null,
+  };
+}
+
+/**
+ * Every fact's id/key/value without logging — the snapshot the learning
+ * path deduplicates and conflict-checks proposals against.
+ */
+export function peekFacts(
+  db: MemoryDb = getDb()
+): { id: number; key: string; value: string }[] {
+  return db
+    .prepare("SELECT id, key, value FROM facts ORDER BY id ASC LIMIT 500")
+    .all() as { id: number; key: string; value: string }[];
 }

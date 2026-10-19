@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildSystemPrompt,
   resolveProviderConfig,
   probeProvider,
   serverKeyFor,
@@ -421,5 +422,34 @@ describe("request cancellation", () => {
     await expect(pending).rejects.toBeDefined();
     const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
     expect(init.signal).toBe(controller.signal);
+  });
+});
+
+describe("buildSystemPrompt memory sections", () => {
+  const context = {
+    activeModule: "command-center",
+    openWindows: 1,
+    providerLabel: "Ollama · qwen2.5:7b",
+  };
+
+  it("states the honesty rules and omits the store section by default", () => {
+    const prompt = buildSystemPrompt("Sarthak", [], context);
+    expect(prompt).toContain("(no stored memories yet)");
+    expect(prompt).toContain("do not have that stored");
+    expect(prompt).not.toContain("local memory store");
+  });
+
+  it("splices a provided stored-memory block with inferred attribution", () => {
+    const prompt = buildSystemPrompt(
+      "Sarthak",
+      ["likes jazz"],
+      context,
+      undefined,
+      "Facts:\n- coffee_preference: oat flat white [inferred]"
+    );
+    expect(prompt).toContain("- likes jazz");
+    expect(prompt).toContain("Relevant entries from the local memory store:");
+    expect(prompt).toContain("- coffee_preference: oat flat white [inferred]");
+    expect(prompt).toContain("[inferred] were learned automatically");
   });
 });

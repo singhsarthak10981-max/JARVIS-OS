@@ -28,7 +28,7 @@ function OrbCoreInner({ state, wakeUp }: OrbCoreProps) {
       className="absolute inset-0"
       style={{
         borderRadius: r.orb,
-        background: `radial-gradient(circle at 30% 30%, ${coreColor}40, ${coreColor}60 40%, ${tokens.color.bgSecondary}E0 70%)`,
+        background: `radial-gradient(circle at 30% 30%, color-mix(in srgb, ${coreColor} 25%, transparent), color-mix(in srgb, ${coreColor} 38%, transparent) 40%, color-mix(in srgb, var(--jarvis-bg-secondary) 88%, transparent) 70%)`,
       }}
       animate={
         wakeUp

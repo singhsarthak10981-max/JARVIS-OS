@@ -153,3 +153,29 @@ export function resolveDecks(
 export function countAssigned(decks: ResolvedDeck[]): number {
   return decks.filter((deck) => deck.track !== null).length;
 }
+
+/**
+ * Chooses which deck an assignment targets.
+ *
+ * Extracted so the activity log and the state write always agree: computing the
+ * slot twice (once for the log, once inside a state updater) is what previously
+ * produced "Deck 1" in the log while a different deck was actually filled.
+ */
+export function pickTargetDeck(
+  slots: DeckSlots,
+  explicitSlot: number | undefined,
+  activeDeck: number
+): number {
+  const clamp = (index: number) =>
+    Math.max(0, Math.min(DECK_COUNT - 1, index));
+
+  if (explicitSlot !== undefined) return clamp(explicitSlot);
+
+  const firstFree = slots.findIndex((id) => id === null);
+  return clamp(firstFree >= 0 ? firstFree : activeDeck);
+}
+
+/** 1-based label used in the activity log. */
+export function deckLabel(index: number): string {
+  return `Deck ${index + 1}`;
+}

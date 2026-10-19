@@ -4,7 +4,9 @@ import {
   DECK_COUNT,
   clearDeckStorage,
   countAssigned,
+  deckLabel,
   loadDeckState,
+  pickTargetDeck,
   resolveDecks,
   sanitiseSlots,
   saveDeckSlots,
@@ -75,6 +77,33 @@ describe("deck persistence", () => {
     saveDeckSlots(["t1", null, null, null]);
     expect(clearDeckStorage()).toBe(true);
     expect(loadDeckState().slots).toEqual([null, null, null, null]);
+  });
+});
+
+describe("target deck selection", () => {
+  it("fills the first free slot", () => {
+    expect(pickTargetDeck([null, null, null, null], undefined, 0)).toBe(0);
+    expect(pickTargetDeck(["t1", null, null, null], undefined, 0)).toBe(1);
+    expect(pickTargetDeck(["t1", "t2", null, null], undefined, 0)).toBe(2);
+  });
+
+  it("falls back to the active deck when all slots are full", () => {
+    expect(pickTargetDeck(["a", "b", "c", "d"], undefined, 2)).toBe(2);
+  });
+
+  it("honours an explicit slot over the active deck", () => {
+    expect(pickTargetDeck([null, null, null, null], 3, 0)).toBe(3);
+    expect(pickTargetDeck(["a", null, null, null], 2, 0)).toBe(2);
+  });
+
+  it("clamps out-of-range slots instead of writing outside the array", () => {
+    expect(pickTargetDeck([null, null, null, null], 9, 0)).toBe(DECK_COUNT - 1);
+    expect(pickTargetDeck([null, null, null, null], -4, 0)).toBe(0);
+  });
+
+  it("labels decks one-based for the activity log", () => {
+    expect(deckLabel(0)).toBe("Deck 1");
+    expect(deckLabel(3)).toBe("Deck 4");
   });
 });
 

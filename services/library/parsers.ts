@@ -1,5 +1,6 @@
 import type { DjTrack, LibrarySource, TrackImportResult } from "@/features/dj/types";
 import { toCamelot, traktorKeyName } from "./camelot";
+import { parseRekordboxCollection } from "./rekordbox";
 
 /**
  * Traktor collection parsers.
@@ -401,10 +402,17 @@ export function detectCollectionFormat(
   content: string
 ): LibrarySource {
   const lower = fileName.toLowerCase();
-  if (lower.endsWith(".nml") || lower.endsWith(".xml")) return "traktor-nml";
-  if (lower.endsWith(".csv") || lower.endsWith(".tsv")) return "csv";
   const head = content.slice(0, 4000);
-  return /<NML|<COLLECTION/i.test(head) ? "traktor-nml" : "csv";
+
+  // Both Rekordbox and Traktor export XML, so sniff the root element before
+  // trusting the extension.
+  if (/<DJ_PLAYLISTS[\s>]/i.test(head)) return "rekordbox-xml";
+  if (lower.endsWith(".nml") || lower.endsWith(".xml")) return "traktor-nml";
+  if (/<NML[\s>]/i.test(head)) return "traktor-nml";
+
+  if (lower.endsWith(".csv") || lower.endsWith(".tsv")) return "csv";
+  if (/<COLLECTION/i.test(head)) return "traktor-nml";
+  return "csv";
 }
 
 export function parseCollection(
@@ -412,6 +420,7 @@ export function parseCollection(
   content: string
 ): TrackImportResult {
   const format = detectCollectionFormat(fileName, content);
+  if (format === "rekordbox-xml") return parseRekordboxCollection(content);
   return format === "traktor-nml"
     ? parseTraktorCollection(content)
     : parseCsvCollection(content, fileName);

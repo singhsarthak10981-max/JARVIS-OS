@@ -53,7 +53,7 @@ export default function Sidebar({
   return (
     <motion.aside
       className="relative z-20 flex h-full flex-col border-r border-jarvis-red/10 bg-jarvis-bg-secondary/80 backdrop-blur-[20px]"
-      animate={{ width }}
+      animate={{ width, x: 0, opacity: 1 }}
       transition={{ duration: dur.medium / 1000, ease: [0.16, 1, 0.3, 1] }}
       initial={{ x: -expandedW, opacity: 0 }}
       style={{ width }}

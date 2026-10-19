@@ -7,15 +7,25 @@ interface ModuleShellProps {
   moduleId: ModuleId;
   title: string;
   description?: string;
+  /** Hide the in-module header when the surrounding window chrome already
+   *  shows the title (avoids a duplicated title stack). */
+  hideHeader?: boolean;
   children: React.ReactNode;
 }
 
-function ModuleShell({ moduleId, title, description, children }: ModuleShellProps) {
+function ModuleShell({
+  moduleId,
+  title,
+  description,
+  hideHeader = false,
+  children,
+}: ModuleShellProps) {
   return (
     <section
       data-module={moduleId}
       className="flex h-full min-h-0 flex-col bg-jarvis-bg-secondary/35 text-jarvis-text"
     >
+      {!hideHeader && (
       <header className="flex shrink-0 items-center justify-between border-b border-jarvis-red/10 px-5 py-4">
         <div>
           <div className="text-[10px] uppercase tracking-[0.24em] text-jarvis-red/70">
@@ -28,7 +38,8 @@ function ModuleShell({ moduleId, title, description, children }: ModuleShellProp
         </div>
         <div className="h-2 w-2 rounded-full bg-jarvis-red shadow-[0_0_12px_rgba(229,0,0,0.7)]" />
       </header>
-      <div className="min-h-0 flex-1 overflow-auto p-5">{children}</div>
+      )}
+      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">{children}</div>
     </section>
   );
 }

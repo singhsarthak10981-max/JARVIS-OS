@@ -4,6 +4,49 @@ All notable changes to JARVIS OS are documented here.
 
 ---
 
+# v1.2.0 — Rekordbox Launchpad
+Date: 19 October 2026
+
+## Added
+- **Rekordbox XML collection import** — reads the `DJ_PLAYLISTS` attribute
+  format (`Name`, `Artist`, `AverageBpm`, `Tonality`, `TotalTime`, `Rating`,
+  `Location`), decodes `file://localhost/...` paths and maps keys to Camelot.
+  Traktor NML and CSV remain supported through the same entry point.
+- **DJ launchpad** — Rekordbox is the primary target: launch/focus controls,
+  signal-chain explanation (Spotify → Rekordbox → audio device), bridge status
+  and a capability strip that separates what is ready from what is not.
+- **Local bridge contract** (`features/dj/bridge.ts` + `useDjBridge`) — probes
+  `127.0.0.1:7420`, with explicit `offline` / `unauthorized` / `blocked`
+  states. No bridge is bundled; the proposal is in `docs/BRIDGE.md` and awaits
+  approval.
+- 13 new tests for the Rekordbox parser and format detection — 93 total
+
+## Fixed
+- **Desktop was rendering empty.** `DesktopGrid` participated in normal flow at
+  `h-full`, pushing every window one viewport below the fold. It is now an
+  absolutely positioned, pointer-transparent desktop layer.
+- **Sidebar was permanently invisible.** Its Framer Motion `initial` set
+  `x: -280, opacity: 0` but `animate` only listed `width`, so neither was ever
+  animated. Both are now animated.
+- **Windows overflowed small viewports.** Stored geometry is clamped to the
+  workspace at render time, and a dock safe area stops windows rendering under
+  the floating dock.
+- Maximized windows now animate to percentage geometry instead of numeric
+  values, so the maximize transition actually fills the shell.
+
+## Changed
+- DJ window retitled "DJ Workspace"; the module header is hidden inside it so
+  the window chrome and module header no longer duplicate the title.
+- DJ copy no longer presents Traktor as the default platform.
+
+## Notes
+- Spotify in Rekordbox requires Premium and is an official Rekordbox feature.
+  Playback via Brave is **not** that integration, and the UI says so.
+- No bridge is installed; launch/focus are unavailable until it is approved and
+  built. Nothing is faked.
+
+---
+
 # v1.1.0 — Set Builder
 Date: 19 October 2026
 

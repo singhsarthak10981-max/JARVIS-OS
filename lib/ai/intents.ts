@@ -15,7 +15,12 @@ import { loadSetlists } from "@/features/dj/setlistStore";
  */
 
 export type JarvisAction =
-  | { type: "open-module"; moduleId: ModuleId }
+  | {
+      type: "open-module";
+      moduleId: ModuleId;
+      /** Ask the DJ module to attempt a launch through the local bridge. */
+      launch?: "rekordbox";
+    }
   | { type: "close-module"; moduleId: ModuleId }
   | { type: "close-all-windows" }
   | { type: "set-theme"; theme: ThemeId | "next" }
@@ -66,7 +71,20 @@ const MODULE_ALIASES: Record<ModuleId, string[]> = {
     "mission control",
     "home",
   ],
-  dj: ["dj", "decks", "turntables", "music deck"],
+  dj: [
+    "dj",
+    "dj mode",
+    "dj setup",
+    "dj workspace",
+    "decks",
+    "turntables",
+    "music deck",
+    "rekordbox",
+    "rekordbox dj",
+    "mix",
+    "mixing",
+    "groove",
+  ],
   producer: ["producer", "production", "studio", "fl studio", "beat lab"],
   bar: ["bar", "bar manager", "inventory"],
   business: ["business", "finance", "revenue", "contracts"],
@@ -197,6 +215,34 @@ function matchWallpaper(text: string): string | null {
 
 function moduleLabel(id: ModuleId): string {
   return MODULES.find((m) => m.id === id)?.label ?? id;
+}
+
+/** True when the user named the deck software rather than the workspace. */
+function isRekordboxTarget(target: string): boolean {
+  return /rekordbox/.test(target);
+}
+
+/**
+ * Opening the DJ workspace is always possible; launching Rekordbox is only
+ * possible through the local bridge. The reply never claims a launch happened.
+ */
+function djResolution(owner: string, wantsLaunch: boolean): IntentResolution {
+  return {
+    kind: "action",
+    action: {
+      type: "open-module",
+      moduleId: "dj",
+      launch: wantsLaunch ? "rekordbox" : undefined,
+    },
+    thought: wantsLaunch ? "Opening DJ workspace · requesting Rekordbox" : "Mounting DJ workspace",
+    reply: wantsLaunch
+      ? `DJ workspace online, ${owner}. I'll bring Rekordbox forward if the local bridge is running — otherwise open it from the Start menu, because I won't pretend it launched.`
+      : pick([
+          `DJ workspace online, ${owner}. The decks are yours.`,
+          `Let's get you mixing — DJ workspace is up.`,
+          `DJ workspace ready. Rekordbox handles the decks; I'll handle the rest.`,
+        ]),
+  };
 }
 
 function formatTime(now: Date): string {
@@ -537,13 +583,18 @@ export function resolveIntent(
     }
   }
 
+  // Accept natural openers ("let me groove", "let's open my DJ setup",
+  // "time to mix") as well as bare imperatives.
   const openMatch = t.match(
-    /^(?:please\s+)?(?:can you\s+|could you\s+|would you\s+)?(?:open|launch|run|start|show|bring up|go to|take me to|navigate to|switch to|focus)\s+(?:the\s+|my\s+|a\s+)?(.+?)(?:\s+(?:module|app|window|workspace|please|for me))?[.!]?$/
+    /^(?:please\s+|hey\s+|ok(?:ay)?\s+|so\s+)?(?:(?:let\s+me|let'?s|i\s+want\s+to|i'?d\s+like\s+to|time\s+to|gonna|going\s+to)\s+(?:go\s+|get\s+)?|(?:can you\s+|could you\s+|would you\s+)?)(?:open|launch|run|start|show|bring up|go to|take me to|navigate to|switch to|focus|fire up|load)\s+(?:the\s+|my\s+|a\s+)?(.+?)(?:\s+(?:module|app|window|workspace|please|for me|up))?[.!]?$/
   );
 
   if (openMatch) {
     const target = openMatch[1].trim();
     const moduleId = matchModule(target);
+    if (moduleId === "dj") {
+      return djResolution(owner, isRekordboxTarget(target));
+    }
     if (moduleId) {
       return {
         kind: "action",
@@ -556,6 +607,14 @@ export function resolveIntent(
         ]),
       };
     }
+  }
+
+  // Bare mood phrases: "let me groove", "let's mix", "time to groove".
+  const bareDj = t.match(
+    /^(?:let\s+me|let'?s|time\s+to|i\s+wanna|i\s+want\s+to)\s+(?:groove|mix|spin|play\s+some\s+(?:music|tunes))[.!]?$/
+  );
+  if (bareDj) {
+    return djResolution(owner, false);
   }
 
   const exactModule = matchModule(t);

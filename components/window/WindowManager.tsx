@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import DesktopWindow from "./DesktopWindow";
+import { DOCK_SAFE_AREA } from "./WindowAnimations";
 import EmptyState from "./EmptyState";
 
 export default function WindowManager() {
@@ -36,7 +37,7 @@ export default function WindowManager() {
             key={win.id}
             window={win}
             containerWidth={dimensions.width}
-            containerHeight={dimensions.height}
+            containerHeight={Math.max(0, dimensions.height - DOCK_SAFE_AREA)}
           />
         ))}
       </AnimatePresence>

@@ -13,6 +13,7 @@ import {
   removeTrackFromSetlist,
 } from "@/features/dj/setlistStore";
 import { formatImportedAt } from "@/features/dj/format";
+import DjLaunchpad from "./DjLaunchpad";
 import LibraryTable from "./LibraryTable";
 import SetlistPanel from "./SetlistPanel";
 
@@ -54,6 +55,7 @@ export default function DjModule() {
   const [sortKey, setSortKey] = useState<SortKey>("artist");
   const [page, setPage] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [view, setView] = useState<"launchpad" | "library">("launchpad");
 
   const [setlists, setSetlists] = useState<DjSetlist[]>(() => loadSetlists());
   const [activeSetlistId, setActiveSetlistId] = useState<string | null>(
@@ -183,10 +185,11 @@ export default function DjModule() {
     <ModuleShell
       moduleId="dj"
       title="DJ"
-      description="Traktor collection workspace — library, filtering and harmonic set building."
+      description="Rekordbox launchpad — hand off to your decks, then build harmonic sets from an optional collection import."
+      hideHeader
     >
       <div
-        className="flex h-full min-h-0 flex-col gap-2.5 @container"
+        className="relative flex h-full min-h-0 flex-col gap-2.5 @container"
         onDragOver={(event) => {
           event.preventDefault();
           if (!dragging) setDragging(true);
@@ -205,7 +208,7 @@ export default function DjModule() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".nml,.xml,.csv,.tsv,text/csv,application/xml,text/xml"
+          accept=".xml,.nml,.csv,.tsv,text/csv,application/xml,text/xml"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -213,6 +216,38 @@ export default function DjModule() {
             void handleFile(file);
           }}
         />
+
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-jarvis-red/10 pb-2">
+          {(
+            [
+              { id: "launchpad", label: "Launchpad" },
+              { id: "library", label: "Library" },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setView(item.id)}
+              aria-pressed={view === item.id}
+              className={`rounded border px-2.5 py-1 text-[8.5px] tracking-[0.18em] uppercase transition-colors ${
+                view === item.id
+                  ? "border-jarvis-red/40 bg-jarvis-red/10 text-jarvis-red"
+                  : "border-transparent text-jarvis-text-disabled hover:border-jarvis-red/15 hover:text-jarvis-text-muted"
+              }`}
+            >
+              {item.label}
+              {item.id === "library" && hasLibrary
+                ? ` · ${tracks.length.toLocaleString("en-US")}`
+                : ""}
+            </button>
+          ))}
+
+          <span className="ml-auto font-mono text-[8px] tracking-wider text-jarvis-text-disabled uppercase">
+            {hasLibrary
+              ? `${tracks.length.toLocaleString("en-US")} tracks in library`
+              : "No collection imported"}
+          </span>
+        </div>
 
         {error && (
           <div className="flex items-start gap-2 rounded border border-jarvis-warning/30 bg-jarvis-warning/5 px-2.5 py-1.5">
@@ -231,7 +266,16 @@ export default function DjModule() {
           </div>
         )}
 
-        {loading ? (
+        {view === "launchpad" ? (
+          <div className="min-h-0 flex-1 overflow-auto pr-0.5">
+            <DjLaunchpad
+              meta={meta}
+              trackCount={tracks.length}
+              onOpenLibrary={() => setView("library")}
+              onImport={() => fileInputRef.current?.click()}
+            />
+          </div>
+        ) : loading ? (
           <div className="flex flex-1 items-center justify-center text-[10px] tracking-wider text-jarvis-text-disabled uppercase">
             Opening library…
           </div>
@@ -242,18 +286,19 @@ export default function DjModule() {
                 ♫
               </div>
               <h3 className="text-[11px] font-semibold tracking-[0.2em] text-jarvis-red uppercase">
-                Import your Traktor collection
+                Import your collection
               </h3>
               <p className="mx-auto mt-1.5 max-w-sm text-[10px] leading-relaxed text-jarvis-text-muted">
-                Export your collection from Traktor, then drop the file here.
-                Parsing happens entirely in this browser — nothing is uploaded.
+                Rekordbox XML is the primary format. Traktor NML and CSV exports
+                still work. Parsing happens entirely in this browser — nothing
+                is uploaded.
               </p>
 
               <ol className="mx-auto mt-3 max-w-sm space-y-1 text-left">
                 {[
-                  "In Traktor, right-click your Collection and choose Export Collection…",
-                  "Pick NML / XML (or CSV) and save the file.",
-                  "Drop it below, or use the import button.",
+                  "Rekordbox: File → Export Collection in xml format",
+                  "Traktor: right-click the Collection → Export Collection… (NML)",
+                  "Drop the file below, or use the import button.",
                 ].map((step, index) => (
                   <li key={step} className="flex gap-2">
                     <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-jarvis-red/25 font-mono text-[8px] text-jarvis-red/80">
@@ -276,7 +321,7 @@ export default function DjModule() {
               </button>
 
               <p className="mt-2 text-[8.5px] tracking-wide text-jarvis-text-disabled">
-                .nml · .xml · .csv · .tsv — up to 50,000 tracks
+                .xml · .nml · .csv · .tsv — up to 50,000 tracks
               </p>
             </div>
           </div>
@@ -453,7 +498,7 @@ export default function DjModule() {
                   onClick={() => {
                     if (
                       window.confirm(
-                        "Remove the imported library from this browser? Your Traktor collection file is untouched."
+                        "Remove the imported library from this browser? Your DJ collection file is untouched."
                       )
                     ) {
                       void clear();

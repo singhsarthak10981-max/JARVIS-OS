@@ -9,7 +9,7 @@ import WindowHeader from "./WindowHeader";
 import WindowBody from "./WindowBody";
 import ResizeHandle, { type ResizeEdge } from "./ResizeHandle";
 import SnapOverlay from "./SnapOverlay";
-import { snapTransition, getWindowStyle } from "./WindowAnimations";
+import { clampToContainer, snapTransition, getWindowStyle } from "./WindowAnimations";
 import ModuleRenderer from "@/components/modules/ModuleRenderer";
 
 const r = tokens.radius;
@@ -124,8 +124,14 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
 
   if (win.minimized) return null;
 
-  const windowStyle = getWindowStyle(win);
+  const windowStyle = getWindowStyle(win, containerWidth, containerHeight);
   const isAnimatingMaximize = win.maximized || win.isSnapped;
+  const clamped = clampToContainer(win, containerWidth, containerHeight);
+  // Maximized windows must animate to percentages, otherwise numeric
+  // values override the inset:0 style and the window never fills the shell.
+  const animatedGeometry = win.maximized
+    ? { left: 0, top: 0, width: "100%" as const, height: "100%" as const }
+    : { left: clamped.x, top: clamped.y, width: clamped.width, height: clamped.height };
 
   return (
     <>
@@ -139,7 +145,7 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
           boxShadow: win.focused ? `${tokens.glow.medium}, ${tokens.shadow.large}` : tokens.shadow.medium,
         }}
         initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1, left: win.x, top: win.y, width: win.width, height: win.height, borderRadius: isAnimatingMaximize ? 0 : r.window }}
+        animate={{ opacity: 1, scale: 1, ...animatedGeometry, borderRadius: isAnimatingMaximize ? 0 : r.window }}
         exit={{ opacity: 0, scale: 0.96 }}
         transition={isAnimatingMaximize ? snapTransition : { duration: 0.2, ease: "easeOut" }}
         onMouseDown={() => focusWindow(win.id)}

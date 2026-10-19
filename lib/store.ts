@@ -126,6 +126,15 @@ export interface AppState {
   isSpeaking: boolean;
   lastInteraction: number;
 
+  /**
+   * Set when a voice/typed intent asks for the DJ workspace to be opened *and*
+   * a launch attempt made. Holds a monotonically increasing request id so the
+   * launchpad can react once per request. Nothing launches unless a local
+   * bridge answers.
+   */
+  djLaunchRequest: number;
+  requestDjLaunch: () => void;
+
   // Assistant
   assistantOpen: boolean;
   assistantSeed: string;
@@ -255,6 +264,11 @@ export const useAppStore = create<AppState>((set) => ({
       assistantOpen: !s.assistantOpen,
       assistantSeed: s.assistantOpen ? "" : s.assistantSeed,
     })),
+
+  // ── DJ ──────────────────────────────────────────────────
+  djLaunchRequest: 0,
+  requestDjLaunch: () =>
+    set((s) => ({ djLaunchRequest: s.djLaunchRequest + 1 })),
 
   // ── Activity ────────────────────────────────────────────
   activity: [],

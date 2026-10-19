@@ -6,7 +6,7 @@ export const MODULE_WINDOW_DEFAULTS: Record<
   { width: number; height: number; title: string }
 > = {
   "command-center": { width: 1000, height: 680, title: "Command Center" },
-  dj: { width: 1180, height: 740, title: "DJ" },
+  dj: { width: 1180, height: 740, title: "DJ Workspace" },
   producer: { width: 900, height: 600, title: "Producer" },
   bar: { width: 800, height: 550, title: "Bar" },
   business: { width: 850, height: 600, title: "Business" },

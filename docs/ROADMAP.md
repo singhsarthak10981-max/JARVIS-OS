@@ -89,11 +89,18 @@ Desktop Integration
 ---
 
 ## 🚧 Sprint 9
-DJ Workspace — **started (v1.1.0)**
+DJ Workspace — **Rekordbox-first (v1.2.0)**
+
+The DJ pillar targets **Rekordbox** as the deck software and **Spotify** as the
+music source. JARVIS owns voice, launch, status and the DJ workspace UI;
+Rekordbox owns decks, mixing, effects and waveforms.
 
 Shipped:
-- Traktor NML/XML and CSV/TSV collection import (parsed locally, never uploaded)
+- Rekordbox XML collection import (`DJ_PLAYLISTS` attribute format), alongside
+  existing Traktor NML and CSV/TSV support — one shared parser layer
 - IndexedDB persistence for large libraries (50k tracks, chunked writes)
+- DJ launchpad: Rekordbox launch/focus controls, signal-chain explanation,
+  bridge status, honest capability strip
 - Library table: search, BPM range, Camelot key filter, sort, pagination
 - Harmonic set builder: Camelot auto-detection, key/tempo flow scoring,
   clash warnings, "next up" suggestions
@@ -101,10 +108,14 @@ Shipped:
   BPM/key/artist
 
 Remaining:
-- Rekordbox integration (XML import shares the parser layer)
-- Spotify tools (requires OAuth + user credentials)
-- Real-time deck/transport control (not possible in a browser without a
-  Native Instruments/Pro DJ Link bridge — must not be faked)
+- Local bridge for terminal launch/focus — proposed in `docs/BRIDGE.md`,
+  **awaiting approval**; nothing runs on the PC yet
+- Spotify Premium in Rekordbox — an official feature of Rekordbox, not something
+  JARVIS can enable. Current playback is Spotify in Brave, which is not the same
+  thing and is described as such in the UI
+- DJ controller support — not claimed. Depends on Rekordbox, not on JARVIS
+- Real-time deck/transport telemetry (would need Pro DJ Link or MIDI from the
+  bridge; must not be faked)
 
 ---
 

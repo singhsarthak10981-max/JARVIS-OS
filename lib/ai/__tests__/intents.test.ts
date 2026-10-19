@@ -67,6 +67,50 @@ describe("module control", () => {
   });
 });
 
+describe("DJ launch phrasings", () => {
+  it.each([
+    "Hey JARVIS, open DJ mode",
+    "let me groove",
+    "let's open my DJ setup",
+    "let's mix",
+    "time to groove",
+    "I want to mix",
+  ])("opens the DJ workspace for %s", (phrase) => {
+    expect(resolve(phrase)).toMatchObject({
+      kind: "action",
+      action: { type: "open-module", moduleId: "dj" },
+    });
+  });
+
+  it("treats Rekordbox as the DJ workspace plus a launch request", () => {
+    for (const phrase of ["Open Rekordbox", "open my rekordbox", "launch rekordbox"]) {
+      expect(resolve(phrase)).toMatchObject({
+        kind: "action",
+        action: {
+          type: "open-module",
+          moduleId: "dj",
+          launch: "rekordbox",
+        },
+      });
+    }
+  });
+
+  it("never claims Rekordbox launched without the bridge", () => {
+    const result = resolve("Open Rekordbox");
+    expect(result.reply).toMatch(/bridge/i);
+    expect(result.reply).not.toMatch(/launched rekordbox|rekordbox is open/i);
+  });
+
+  it("keeps other modules unaffected by the new aliases", () => {
+    expect(resolve("open the producer")).toMatchObject({
+      action: { type: "open-module", moduleId: "producer" },
+    });
+    expect(resolve("open the bar")).toMatchObject({
+      action: { type: "open-module", moduleId: "bar" },
+    });
+  });
+});
+
 describe("appearance", () => {
   it("switches to a named theme", () => {
     expect(resolve("switch to stealth theme")).toMatchObject({

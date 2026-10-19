@@ -27,7 +27,7 @@ export const MODULES: ModuleDefinition[] = [
   {
     id: "dj",
     label: "DJ",
-    description: "Live mixing and deck control",
+    description: "Traktor library, filtering and harmonic set building",
     icon: "♫",
     shortcut: "⌘+1",
     section: "creative",

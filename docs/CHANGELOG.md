@@ -4,6 +4,31 @@ All notable changes to JARVIS OS are documented here.
 
 ---
 
+# v1.1.0 — Set Builder
+Date: 19 October 2026
+
+## Added
+- **DJ module is real**: import a Traktor collection export (.nml/.xml/.csv/.tsv)
+- Local-first parsing — collection files are read in the browser and never uploaded
+- IndexedDB repository with chunked writes and progress reporting for large libraries
+- Library workspace: search, BPM range, Camelot key filter, six sort modes, pagination
+- Harmonic set builder: automatic Camelot detection, key + tempo flow score,
+  key-clash warnings and "next up" suggestions
+- Setlists saved locally (localStorage) with reorder and delete
+- JARVIS library intents: "library status", "how many tracks do I have?",
+  "find tracks at 128 BPM in 8A", "what's in my setlist?"
+- 46 new tests (parsers, Camelot scoring, intents, component rendering) — 80 total
+
+## Fixed
+- Unknown BPM no longer scores as a perfectly compatible transition
+- Traktor numeric key ids now resolve to explicit major/minor key names
+
+## Notes
+- The DJ module reads metadata only. JARVIS OS cannot play audio or control
+  Traktor decks — that would require a native bridge and is not implemented.
+
+---
+
 # v1.0.0 — Intelligence
 Date: 19 October 2026
 

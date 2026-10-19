@@ -88,12 +88,23 @@ Desktop Integration
 
 ---
 
-## Sprint 9
-DJ Workspace
+## 🚧 Sprint 9
+DJ Workspace — **started (v1.1.0)**
 
-- Rekordbox integration
-- Spotify tools
-- Playlist assistant
+Shipped:
+- Traktor NML/XML and CSV/TSV collection import (parsed locally, never uploaded)
+- IndexedDB persistence for large libraries (50k tracks, chunked writes)
+- Library table: search, BPM range, Camelot key filter, sort, pagination
+- Harmonic set builder: Camelot auto-detection, key/tempo flow scoring,
+  clash warnings, "next up" suggestions
+- Setlists persisted locally; JARVIS can query library status and search by
+  BPM/key/artist
+
+Remaining:
+- Rekordbox integration (XML import shares the parser layer)
+- Spotify tools (requires OAuth + user credentials)
+- Real-time deck/transport control (not possible in a browser without a
+  Native Instruments/Pro DJ Link bridge — must not be faked)
 
 ---
 

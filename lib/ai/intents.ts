@@ -1,6 +1,9 @@
 import { MODULES, type ModuleId } from "@/lib/modules";
 import { THEMES, WALLPAPER_PRESETS, type ThemeId } from "./providers";
 import { evaluateMath, formatNumber, looksLikeMath } from "./math";
+import { getLibrarySnapshot } from "@/services/library/libraryIndex";
+import { toCamelot } from "@/services/library/camelot";
+import { loadSetlists } from "@/features/dj/setlistStore";
 
 /**
  * JARVIS intent router.
@@ -266,6 +269,8 @@ export const JARVIS_CAPABILITIES = [
   "Report system status, time and date",
   "Set timers and reminders — “set a timer for 10 minutes”",
   "Remember facts — “remember that the studio lights are on channel 4”",
+  "Search your Traktor library — “find tracks at 128 BPM in 8A”",
+  "Report library and setlist status — “how many tracks do I have?”",
   "Toggle voice, scanlines, particles and sound",
   "Reboot, clear the session or export the activity log",
   "Answer open-ended questions when a language model is connected",
@@ -273,11 +278,11 @@ export const JARVIS_CAPABILITIES = [
 
 export const SUGGESTED_PROMPTS = [
   "System status report",
+  "How many tracks are in my DJ library?",
   "Open the Producer module",
   "Switch to arc reactor theme",
   "Set a timer for 5 minutes",
   "What can you do?",
-  "Remember my studio is in Madrid",
 ];
 
 export function resolveIntent(
@@ -560,6 +565,231 @@ export function resolveIntent(
       action: { type: "open-module", moduleId: exactModule },
       thought: `Mounting ${moduleLabel(exactModule)}`,
       reply: `Opening ${moduleLabel(exactModule)}.`,
+    };
+  }
+
+  // ── DJ library ────────────────────────────────────────────
+  const libraryWord = /(library|collection|track ?list|(my )?(tracks|songs|tunes))/.test(t);
+  const wantsLibraryStatus =
+    libraryWord &&
+    /(status|size|count|how many|stats|summary|report|what('s| is) in)/.test(t);
+
+  if (wantsLibraryStatus) {
+    const snapshot = getLibrarySnapshot();
+    if (!snapshot || snapshot.trackCount === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "Your DJ library is empty, " +
+          owner +
+          ". Open the DJ module and import your Traktor collection export — right-click the Collection in Traktor, choose Export Collection, save it as NML or CSV, then drop it into the DJ window.",
+      };
+    }
+
+    const parts = [
+      `Your DJ library holds ${snapshot.trackCount.toLocaleString("en-US")} tracks`,
+    ];
+    if (snapshot.bpmRange) {
+      parts.push(
+        `spanning ${Math.round(snapshot.bpmRange.min)}–${Math.round(snapshot.bpmRange.max)} BPM`
+      );
+    }
+    if (snapshot.topKeys.length > 0) {
+      parts.push(
+        `most common keys ${snapshot.topKeys
+          .map((entry) => `${entry.key} (${entry.count})`)
+          .join(", ")}`
+      );
+    }
+    const source = snapshot.fileName ? ` Imported from ${snapshot.fileName}.` : "";
+    return {
+      kind: "answer",
+      reply: `${parts.join(", ")}.${source}${
+        snapshot.persistent ? "" : " It is stored for this session only."
+      }`,
+    };
+  }
+
+  const hasTrackWord = /(tracks?|songs?|tunes?)/.test(t);
+  const librarySearchIntent =
+    hasTrackWord &&
+    !/\b(add|remove|delete|play|queue|skip)\b/.test(t) &&
+    /(find|search|look for|show|list|pull up|any|which|what|in|at|have|got)/.test(
+      t
+    );
+  const bareFilterIntent =
+    /\d{2,3}\s*bpm/.test(t) || /\bin\s+key\b/.test(t);
+
+  if (librarySearchIntent || bareFilterIntent) {
+    const snapshot = getLibrarySnapshot();
+    if (!snapshot || snapshot.trackCount === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "There is no DJ library loaded yet. Import your Traktor collection in the DJ module and I can search it by BPM and key.",
+      };
+    }
+
+    const bpmRangeMatch = t.match(
+      /(?:between\s+)?(\d{2,3})\s*(?:-|–|to|and)\s*(\d{2,3})\s*(?:bpm)?/
+    );
+    const singleBpmMatch = t.match(/(\d{2,3})\s*bpm/);
+    const toleranceMatch = t.match(/[±+\-]\s*(\d{1,2})\s*bpm/);
+
+    let minBpm: number | undefined;
+    let maxBpm: number | undefined;
+
+    if (bpmRangeMatch) {
+      const first = Number(bpmRangeMatch[1]);
+      const second = Number(bpmRangeMatch[2]);
+      minBpm = Math.min(first, second);
+      maxBpm = Math.max(first, second);
+    } else if (singleBpmMatch) {
+      const target = Number(singleBpmMatch[1]);
+      const tolerance = toleranceMatch ? Number(toleranceMatch[1]) : 3;
+      minBpm = target - tolerance;
+      maxBpm = target + tolerance;
+    }
+
+    const camelotMatch = t.match(/\b(\d{1,2})\s*([ab])\b/);
+    const musicalMatch = t.match(
+      /\b([a-g][#b]?)\s*(minor|major|min|maj|m)\b/
+    );
+    const keyFilter = camelotMatch
+      ? `${Number(camelotMatch[1])}${camelotMatch[2].toUpperCase()}`
+      : musicalMatch
+        ? toCamelot(`${musicalMatch[1]} ${musicalMatch[2]}`)
+        : undefined;
+
+    const stopWords = new Set([
+      "find",
+      "search",
+      "look",
+      "for",
+      "show",
+      "me",
+      "list",
+      "any",
+      "which",
+      "what",
+      "tracks",
+      "track",
+      "songs",
+      "song",
+      "tunes",
+      "tune",
+      "in",
+      "at",
+      "my",
+      "the",
+      "a",
+      "an",
+      "do",
+      "i",
+      "have",
+      "got",
+      "are",
+      "there",
+      "is",
+      "bpm",
+      "key",
+      "around",
+      "about",
+      "between",
+      "and",
+      "to",
+      "of",
+      "with",
+    ]);
+    const textFilter = t
+      .replace(/(\d{2,3})\s*bpm/g, " ")
+      .replace(/\b\d{1,2}\s*[ab]\b/g, " ")
+      .replace(/\b[a-g][#b]?\s*(minor|major|min|maj|m)\b/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 1 && !stopWords.has(word))
+      .join(" ")
+      .trim();
+
+    const matches = snapshot.tracks.filter((track) => {
+      if (minBpm !== undefined && (track.bpm === undefined || track.bpm < minBpm)) {
+        return false;
+      }
+      if (maxBpm !== undefined && (track.bpm === undefined || track.bpm > maxBpm)) {
+        return false;
+      }
+      if (keyFilter && track.camelot !== keyFilter) return false;
+      if (textFilter) {
+        const haystack = `${track.title} ${track.artist}`.toLowerCase();
+        if (!textFilter.split(" ").every((word) => haystack.includes(word))) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const filters: string[] = [];
+    if (minBpm !== undefined && maxBpm !== undefined) {
+      filters.push(`${Math.round(minBpm)}–${Math.round(maxBpm)} BPM`);
+    }
+    if (keyFilter) filters.push(`key ${keyFilter}`);
+    if (textFilter) filters.push(`“${textFilter}”`);
+
+    if (matches.length === 0) {
+      return {
+        kind: "answer",
+        reply: `No tracks match ${filters.join(" and ") || "that search"} across your ${snapshot.trackCount.toLocaleString("en-US")} imported tracks.`,
+      };
+    }
+
+    const lines = matches.slice(0, 5).map((track) => {
+      const bpm = track.bpm ? `${Math.round(track.bpm)} BPM` : "no BPM";
+      const key = track.camelot ? `, ${track.camelot}` : "";
+      return `• ${track.artist} — ${track.title} (${bpm}${key})`;
+    });
+
+    const suffix =
+      matches.length > 5 ? `\n…and ${matches.length - 5} more.` : "";
+    return {
+      kind: "answer",
+      reply: `${matches.length} match${matches.length === 1 ? "" : "es"} for ${
+        filters.join(" · ") || "your library"
+      }:\n${lines.join("\n")}${suffix}`,
+    };
+  }
+
+  if (
+    /(set ?list|my set)\b/.test(t) &&
+    /(what|show|list|how|which|status)/.test(t)
+  ) {
+    const setlists = loadSetlists();
+    if (setlists.length === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "You have no sets saved yet. Open the DJ module, create a set on the right, then add tracks from your library.",
+      };
+    }
+
+    const snapshot = getLibrarySnapshot();
+    const durationById = new Map(
+      (snapshot?.tracks ?? []).map((track) => [track.id, track.durationSec ?? 0])
+    );
+
+    const summaries = setlists.slice(0, 3).map((setlist) => {
+      const seconds = setlist.trackIds.reduce(
+        (sum, id) => sum + (durationById.get(id) ?? 0),
+        0
+      );
+      const runtime =
+        seconds > 0 ? ` · ${Math.round(seconds / 60)} min` : "";
+      return `• ${setlist.name}: ${setlist.trackIds.length} track${
+        setlist.trackIds.length === 1 ? "" : "s"
+      }${runtime}`;
+    });
+
+    return {
+      kind: "answer",
+      reply: `${setlists.length} saved set${setlists.length === 1 ? "" : "s"}:\n${summaries.join("\n")}`,
     };
   }
 

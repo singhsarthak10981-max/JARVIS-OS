@@ -174,7 +174,7 @@ describe("appearance", () => {
     });
   });
 
-  it.each(["switch to Stark Interface theme", "use the Iron Man theme", "Jarvis blue"])(
+  it.each(["switch to Stark Interface theme", "use the Iron Man theme", "switch to Jarvis blue"])(
     "selects the Stark Interface theme from the command %s",
     (command) => {
       expect(resolve(command)).toMatchObject({

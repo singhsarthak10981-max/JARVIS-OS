@@ -43,7 +43,28 @@ export default function AnimatedBackground() {
       opacity: Math.random() * 0.5 + 0.1,
     }));
 
+    // Respect the OS "reduce motion" preference: draw one static frame and
+    // never schedule the loop.
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    );
+
+    // Animating a full-screen canvas while the tab is backgrounded wastes CPU
+    // and battery for pixels nobody can see. Stop the loop and restart it when
+    // the tab becomes visible again.
+    let running = false;
+    const start = () => {
+      if (running || prefersReducedMotion.matches) return;
+      running = true;
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(animFrameRef.current);
+    };
+
     const animate = () => {
+      if (!running) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       for (const p of particlesRef.current) {
@@ -73,11 +94,41 @@ export default function AnimatedBackground() {
       animFrameRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    const drawStaticFrame = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const p of particlesRef.current) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${accent}, ${p.opacity})`;
+        ctx.fill();
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+
+    const handleReducedMotion = () => {
+      if (prefersReducedMotion.matches) {
+        stop();
+        drawStaticFrame();
+      } else {
+        start();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    prefersReducedMotion.addEventListener("change", handleReducedMotion);
+
+    if (prefersReducedMotion.matches) drawStaticFrame();
+    else if (!document.hidden) start();
 
     return () => {
+      stop();
       window.removeEventListener("resize", resize);
-      cancelAnimationFrame(animFrameRef.current);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      prefersReducedMotion.removeEventListener("change", handleReducedMotion);
     };
   }, [particlesEnabled, theme]);
 

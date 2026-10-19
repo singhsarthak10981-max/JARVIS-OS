@@ -51,17 +51,6 @@ export interface DesktopShortcutConfig {
 const STORAGE_KEY = "jarvis-desktop-state";
 const CURRENT_VERSION = 1;
 
-function debounce<T extends (...args: never[]) => unknown>(
-  fn: T,
-  ms: number
-): (...args: Parameters<T>) => void {
-  let timer: ReturnType<typeof setTimeout>;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  };
-}
-
 export class DesktopPersistence {
   private static instance: DesktopPersistence | null = null;
   private enabled: boolean = true;
@@ -110,12 +99,34 @@ export class DesktopPersistence {
     }
   }
 
-  debouncedSave = debounce(
-    (snapshot: Omit<DesktopSnapshot, "version" | "timestamp">) => {
-      this.save(snapshot);
-    },
-    500
-  );
+  /**
+   * Coalesces bursts of high-frequency changes (window drag/resize) into a
+   * single write. `pending` holds the latest snapshot so `flush()` can write it
+   * immediately on drag end or when the page is being hidden.
+   */
+  private pending: Omit<DesktopSnapshot, "version" | "timestamp"> | null = null;
+  private pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  debouncedSave(snapshot: Omit<DesktopSnapshot, "version" | "timestamp">): void {
+    this.pending = snapshot;
+    if (this.pendingTimer) clearTimeout(this.pendingTimer);
+    this.pendingTimer = setTimeout(() => {
+      this.pendingTimer = null;
+      this.flush();
+    }, 400);
+  }
+
+  /** Writes any queued snapshot now. Safe to call when nothing is queued. */
+  flush(): void {
+    if (this.pendingTimer) {
+      clearTimeout(this.pendingTimer);
+      this.pendingTimer = null;
+    }
+    if (!this.pending) return;
+    const snapshot = this.pending;
+    this.pending = null;
+    this.save(snapshot);
+  }
 
   load(): DesktopSnapshot | null {
     if (typeof window === "undefined") return null;

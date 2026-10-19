@@ -28,7 +28,11 @@ export default function WindowManager() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative h-full w-full">
+    <div
+      ref={containerRef}
+      data-desktop-pane
+      className="relative h-full w-full"
+    >
       {windows.length === 0 && <EmptyState />}
 
       <AnimatePresence>

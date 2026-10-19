@@ -18,10 +18,10 @@ import { openModuleWindow } from "@/lib/window-actions";
 export default function Desktop() {
   const active = useAppStore((s) => s.activeModule);
   const navigate = useAppStore((s) => s.navigate);
-  const windows = useAppStore((s) => s.windows);
   const restoreSession = useAppStore((s) => s.restoreSession);
   const loadDesktopState = useAppStore((s) => s.loadDesktopState);
-  const saveDesktopState = useAppStore((s) => s.saveDesktopState);
+  const saveDesktopStateDebounced = useAppStore((s) => s.saveDesktopStateDebounced);
+  const flushDesktopState = useAppStore((s) => s.flushDesktopState);
   const addDesktopShortcut = useAppStore((s) => s.addDesktopShortcut);
   const addWorkspace = useAppStore((s) => s.addWorkspace);
   const workspaces = useAppStore((s) => s.workspaces);
@@ -33,14 +33,37 @@ export default function Desktop() {
   }, [restoreSession, loadDesktopState]);
 
   useEffect(() => {
-    const interval = setInterval(() => saveDesktopState(), 30000);
+    // Safety net only. Uses the debounced path so it never forces a
+    // synchronous serialisation in the middle of a drag.
+    const interval = setInterval(() => saveDesktopStateDebounced(), 30000);
     return () => clearInterval(interval);
-  }, [saveDesktopState]);
+  }, [saveDesktopStateDebounced]);
 
+  // Persist window/workspace changes through a store subscription rather than
+  // a React effect. An effect keyed on `windows` re-rendered the whole desktop
+  // chrome on every drag frame and wrote to localStorage each time; a
+  // subscription sees the same changes without any component re-render.
   useEffect(() => {
-    if (windows.length === 0) return;
-    saveDesktopState();
-  }, [windows, saveDesktopState]);
+    return useAppStore.subscribe((state, prev) => {
+      if (state.windows === prev.windows && state.workspaces === prev.workspaces) {
+        return;
+      }
+      if (state.windows.length === 0) return;
+      saveDesktopStateDebounced();
+    });
+  }, [saveDesktopStateDebounced]);
+
+  // Flush anything queued before the page is hidden or unloaded so a drag that
+  // ends exactly at close/reload is never lost.
+  useEffect(() => {
+    const flush = () => flushDesktopState();
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [flushDesktopState]);
 
   useEffect(() => {
     // Runs after session restore; read live state rather than a stale render.

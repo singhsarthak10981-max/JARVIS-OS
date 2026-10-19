@@ -3,14 +3,20 @@
 import { memo } from "react";
 import { motion } from "framer-motion";
 
-const TacticalArc = memo(function TacticalArc() {
+interface TacticalArcProps {
+  /** Overall opacity. Lets hosts dial the decoration back so it stays
+   *  ambient instead of competing with real content. */
+  opacity?: number;
+}
+
+const TacticalArc = memo(function TacticalArc({ opacity = 1 }: TacticalArcProps) {
   const red = "#e50000";
 
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 overflow-hidden"
-      style={{ zIndex: 0 }}
+      style={{ zIndex: 0, opacity }}
     >
       <svg
         className="absolute left-1/2 top-[46%] h-[min(88vw,980px)] w-[min(88vw,980px)] -translate-x-1/2 -translate-y-1/2 opacity-100"

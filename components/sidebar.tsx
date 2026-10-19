@@ -80,11 +80,7 @@ export default function Sidebar({
   };
 
   const handleEdgeAction = () => {
-    if (!pinned) {
-      setPointerInside(true);
-      return;
-    }
-    setPinned(false);
+    setPinned((value) => !value);
   };
 
   return (
@@ -108,9 +104,9 @@ export default function Sidebar({
       <button
         type="button"
         onClick={handleEdgeAction}
-        aria-label={pinned ? "Enable sidebar auto-hide" : isOpen ? "Sidebar auto-hides when pointer leaves" : "Open navigation"}
+        aria-label={pinned ? "Enable sidebar auto-hide" : isOpen ? "Pin sidebar open" : "Open navigation"}
         aria-pressed={pinned}
-        title={pinned ? "Enable auto-hide (Ctrl+B)" : isOpen ? "Sidebar auto-hides when pointer leaves" : "Open navigation"}
+        title={pinned ? "Enable auto-hide (Ctrl+B)" : isOpen ? "Pin sidebar open (Ctrl+B)" : "Open navigation"}
         className="absolute right-0 top-[42%] z-[60] flex h-16 w-[18px] items-center justify-center rounded-r-md border border-l-0 border-jarvis-red/30 bg-jarvis-bg-secondary/95 text-sm text-jarvis-red shadow-[0_0_16px_rgba(0,0,0,0.4)] transition-colors hover:border-jarvis-red/70 hover:bg-jarvis-red/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/70"
       >
         <span aria-hidden="true">{isOpen ? (pinned ? "◆" : "‹") : "›"}</span>

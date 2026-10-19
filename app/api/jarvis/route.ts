@@ -9,6 +9,7 @@ import {
   type ChatTurn,
 } from "@/lib/ai/server";
 import { buildLocalReply } from "@/lib/ai/local";
+import { classifyFetchError } from "@/lib/ai/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,8 +33,9 @@ interface JarvisRequestBody {
   ownerName?: unknown;
   provider?: unknown;
   model?: unknown;
-  apiKey?: unknown;
   baseUrl?: unknown;
+  /** @deprecated Ignored. Keys are read from the server environment only. */
+  apiKey?: unknown;
   context?: {
     activeModule?: unknown;
     openWindows?: unknown;
@@ -118,21 +120,77 @@ export async function POST(request: Request) {
       ? body.ownerName.trim().slice(0, 60)
       : "Sarthak";
 
+  // An omitted provider means "Local Core". An explicitly supplied but
+  // invalid id is a caller error and must be reported as one — silently
+  // treating it as Local Core would misrepresent which engine answered.
+  const providerWasSupplied =
+    typeof body.provider === "string" && body.provider.trim().length > 0;
+
+  if (providerWasSupplied && !isProviderId(body.provider)) {
+    const error = {
+      code: "configuration" as const,
+      message:
+        "Unknown provider. Select a provider in Settings → Intelligence.",
+    };
+    if (body.test === true) {
+      return NextResponse.json({
+        ok: false,
+        ...error,
+        provider: "unknown",
+        model: typeof body.model === "string" ? body.model : "",
+      });
+    }
+    const encoder = new TextEncoder();
+    const frames = [
+      `{"type":"meta","provider":"unknown","model":"","source":"none","fallback":false,"configured":false,"reason":${JSON.stringify(
+        error.message
+      )},"code":"configuration"}\n`,
+      `{"type":"error","message":${JSON.stringify(
+        error.message
+      )},"code":"configuration"}\n`,
+    ];
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const frame of frames) controller.enqueue(encoder.encode(frame));
+          controller.close();
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+        },
+      }
+    );
+  }
+
   const provider = isProviderId(body.provider) ? body.provider : "local";
-  const config = resolveProviderConfig({
+
+  // `body.apiKey` is intentionally not passed: credentials come from the
+  // server environment so a compromised browser cannot supply one.
+  const resolved = resolveProviderConfig({
     provider,
     model: body.model,
-    apiKey: body.apiKey,
     baseUrl: body.baseUrl,
   });
 
   // ── Connection test ─────────────────────────────────────
   if (body.test === true) {
-    const result = await probeProvider(config);
+    if (!resolved.ok) {
+      return NextResponse.json({
+        ok: false,
+        message: resolved.error.message,
+        code: resolved.error.code,
+        provider: resolved.provider,
+        model: resolved.model,
+      });
+    }
+    const result = await probeProvider(resolved.config);
     return NextResponse.json({
       ...result,
-      provider: config.provider,
-      model: config.model,
+      provider: resolved.config.provider,
+      model: resolved.config.model,
     });
   }
 
@@ -154,10 +212,11 @@ export async function POST(request: Request) {
       ? Math.max(0, Math.min(99, Math.round(body.context.openWindows)))
       : 0;
 
-  const providerLabel =
-    config.provider === "local"
+  const providerLabel = resolved.ok
+    ? resolved.config.provider === "local"
       ? "local core"
-      : `${getProviderMeta(config.provider).label} · ${config.model}`;
+      : `${getProviderMeta(resolved.config.provider).label} · ${resolved.config.model}`
+    : `${getProviderMeta(resolved.provider).label} · ${resolved.model} (not connected)`;
 
   const system = buildSystemPrompt(ownerName, memories, {
     activeModule,
@@ -173,13 +232,39 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
       };
 
+      // A provider that cannot be used is reported as a failure. It is never
+      // answered by the local core, because that would present a canned reply
+      // as if the selected model had responded.
+      if (!resolved.ok) {
+        send({
+          type: "meta",
+          provider: resolved.provider,
+          model: resolved.model,
+          source: "none",
+          fallback: false,
+          configured: false,
+          reason: resolved.error.message,
+          code: resolved.error.code,
+        });
+        send({
+          type: "error",
+          message: resolved.error.message,
+          code: resolved.error.code,
+        });
+        controller.close();
+        return;
+      }
+
+      const config = resolved.config;
+
       send({
         type: "meta",
         provider: config.provider,
         model: config.model,
         source: config.source,
-        fallback: Boolean(config.fallbackReason),
-        reason: config.fallbackReason ?? null,
+        fallback: false,
+        configured: true,
+        reason: null,
       });
 
       try {
@@ -210,11 +295,11 @@ export async function POST(request: Request) {
 
         send({ type: "done" });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "The intelligence uplink failed.";
-        send({ type: "error", message });
+        const classified = classifyFetchError(
+          error,
+          getProviderMeta(config.provider).label
+        );
+        send({ type: "error", message: classified.message, code: classified.code });
       } finally {
         controller.close();
       }

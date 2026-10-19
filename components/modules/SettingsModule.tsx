@@ -153,6 +153,7 @@ function TextField({
   type = "text",
   hint,
   mono,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -161,6 +162,7 @@ function TextField({
   type?: string;
   hint?: string;
   mono?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
@@ -174,9 +176,12 @@ function TextField({
         placeholder={placeholder}
         spellCheck={false}
         autoComplete="off"
+        disabled={disabled}
+        readOnly={disabled}
         className={cn(
           "h-8 w-full rounded-md border border-jarvis-red/12 bg-jarvis-bg-primary/60 px-2.5 text-[11px] text-white placeholder:text-jarvis-text-disabled/70 focus:border-jarvis-red/40 focus:outline-none focus:ring-1 focus:ring-jarvis-red/20",
-          mono && "font-mono text-[10.5px]"
+          mono && "font-mono text-[10.5px]",
+          disabled && "cursor-not-allowed opacity-50"
         )}
       />
       {hint && (
@@ -186,6 +191,24 @@ function TextField({
       )}
     </label>
   );
+}
+
+/**
+ * Env vars that override a provider's base URL on the server. Mirrors
+ * ENV_BASE_URLS in lib/ai/server.ts — the first name is the documented one.
+ */
+const BASE_URL_ENV: Record<string, string[]> = {
+  openai: ["OPENAI_BASE_URL"],
+  anthropic: ["ANTHROPIC_BASE_URL"],
+  google: ["GOOGLE_GENERATIVE_AI_BASE_URL", "GEMINI_BASE_URL"],
+  groq: ["GROQ_BASE_URL"],
+  openrouter: ["OPENROUTER_BASE_URL"],
+  ollama: ["OLLAMA_BASE_URL"],
+  custom: ["CUSTOM_AI_BASE_URL"],
+};
+
+function providerEnvBaseUrl(provider: string): string {
+  return BASE_URL_ENV[provider]?.join(" or ") ?? "a server base URL variable";
 }
 
 export default function SettingsModule() {
@@ -202,12 +225,13 @@ export default function SettingsModule() {
   const wallpaper = useAppStore((s) => s.wallpaper);
 
   const [tab, setTab] = useState<TabId>("intelligence");
-  const [showKey, setShowKey] = useState(false);
   const [testState, setTestState] = useState<{
     status: "idle" | "testing" | "ok" | "error";
     message?: string;
   }>({ status: "idle" });
-  const [serverKeys, setServerKeys] = useState<string[]>([]);
+  const [configuredProviders, setConfiguredProviders] = useState<
+    Record<string, boolean>
+  >({});
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [memoryCount, setMemoryCount] = useState(0);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
@@ -218,11 +242,8 @@ export default function SettingsModule() {
   useEffect(() => {
     fetchServerStatus().then((status) => {
       if (!status) return;
-      setServerKeys(
-        Object.entries(status.providers)
-          .filter(([, configured]) => configured)
-          .map(([id]) => getProviderMeta(id).label)
-      );
+      // Booleans only — the server never exposes a key or any part of one.
+      setConfiguredProviders(status.providers ?? {});
     });
   }, []);
 
@@ -250,7 +271,6 @@ export default function SettingsModule() {
 
   const runTest = async () => {
     const current = useAppStore.getState().settings;
-    const meta = getProviderMeta(current.aiProvider);
 
     if (current.aiProvider === "custom" && !current.aiBaseUrl.trim()) {
       setTestState({
@@ -261,19 +281,12 @@ export default function SettingsModule() {
       return;
     }
 
-    if (meta.requiresKey && !current.aiApiKey.trim() && serverKeys.length === 0) {
-      setTestState({
-        status: "error",
-        message: `Add an API key for ${meta.label}, or set it in .env.local on the server.`,
-      });
-      return;
-    }
-
     setTestState({ status: "testing" });
+    // The server re-checks the selected provider's own configuration and
+    // reports the provider and model that actually answered.
     const result = await testConnection({
       provider: current.aiProvider,
       model: current.aiModel || defaultModelFor(current.aiProvider),
-      apiKey: current.aiApiKey,
       baseUrl: current.aiBaseUrl,
     });
     setTestState({
@@ -284,6 +297,11 @@ export default function SettingsModule() {
       result.ok ? "Provider connection verified" : "Provider connection failed",
       result.ok ? "success" : "error"
     );
+    if (result.ok) {
+      fetchServerStatus().then((status) => {
+        if (status) setConfiguredProviders(status.providers ?? {});
+      });
+    }
   };
 
   const previewVoice = () => {
@@ -435,38 +453,55 @@ export default function SettingsModule() {
                       />
 
                       {providerMeta.requiresKey && (
-                        <div>
-                          <div className="mb-1 flex items-center justify-between">
+                        <div
+                          data-testid="server-credential-panel"
+                          className="rounded-md border border-jarvis-red/12 bg-jarvis-bg-primary/40 p-2.5"
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
                             <span className="text-[9px] tracking-[0.16em] text-jarvis-text-muted uppercase">
-                              API key
+                              Server credential
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => setShowKey((value) => !value)}
-                              className="text-[8.5px] tracking-wider text-jarvis-text-disabled uppercase hover:text-jarvis-red"
+                            <span
+                              className={cn(
+                                "rounded border px-1.5 py-0.5 text-[8px] tracking-wider uppercase",
+                                configuredProviders[settings.aiProvider]
+                                  ? "border-jarvis-success/30 bg-jarvis-success/10 text-jarvis-success"
+                                  : "border-jarvis-warning/30 bg-jarvis-warning/10 text-jarvis-warning"
+                              )}
                             >
-                              {showKey ? "hide" : "show"}
-                            </button>
+                              {configuredProviders[settings.aiProvider]
+                                ? "configured"
+                                : "not configured"}
+                            </span>
                           </div>
-                          <input
-                            type={showKey ? "text" : "password"}
-                            value={settings.aiApiKey}
-                            onChange={(event) =>
-                              updateSettings({ aiApiKey: event.target.value })
-                            }
-                            placeholder={providerMeta.keyPlaceholder}
-                            autoComplete="off"
-                            spellCheck={false}
-                            className="h-8 w-full rounded-md border border-jarvis-red/12 bg-jarvis-bg-primary/60 px-2.5 font-mono text-[10.5px] text-white placeholder:text-jarvis-text-disabled/70 focus:border-jarvis-red/40 focus:outline-none focus:ring-1 focus:ring-jarvis-red/20"
-                          />
-                          <p className="mt-1 text-[9px] leading-relaxed text-jarvis-text-disabled">
-                            Stored only in this browser and sent only to the
-                            JARVIS API route. Prefer{" "}
-                            <code className="text-jarvis-text-muted">
+
+                          <p className="text-[9px] leading-relaxed text-jarvis-text-muted">
+                            API keys are never stored in this browser. Set{" "}
+                            <code className="font-mono text-jarvis-red/80">
+                              {providerMeta.envKeys[0] ?? "API_KEY"}
+                            </code>{" "}
+                            in{" "}
+                            <code className="font-mono text-jarvis-text-muted">
                               .env.local
                             </code>{" "}
-                            for permanent keys.
+                            on the server (or in your deployment environment
+                            variables), then restart JARVIS.
                           </p>
+
+                          <p className="mt-1.5 font-mono text-[9px] text-jarvis-text-disabled">
+                            {providerMeta.envKeys[0] ?? "API_KEY"}=your-key-here
+                          </p>
+
+                          {providerMeta.docsUrl && (
+                            <a
+                              href={providerMeta.docsUrl}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="mt-1.5 inline-block text-[8.5px] tracking-wider text-jarvis-red/70 uppercase hover:text-jarvis-red"
+                            >
+                              Get a key ↗
+                            </a>
+                          )}
                         </div>
                       )}
 
@@ -481,8 +516,13 @@ export default function SettingsModule() {
                             providerMeta.defaultBaseUrl ??
                             "https://api.example.com/v1"
                           }
-                          hint="OpenAI-compatible endpoint. Leave blank for the default."
+                          hint={
+                            providerMeta.requiresKey
+                              ? `Fixed endpoint. A server-side key is never sent to a URL chosen here — use ${providerEnvBaseUrl(settings.aiProvider)} to change it.`
+                              : "OpenAI-compatible endpoint. Leave blank for the default."
+                          }
                           mono
+                          disabled={providerMeta.requiresKey}
                         />
                       )}
 
@@ -510,14 +550,15 @@ export default function SettingsModule() {
                         </p>
                       )}
 
-                      {serverKeys.length > 0 && (
-                        <div className="text-[9px] leading-relaxed text-jarvis-text-disabled">
-                          Server keys detected:{" "}
-                          <span className="text-jarvis-text-muted">
-                            {serverKeys.join(", ")}
-                          </span>
-                        </div>
-                      )}
+                      <div className="text-[9px] leading-relaxed text-jarvis-text-disabled">
+                        Server-configured providers:{" "}
+                        <span className="text-jarvis-text-muted">
+                          {Object.entries(configuredProviders)
+                            .filter(([, configured]) => configured)
+                            .map(([id]) => getProviderMeta(id).label)
+                            .join(", ") || "none"}
+                        </span>
+                      </div>
                     </div>
                   )}
 

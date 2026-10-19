@@ -344,7 +344,6 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
             ownerName: owner,
             provider: settings.aiProvider,
             model: settings.aiModel,
-            apiKey: settings.aiApiKey,
             baseUrl: settings.aiBaseUrl,
             context: {
               activeModule: store.activeModule,

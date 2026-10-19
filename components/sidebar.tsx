@@ -9,8 +9,9 @@ import { useAppStore } from "@/lib/store";
 
 const dur = tokens.duration;
 const expandedW = tokens.sidebar.expandedWidth;
-const collapsedW = 64;
-const SIDEBAR_STORAGE_KEY = "jarvis-sidebar-collapsed";
+const edgeRevealWidth = 14;
+const PIN_STORAGE_KEY = "jarvis-sidebar-pinned";
+const LEGACY_STORAGE_KEY = "jarvis-sidebar-collapsed";
 
 interface SidebarProps {
   activeModule: ModuleId;
@@ -22,25 +23,43 @@ export default function Sidebar({
   onModuleChange,
 }: SidebarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [pointerInside, setPointerInside] = useState(false);
+  const [keyboardFocused, setKeyboardFocused] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [pinPreferenceLoaded, setPinPreferenceLoaded] = useState(false);
   const toggleAssistant = useAppStore((s) => s.toggleAssistant);
   const assistantOpen = useAppStore((s) => s.assistantOpen);
   const aiState = useAppStore((s) => s.aiState);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (saved === "true") setCollapsed(true);
+    const savedPin = window.localStorage.getItem(PIN_STORAGE_KEY);
+    if (savedPin !== null) {
+      setPinned(savedPin === "true");
+    } else {
+      // Preserve the previous expanded preference while making the old
+      // collapsed preference use the new automatic edge-reveal behaviour.
+      const legacyCollapsed = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      const shouldPin = legacyCollapsed === "false";
+      setPinned(shouldPin);
+      if (legacyCollapsed !== null) {
+        window.localStorage.setItem(PIN_STORAGE_KEY, String(shouldPin));
+        window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+    }
+    setPinPreferenceLoaded(true);
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
-  }, [collapsed]);
+    if (pinPreferenceLoaded) {
+      window.localStorage.setItem(PIN_STORAGE_KEY, String(pinned));
+    }
+  }, [pinned, pinPreferenceLoaded]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "b") {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
         event.preventDefault();
-        setCollapsed((value) => !value);
+        setPinned((value) => !value);
       }
     };
 
@@ -48,23 +67,59 @@ export default function Sidebar({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const width = collapsed ? collapsedW : expandedW;
+  const isOpen = pinned || pointerInside || keyboardFocused;
+  const collapsed = !isOpen;
+
+  const handleSidebarBlur = (event: React.FocusEvent<HTMLElement>) => {
+    const nextTarget = event.relatedTarget;
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setKeyboardFocused(false);
+    }
+  };
+
+  const handleEdgeAction = () => {
+    if (!isOpen) {
+      setPointerInside(true);
+      setKeyboardFocused(true);
+      return;
+    }
+    setPinned((value) => !value);
+  };
 
   return (
     <motion.aside
-      className="relative z-20 flex h-full flex-col border-r border-jarvis-red/10 bg-jarvis-bg-secondary/80 backdrop-blur-[20px]"
-      animate={{ width, x: 0, opacity: 1 }}
+      className="absolute left-0 z-40 flex flex-col border-r border-jarvis-red/15 bg-jarvis-bg-secondary/95 shadow-[0_0_36px_rgba(0,0,0,0.48)] backdrop-blur-[24px]"
+      animate={{ x: isOpen ? 0 : -(expandedW - edgeRevealWidth), opacity: 1 }}
       transition={{ duration: dur.medium / 1000, ease: [0.16, 1, 0.3, 1] }}
-      initial={{ x: -expandedW, opacity: 0 }}
-      style={{ width }}
+      initial={{ x: -(expandedW - edgeRevealWidth), opacity: 0 }}
+      style={{
+        width: expandedW,
+        top: tokens.hud.height,
+        height: `calc(100% - ${tokens.hud.height}px)`,
+      }}
+      onMouseEnter={() => setPointerInside(true)}
+      onMouseLeave={() => setPointerInside(false)}
+      onFocusCapture={() => setKeyboardFocused(true)}
+      onBlurCapture={handleSidebarBlur}
     >
-      <div className={cn("flex h-[72px] items-center border-b border-jarvis-red/10", collapsed ? "justify-center px-2" : "px-4")}>
+      <button
+        type="button"
+        onClick={handleEdgeAction}
+        aria-label={isOpen ? (pinned ? "Enable sidebar auto-hide" : "Pin sidebar open") : "Open navigation"}
+        aria-pressed={pinned}
+        title={isOpen ? (pinned ? "Enable auto-hide (Ctrl+B)" : "Pin sidebar open (Ctrl+B)") : "Open navigation"}
+        className="absolute right-0 top-[42%] z-[60] flex h-16 w-[18px] items-center justify-center rounded-r-md border border-l-0 border-jarvis-red/30 bg-jarvis-bg-secondary/95 text-sm text-jarvis-red shadow-[0_0_16px_rgba(0,0,0,0.4)] transition-colors hover:border-jarvis-red/70 hover:bg-jarvis-red/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/70"
+      >
+        <span aria-hidden="true">{isOpen ? (pinned ? "◆" : "‹") : "›"}</span>
+      </button>
+      <div className="flex h-full min-h-0 flex-col" aria-hidden={!isOpen} inert={!isOpen}>
+      <div className="flex h-[64px] items-center border-b border-jarvis-red/10 px-4">
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-jarvis-red/30 bg-jarvis-red/10">
             <span className="text-xs font-bold text-jarvis-red">J</span>
           </div>
           <AnimatePresence initial={false}>
-            {!collapsed && (
+            {true && (
               <motion.div
                 className="min-w-0 overflow-hidden"
                 initial={{ opacity: 0, width: 0, x: -8 }}
@@ -83,16 +138,13 @@ export default function Sidebar({
 
         <button
           type="button"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-pressed={collapsed}
-          title={collapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
-          onClick={() => setCollapsed((value) => !value)}
-          className={cn(
-            "absolute -right-3 top-6 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-jarvis-red/20 bg-jarvis-bg-secondary text-[10px] text-jarvis-text-muted shadow-lg transition-colors hover:border-jarvis-red/50 hover:text-jarvis-red focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50",
-            collapsed && "rotate-180"
-          )}
+          aria-label={pinned ? "Enable sidebar auto-hide" : "Pin sidebar open"}
+          aria-pressed={pinned}
+          title={pinned ? "Enable auto-hide (Ctrl+B)" : "Pin sidebar open (Ctrl+B)"}
+          onClick={() => setPinned((value) => !value)}
+          className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-jarvis-red/20 bg-jarvis-surface/60 text-[11px] text-jarvis-text-muted transition-colors hover:border-jarvis-red/45 hover:text-jarvis-red focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/60"
         >
-          ‹
+          <span aria-hidden="true">{pinned ? "◆" : "◇"}</span>
         </button>
       </div>
 
@@ -104,7 +156,7 @@ export default function Sidebar({
           title="Summon JARVIS (Ctrl+Shift+J)"
           className={cn(
             "group relative flex w-full items-center rounded-lg border border-jarvis-red/20 bg-jarvis-red/5 transition-colors hover:border-jarvis-red/40 hover:bg-jarvis-red/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50",
-            collapsed ? "justify-center px-2 py-3" : "gap-3 px-3 py-2.5",
+            "gap-3 px-3 py-2.5",
             assistantOpen && "border-jarvis-red/45 bg-jarvis-red/10"
           )}
         >
@@ -127,7 +179,7 @@ export default function Sidebar({
             />
           </span>
 
-          {!collapsed && (
+          {true && (
             <>
               <span className="min-w-0 flex-1 text-left">
                 <span className="block text-[10px] font-semibold tracking-[0.18em] text-jarvis-red uppercase">
@@ -145,7 +197,7 @@ export default function Sidebar({
         </button>
       </div>
 
-      <nav className={cn("flex-1 space-y-1", collapsed ? "p-2" : "p-2")} aria-label="JARVIS modules">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="JARVIS modules">
         {MODULES.map((item, index) => {
           const isActive = activeModule === item.id;
           const isHovered = hovered === item.id;
@@ -159,7 +211,7 @@ export default function Sidebar({
                 title={collapsed ? `${item.label}${item.shortcut ? ` (${item.shortcut})` : ""}` : undefined}
                 className={cn(
                   "group relative flex w-full items-center rounded-lg text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50",
-                  collapsed ? "justify-center px-2 py-3" : "gap-3 px-3 py-2.5",
+                  "gap-3 px-3 py-2.5",
                   isActive
                     ? "bg-jarvis-red/10 text-jarvis-red"
                     : "text-jarvis-text-muted hover:bg-jarvis-red/5 hover:text-jarvis-text-secondary"
@@ -191,7 +243,7 @@ export default function Sidebar({
                 </span>
 
                 <AnimatePresence initial={false}>
-                  {!collapsed && (
+                  {true && (
                     <motion.span
                       className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-wide"
                       initial={{ opacity: 0, width: 0 }}
@@ -203,7 +255,7 @@ export default function Sidebar({
                   )}
                 </AnimatePresence>
 
-                {!collapsed && item.shortcut && (
+                {item.shortcut && (
                   <span className="ml-auto text-[10px] text-jarvis-text-disabled/50 group-hover:text-jarvis-text-muted">
                     {item.shortcut}
                   </span>
@@ -226,15 +278,16 @@ export default function Sidebar({
         })}
       </nav>
 
-      <div className={cn("border-t border-jarvis-red/10", collapsed ? "p-2" : "p-3")}>
-        <div className={cn("flex items-center gap-2", collapsed && "justify-center")} title="System Online">
+      <div className="border-t border-jarvis-red/10 p-3">
+        <div className="flex items-center gap-2" title="System Online">
           <div className="h-2 w-2 shrink-0 rounded-full bg-jarvis-red jarvis-glow-sm" />
-          {!collapsed && (
+          {true && (
             <span className="text-[10px] tracking-wider text-jarvis-text-muted uppercase">
               System Online
             </span>
           )}
         </div>
+      </div>
       </div>
     </motion.aside>
   );

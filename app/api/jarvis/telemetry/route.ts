@@ -19,6 +19,9 @@ import {
  *
  * The request body never names a file or directory: storage location comes
  * from the server environment (`JARVIS_DATA_DIR`) or `process.cwd()`.
+ *
+ * Request bodies are read through the stream and counted in bytes, so an
+ * oversized or dishonestly framed upload is cut off before it is buffered.
  */
 
 export const runtime = "nodejs";
@@ -28,6 +31,66 @@ const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 function rejection(error: string, status: number) {
   return NextResponse.json({ ok: false, error }, { status, headers: NO_STORE });
+}
+
+type BoundedBody =
+  | { ok: true; text: string }
+  | { ok: false; reason: "too_large" | "unreadable" };
+
+/**
+ * Read a request body with a hard byte ceiling.
+ *
+ * `Content-Length` is only a hint: a streamed upload may omit it entirely or
+ * declare a smaller size than it sends. This walks the stream chunk by chunk,
+ * counts `byteLength` (never string length, which undercounts multibyte UTF-8)
+ * and cancels the reader as soon as the running total passes `limit`, so the
+ * remainder is never pulled, buffered or decoded.
+ *
+ * Decoding happens only after the bounded read succeeds. The decoder is
+ * non-fatal, matching `request.text()`: invalid byte sequences become
+ * replacement characters and then fail JSON parsing, rather than changing the
+ * status code a caller sees.
+ */
+async function readBoundedBody(
+  request: Request,
+  limit: number
+): Promise<BoundedBody> {
+  const body = request.body;
+  if (!body) return { ok: true, text: "" };
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+
+  try {
+    let next = await reader.read();
+    while (!next.done) {
+      const value = next.value;
+      if (value) {
+        received += value.byteLength;
+        if (received > limit) {
+          // Discard the rest instead of draining it into memory.
+          await reader.cancel().catch(() => undefined);
+          return { ok: false, reason: "too_large" };
+        }
+        chunks.push(value);
+      }
+      next = await reader.read();
+    }
+  } catch {
+    return { ok: false, reason: "unreadable" };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const merged = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return { ok: true, text: new TextDecoder().decode(merged) };
 }
 
 /**
@@ -74,25 +137,23 @@ export async function POST(request: Request) {
     return rejection("unsupported_content_type", 415);
   }
 
+  // Cheap early rejection when the caller is honest about the size. The
+  // bounded read below is what actually enforces the limit.
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAX_BATCH_BYTES) {
     return rejection("payload_too_large", 413);
   }
 
-  let raw: string;
-  try {
-    raw = await request.text();
-  } catch {
-    return rejection("invalid_body", 400);
-  }
-
-  if (raw.length > MAX_BATCH_BYTES) {
-    return rejection("payload_too_large", 413);
+  const read = await readBoundedBody(request, MAX_BATCH_BYTES);
+  if (!read.ok) {
+    return read.reason === "too_large"
+      ? rejection("payload_too_large", 413)
+      : rejection("invalid_body", 400);
   }
 
   let body: unknown;
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(read.text);
   } catch {
     return rejection("invalid_json", 400);
   }

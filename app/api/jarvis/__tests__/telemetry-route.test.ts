@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import os from "node:os";
 import path from "node:path";
 import { GET, POST } from "../telemetry/route";
+import { MAX_BATCH_BYTES } from "@/lib/telemetry/types";
 
 /**
  * Route-level tests. Storage is redirected to a temporary directory, so no
@@ -49,6 +50,54 @@ function postRequest(
     headers,
     body: options.rawBody ?? JSON.stringify(body),
   });
+}
+
+function chunksOf(text: string, size: number): Uint8Array[] {
+  const bytes = new TextEncoder().encode(text);
+  const chunks: Uint8Array[] = [];
+  for (let offset = 0; offset < bytes.length; offset += size) {
+    chunks.push(bytes.slice(offset, offset + size));
+  }
+  return chunks;
+}
+
+/**
+ * A POST whose body is a real stream. `state` records how many chunks the
+ * route pulled and whether it cancelled the reader, which is how the tests
+ * prove an oversized body is cut off instead of drained.
+ */
+function streamingPostRequest(
+  chunks: Uint8Array[],
+  headers: Record<string, string> = {}
+): { request: Request; state: { pulled: number; cancelled: boolean } } {
+  const state = { pulled: 0, cancelled: false };
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (state.pulled >= chunks.length) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(chunks[state.pulled]);
+      state.pulled += 1;
+    },
+    cancel() {
+      state.cancelled = true;
+    },
+  });
+
+  const request = new Request(`http://${HOST}/api/jarvis/telemetry`, {
+    method: "POST",
+    headers: {
+      host: HOST,
+      "content-type": "application/json",
+      origin: `http://${HOST}`,
+      ...headers,
+    },
+    body: stream,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+
+  return { request, state };
 }
 
 const turn = {
@@ -148,6 +197,149 @@ describe("POST ingestion", () => {
     const huge = JSON.stringify({ events: [turn], padding: "x".repeat(9000) });
     const response = await POST(postRequest(null, { rawBody: huge }));
     expect(response.status).toBe(413);
+  });
+
+  it("rejects an oversized stream with no Content-Length without draining it", async () => {
+    const payload = JSON.stringify({
+      events: [turn],
+      padding: "x".repeat(20_000),
+    });
+    const chunks = chunksOf(payload, 4096);
+    const { request, state } = streamingPostRequest(chunks);
+
+    expect(request.headers.get("content-length")).toBeNull();
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "payload_too_large",
+    });
+    // Cut off mid-stream: cancelled, and most chunks were never pulled.
+    expect(state.cancelled).toBe(true);
+    expect(state.pulled).toBeLessThan(chunks.length);
+    expect(existsSync(telemetryFile())).toBe(false);
+  });
+
+  it("rejects a body whose declared Content-Length is too small", async () => {
+    const payload = JSON.stringify({
+      events: [turn],
+      padding: "y".repeat(20_000),
+    });
+    const chunks = chunksOf(payload, 4096);
+    const { request, state } = streamingPostRequest(chunks, {
+      "content-length": "64",
+    });
+
+    // The early check sees an honest-looking 64 bytes and lets it through.
+    expect(request.headers.get("content-length")).toBe("64");
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "payload_too_large",
+    });
+    expect(state.cancelled).toBe(true);
+    expect(state.pulled).toBeLessThan(chunks.length);
+    expect(existsSync(telemetryFile())).toBe(false);
+  });
+
+  it("rejects an oversized body from Content-Length without reading the stream", async () => {
+    const chunks = chunksOf(
+      JSON.stringify({ events: [turn], padding: "z".repeat(5000) }),
+      512
+    );
+    expect(chunks.length).toBeGreaterThan(5);
+    const { request, state } = streamingPostRequest(chunks, {
+      "content-length": String(MAX_BATCH_BYTES + 1),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    // Nothing was drained or cancelled; at most the stream's own eager
+    // pre-roll produced one queued chunk before the handler ran.
+    expect(state.pulled).toBeLessThanOrEqual(1);
+    expect(state.cancelled).toBe(false);
+  });
+
+  it("measures bytes, not characters, for multibyte UTF-8", async () => {
+    const raw = JSON.stringify({
+      events: [turn],
+      padding: "€".repeat(3000),
+    });
+
+    // Fits in characters but not in bytes: a string-length check would have
+    // let it through to JSON parsing and answered 400 instead of 413.
+    expect(raw.length).toBeLessThan(MAX_BATCH_BYTES);
+    expect(new TextEncoder().encode(raw).byteLength).toBeGreaterThan(
+      MAX_BATCH_BYTES
+    );
+
+    const chunks = chunksOf(raw, 4096);
+    const { request, state } = streamingPostRequest(chunks);
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "payload_too_large",
+    });
+    expect(state.cancelled).toBe(true);
+    expect(existsSync(telemetryFile())).toBe(false);
+
+    // The same payload with an honest Content-Length is still rejected early.
+    expect(
+      (await POST(postRequest(null, { rawBody: raw }))).status
+    ).toBe(413);
+    expect(existsSync(telemetryFile())).toBe(false);
+  });
+
+  it("accepts exactly MAX_BATCH_BYTES and rejects one byte more", async () => {
+    const base = JSON.stringify({ events: [turn] });
+    const exact = base + " ".repeat(MAX_BATCH_BYTES - base.length);
+    expect(new TextEncoder().encode(exact).byteLength).toBe(MAX_BATCH_BYTES);
+
+    const accepted = streamingPostRequest(chunksOf(exact, 4096));
+    expect((await POST(accepted.request)).status).toBe(200);
+    expect(existsSync(telemetryFile())).toBe(true);
+
+    const over = streamingPostRequest(chunksOf(`${exact} `, 4096));
+    const response = await POST(over.request);
+
+    expect(response.status).toBe(413);
+    expect(over.state.cancelled).toBe(true);
+    // Only the accepted batch was written.
+    expect(readFileSync(telemetryFile(), "utf8").trim().split("\n")).toHaveLength(1);
+  });
+
+  it("rejects an unreadable request stream without leaking detail", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error(`storage exploded at ${root}`));
+      },
+    });
+    const request = new Request(`http://${HOST}/api/jarvis/telemetry`, {
+      method: "POST",
+      headers: {
+        host: HOST,
+        "content-type": "application/json",
+        origin: `http://${HOST}`,
+      },
+      body: stream,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const response = await POST(request);
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload).toEqual({ ok: false, error: "invalid_body" });
+    expect(JSON.stringify(payload)).not.toContain(root);
   });
 
   it("rejects a cross-origin write", async () => {

@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { MODULES, type ModuleId } from "@/lib/modules";
 import { tokens } from "@/lib/tokens";
+import { useAppStore } from "@/lib/store";
 
-const r = tokens.radius;
 const dur = tokens.duration;
 const expandedW = tokens.sidebar.expandedWidth;
 const collapsedW = 64;
@@ -23,6 +23,9 @@ export default function Sidebar({
 }: SidebarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const toggleAssistant = useAppStore((s) => s.toggleAssistant);
+  const assistantOpen = useAppStore((s) => s.assistantOpen);
+  const aiState = useAppStore((s) => s.aiState);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
@@ -90,6 +93,55 @@ export default function Sidebar({
           )}
         >
           ‹
+        </button>
+      </div>
+
+      <div className={cn("pt-3", collapsed ? "px-2" : "px-2")}>
+        <button
+          type="button"
+          onClick={toggleAssistant}
+          aria-pressed={assistantOpen}
+          title="Summon JARVIS (Ctrl+Shift+J)"
+          className={cn(
+            "group relative flex w-full items-center rounded-lg border border-jarvis-red/20 bg-jarvis-red/5 transition-colors hover:border-jarvis-red/40 hover:bg-jarvis-red/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50",
+            collapsed ? "justify-center px-2 py-3" : "gap-3 px-3 py-2.5",
+            assistantOpen && "border-jarvis-red/45 bg-jarvis-red/10"
+          )}
+        >
+          <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
+            <span
+              className={cn(
+                "absolute inset-0 rounded-full opacity-30 blur-[4px]",
+                aiState === "listening" ? "bg-jarvis-success" : "bg-jarvis-red"
+              )}
+            />
+            <span
+              className={cn(
+                "relative h-2 w-2 rounded-full",
+                aiState === "listening"
+                  ? "animate-pulse bg-jarvis-success"
+                  : aiState === "thinking" || aiState === "executing"
+                    ? "animate-pulse bg-jarvis-info"
+                    : "bg-jarvis-red"
+              )}
+            />
+          </span>
+
+          {!collapsed && (
+            <>
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block text-[10px] font-semibold tracking-[0.18em] text-jarvis-red uppercase">
+                  Assistant
+                </span>
+                <span className="block text-[8.5px] tracking-wider text-jarvis-text-disabled uppercase">
+                  {aiState === "idle" ? "Standing by" : aiState}
+                </span>
+              </span>
+              <span className="rounded border border-jarvis-red/20 px-1 py-0.5 font-mono text-[8px] text-jarvis-red/60">
+                ⌘⇧J
+              </span>
+            </>
+          )}
         </button>
       </div>
 

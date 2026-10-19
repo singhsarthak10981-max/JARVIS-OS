@@ -11,27 +11,13 @@ import DesktopGrid from "./desktop/DesktopGrid";
 import TacticalArc from "./hud/TacticalArc";
 import ContextMenu from "./context-menu/ContextMenu";
 import type { ContextMenuItem } from "./context-menu/ContextMenu";
-import { getModule } from "@/lib/modules";
 import { generateWorkspaceId } from "@/lib/workspaces";
 import type { ModuleId } from "@/lib/modules";
-
-const MODULE_WINDOW_DEFAULTS: Record<
-  ModuleId,
-  { width: number; height: number; title: string; icon: string }
-> = {
-  "command-center": { width: 1000, height: 680, title: "Command Center", icon: "◆" },
-  dj: { width: 900, height: 600, title: "DJ", icon: "♫" },
-  producer: { width: 900, height: 600, title: "Producer", icon: "♩" },
-  bar: { width: 800, height: 550, title: "Bar", icon: "▥" },
-  business: { width: 850, height: 600, title: "Business", icon: "▣" },
-  settings: { width: 600, height: 450, title: "Settings", icon: "⚙" },
-};
+import { openModuleWindow } from "@/lib/window-actions";
 
 export default function Desktop() {
   const active = useAppStore((s) => s.activeModule);
   const navigate = useAppStore((s) => s.navigate);
-  const openWindow = useAppStore((s) => s.openWindow);
-  const focusWindow = useAppStore((s) => s.focusWindow);
   const windows = useAppStore((s) => s.windows);
   const restoreSession = useAppStore((s) => s.restoreSession);
   const loadDesktopState = useAppStore((s) => s.loadDesktopState);
@@ -44,7 +30,7 @@ export default function Desktop() {
 
   useEffect(() => {
     if (restoreSession) loadDesktopState();
-  }, []);
+  }, [restoreSession, loadDesktopState]);
 
   useEffect(() => {
     const interval = setInterval(() => saveDesktopState(), 30000);
@@ -54,42 +40,13 @@ export default function Desktop() {
   useEffect(() => {
     if (windows.length === 0) return;
     saveDesktopState();
-  }, [windows]);
-
-  const openModuleWindow = useCallback(
-    (moduleId: ModuleId) => {
-      const existing = windows.find((w) => w.moduleId === moduleId);
-      if (existing) {
-        if (existing.minimized) useAppStore.getState().restoreWindow(existing.id);
-        focusWindow(existing.id);
-        return;
-      }
-
-      const defaults = MODULE_WINDOW_DEFAULTS[moduleId];
-      const mod = getModule(moduleId);
-      openWindow({
-        id: `window-${moduleId}-${Date.now()}`,
-        moduleId,
-        title: defaults.title,
-        icon: mod?.icon ?? "◇",
-        x: 120 + windows.length * 30,
-        y: 80 + windows.length * 30,
-        width: defaults.width,
-        height: defaults.height,
-        minWidth: 400,
-        minHeight: 300,
-        minimized: false,
-        maximized: false,
-        resizable: true,
-        closable: true,
-        draggable: true,
-      });
-    },
-    [windows, openWindow, focusWindow]
-  );
+  }, [windows, saveDesktopState]);
 
   useEffect(() => {
-    if (windows.length === 0) openModuleWindow("command-center");
+    // Runs after session restore; read live state rather than a stale render.
+    if (useAppStore.getState().windows.length === 0) {
+      openModuleWindow("command-center");
+    }
   }, []);
 
   useEffect(() => {
@@ -107,7 +64,7 @@ export default function Desktop() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [navigate, openModuleWindow]);
+  }, [navigate]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, type BootStage } from "@/lib/store";
 import { tokens } from "@/lib/tokens";
@@ -46,14 +46,6 @@ const BOOT_LINES: BootLine[] = [
   { text: "All subsystems nominal", type: "success", stage: "ai-services" },
 ];
 
-const STAGE_ORDER: BootStage[] = [
-  "neural-core",
-  "memory",
-  "voice",
-  "modules",
-  "ai-services",
-];
-
 const STAGE_LABELS: Record<string, string> = {
   "neural-core": "NEURAL CORE",
   memory: "MEMORY",
@@ -69,15 +61,24 @@ const LINE_COLORS: Record<string, string> = {
   info: c.textMuted,
 };
 
-const GREETING_LINES = [
-  "Good evening, Sarthak.",
-  "All systems operational.",
-];
 
 export default function BootSequence() {
   const [visibleLines, setVisibleLines] = useState<BootLine[]>([]);
   const [currentStage, setCurrentStage] = useState<BootStage>("neural-core");
   const [showCursor, setShowCursor] = useState(true);
+  const ownerName = useAppStore((s) => s.settings.ownerName) || "sir";
+  const greetingLines = useMemo(() => {
+    const hour = new Date().getHours();
+    const greeting =
+      hour < 5
+        ? "Working late"
+        : hour < 12
+          ? "Good morning"
+          : hour < 18
+            ? "Good afternoon"
+            : "Good evening";
+    return [`${greeting}, ${ownerName}.`, "All systems operational."];
+  }, [ownerName]);
   const [bootPhase, setBootPhase] = useState<"booting" | "greeting" | "done">("booting");
   const [greetingIndex, setGreetingIndex] = useState(0);
   const lineIndexRef = useRef(0);
@@ -87,6 +88,8 @@ export default function BootSequence() {
   const completeBoot = useAppStore((s) => s.completeBoot);
 
   const totalLines = BOOT_LINES.length;
+
+  const addLineRef = useRef<() => void>(() => {});
 
   const addLine = useCallback(() => {
     const idx = lineIndexRef.current;
@@ -107,13 +110,17 @@ export default function BootSequence() {
     lineIndexRef.current = idx + 1;
 
     const delay = 40 + Math.random() * 60;
-    setTimeout(addLine, delay);
+    setTimeout(() => addLineRef.current(), delay);
   }, [totalLines, setBootProgress, setBootStage]);
 
   useEffect(() => {
-    const timeout = setTimeout(addLine, 400);
-    return () => clearTimeout(timeout);
+    addLineRef.current = addLine;
   }, [addLine]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => addLineRef.current(), 400);
+    return () => clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setShowCursor((prev) => !prev), 530);
@@ -123,7 +130,7 @@ export default function BootSequence() {
   useEffect(() => {
     if (bootPhase !== "greeting") return;
 
-    if (greetingIndex >= GREETING_LINES.length) {
+    if (greetingIndex >= greetingLines.length) {
       setTimeout(() => {
         setBootPhase("done");
         completeBoot();
@@ -136,7 +143,7 @@ export default function BootSequence() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [bootPhase, greetingIndex, completeBoot]);
+  }, [bootPhase, greetingIndex, completeBoot, greetingLines.length]);
 
   return (
     <motion.div
@@ -257,7 +264,7 @@ export default function BootSequence() {
               animate={{ opacity: 1 }}
               transition={{ duration: dur.large / 1000 }}
             >
-              {GREETING_LINES.slice(0, greetingIndex).map((line, i) => (
+              {greetingLines.slice(0, greetingIndex).map((line, i) => (
                 <motion.div
                   key={i}
                   className="mb-2"

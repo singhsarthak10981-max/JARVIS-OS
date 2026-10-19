@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { tokens } from "@/lib/tokens";
+import { useAppStore } from "@/lib/store";
 
 const PARTICLE_COUNT = 40;
-const c = tokens.color;
 
 export default function AnimatedBackground() {
+  const particlesEnabled = useAppStore((s) => s.settings.particles);
+  const theme = useAppStore((s) => s.settings.theme);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<
     { x: number; y: number; size: number; speedY: number; speedX: number; opacity: number }[]
@@ -14,11 +15,17 @@ export default function AnimatedBackground() {
   const animFrameRef = useRef<number>(0);
 
   useEffect(() => {
+    if (!particlesEnabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    const accent =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--jarvis-glow-rgb")
+        .trim() || "229, 0, 0";
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -54,12 +61,12 @@ export default function AnimatedBackground() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(229, 0, 0, ${p.opacity})`;
+        ctx.fillStyle = `rgba(${accent}, ${p.opacity})`;
         ctx.fill();
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(229, 0, 0, ${p.opacity * 0.15})`;
+        ctx.fillStyle = `rgba(${accent}, ${p.opacity * 0.15})`;
         ctx.fill();
       }
 
@@ -72,7 +79,7 @@ export default function AnimatedBackground() {
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(animFrameRef.current);
     };
-  }, []);
+  }, [particlesEnabled, theme]);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0">
@@ -82,8 +89,8 @@ export default function AnimatedBackground() {
         className="absolute inset-0 opacity-[0.03]"
         style={{
           backgroundImage: `
-            linear-gradient(rgba(229,0,0,0.1) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(229,0,0,0.1) 1px, transparent 1px)
+            linear-gradient(rgb(var(--jarvis-glow-rgb) / 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgb(var(--jarvis-glow-rgb) / 0.1) 1px, transparent 1px)
           `,
           backgroundSize: "60px 60px",
           animation: "hex-pulse 8s ease-in-out infinite",
@@ -94,21 +101,21 @@ export default function AnimatedBackground() {
         <div
           className="absolute -left-1/2 top-1/4 h-[600px] w-[600px] rounded-full opacity-[0.04]"
           style={{
-            background: `radial-gradient(circle, ${c.jarvisRed} 0%, transparent 70%)`,
+            background: `radial-gradient(circle, rgb(var(--jarvis-glow-rgb)) 0%, transparent 70%)`,
             animation: "gradient-shift 15s ease-in-out infinite",
           }}
         />
         <div
           className="absolute -right-1/4 top-1/2 h-[500px] w-[500px] rounded-full opacity-[0.03]"
           style={{
-            background: `radial-gradient(circle, ${c.jarvisRed} 0%, transparent 70%)`,
+            background: `radial-gradient(circle, rgb(var(--jarvis-glow-rgb)) 0%, transparent 70%)`,
             animation: "gradient-shift 20s ease-in-out infinite reverse",
           }}
         />
         <div
           className="absolute bottom-0 left-1/3 h-[400px] w-[800px] rounded-full opacity-[0.025]"
           style={{
-            background: `radial-gradient(ellipse, ${c.crimson} 0%, transparent 70%)`,
+            background: `radial-gradient(ellipse, rgb(var(--jarvis-glow-rgb) / 0.7) 0%, transparent 70%)`,
             animation: "gradient-shift 12s ease-in-out infinite",
           }}
         />
@@ -118,7 +125,7 @@ export default function AnimatedBackground() {
         <div
           className="absolute h-full w-full"
           style={{
-            background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(229,0,0,0.03) 2px, rgba(229,0,0,0.03) 4px)`,
+            background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgb(var(--jarvis-glow-rgb) / 0.03) 2px, rgb(var(--jarvis-glow-rgb) / 0.03) 4px)`,
           }}
         />
       </div>
@@ -126,7 +133,7 @@ export default function AnimatedBackground() {
       <div
         className="absolute left-0 h-[2px] w-full opacity-[0.12]"
         style={{
-          background: `linear-gradient(90deg, transparent, rgba(229,0,0,0.6) 20%, rgba(229,0,0,0.8) 50%, rgba(229,0,0,0.6) 80%, transparent)`,
+          background: `linear-gradient(90deg, transparent, rgb(var(--jarvis-glow-rgb) / 0.6) 20%, rgb(var(--jarvis-glow-rgb) / 0.8) 50%, rgb(var(--jarvis-glow-rgb) / 0.6) 80%, transparent)`,
           animation: "scanline 8s linear infinite",
         }}
       />
@@ -134,7 +141,7 @@ export default function AnimatedBackground() {
       <div
         className="absolute left-0 h-[1px] w-full opacity-[0.04]"
         style={{
-          background: `linear-gradient(90deg, transparent, rgba(229,0,0,0.4) 30%, rgba(229,0,0,0.5) 50%, rgba(229,0,0,0.4) 70%, transparent)`,
+          background: `linear-gradient(90deg, transparent, rgb(var(--jarvis-glow-rgb) / 0.4) 30%, rgb(var(--jarvis-glow-rgb) / 0.5) 50%, rgb(var(--jarvis-glow-rgb) / 0.4) 70%, transparent)`,
           animation: "scanline 5s linear infinite",
           animationDelay: "-3s",
         }}

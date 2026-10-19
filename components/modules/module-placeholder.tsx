@@ -5,8 +5,6 @@ import type { ModuleDefinition } from "@/lib/modules";
 import { tokens } from "@/lib/tokens";
 import GlassCard from "@/components/glass-card";
 
-const c = tokens.color;
-const r = tokens.radius;
 const dur = tokens.duration;
 
 interface ModulePlaceholderProps {

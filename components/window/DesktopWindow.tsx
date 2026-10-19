@@ -18,8 +18,7 @@ const SNAP_THRESHOLD = 20;
 function computeSnapPosition(
   clientX: number,
   clientY: number,
-  containerWidth: number,
-  containerHeight: number
+  containerWidth: number
 ): SnapPosition {
   if (clientY <= SNAP_THRESHOLD) return "maximized";
   if (clientX <= SNAP_THRESHOLD) return "left";
@@ -56,7 +55,7 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
         moveEvent.clientY - dragOffset.current.y
       );
       setSnapPreview(
-        computeSnapPosition(moveEvent.clientX, moveEvent.clientY, containerWidth, containerHeight)
+        computeSnapPosition(moveEvent.clientX, moveEvent.clientY, containerWidth)
       );
     };
 
@@ -65,7 +64,7 @@ function DesktopWindowInner({ window: win, containerWidth, containerHeight }: De
       window.removeEventListener("mouseup", handleMouseUp);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      const snap = computeSnapPosition(upEvent.clientX, upEvent.clientY, containerWidth, containerHeight);
+      const snap = computeSnapPosition(upEvent.clientX, upEvent.clientY, containerWidth);
       if (snap) snapWindow(win.id, snap, containerWidth, containerHeight);
       setSnapPreview(null);
     };

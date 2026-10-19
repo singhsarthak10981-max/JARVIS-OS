@@ -3,6 +3,7 @@
 import type { ModuleId } from "@/lib/modules";
 import ModuleShell from "./ModuleShell";
 import CommandCenterDashboard from "../command-center-dashboard";
+import SettingsModule from "./SettingsModule";
 
 function Placeholder({
   moduleId,
@@ -42,7 +43,7 @@ export default function ModuleRenderer({ moduleId }: { moduleId: ModuleId }) {
     case "business":
       return <Placeholder moduleId="business" title="Business" description="Revenue, opportunities, and business operations." />;
     case "settings":
-      return <Placeholder moduleId="settings" title="Settings" description="JARVIS system configuration." />;
+      return <SettingsModule />;
     default:
       return null;
   }

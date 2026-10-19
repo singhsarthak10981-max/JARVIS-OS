@@ -14,7 +14,7 @@ interface OrbCoreProps {
   wakeUp: boolean;
 }
 
-function OrbCoreInner({ state, size, wakeUp }: OrbCoreProps) {
+function OrbCoreInner({ state, wakeUp }: OrbCoreProps) {
   const coreColor = orb.core[state];
   const scaleFrom = orb.breatheScale[state][0];
   const scaleTo = orb.breatheScale[state][1];

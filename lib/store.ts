@@ -4,6 +4,7 @@ import type { WindowInstance, WindowBounds, SnapPosition } from "@/types/window"
 import type { Workspace } from "./workspaces";
 import type { WallpaperConfig, DesktopShortcutConfig } from "@/services/storage/DesktopPersistence";
 import { desktopPersistence } from "@/services/storage/DesktopPersistence";
+import type { AiProviderId } from "@/lib/ai/providers";
 
 // ── AI State ──────────────────────────────────────────────
 
@@ -36,6 +37,17 @@ export interface Notification {
   read: boolean;
 }
 
+// ── Activity ──────────────────────────────────────────────
+
+export type ActivityKind = "info" | "success" | "warning" | "error" | "ai";
+
+export interface ActivityEntry {
+  id: string;
+  timestamp: number;
+  event: string;
+  kind: ActivityKind;
+}
+
 // ── Settings ──────────────────────────────────────────────
 
 export interface SettingsState {
@@ -44,7 +56,46 @@ export interface SettingsState {
   soundEnabled: boolean;
   volume: number;
   theme: "tactical-red" | "arc-reactor" | "stealth";
+
+  // Identity
+  ownerName: string;
+
+  // Intelligence
+  aiProvider: AiProviderId;
+  aiModel: string;
+  aiApiKey: string;
+  aiBaseUrl: string;
+
+  // Voice
+  voiceEnabled: boolean;
+  voiceRate: number;
+  voicePitch: number;
+  voiceURI: string;
+  wakeWordEnabled: boolean;
+  wakePhrase: string;
 }
+
+export const DEFAULT_SETTINGS: SettingsState = {
+  scanlines: true,
+  particles: true,
+  soundEnabled: false,
+  volume: 75,
+  theme: "tactical-red",
+  ownerName: "Sarthak",
+  aiProvider: "local",
+  aiModel: "",
+  aiApiKey: "",
+  aiBaseUrl: "",
+  voiceEnabled: false,
+  voiceRate: 1,
+  voicePitch: 0.9,
+  voiceURI: "",
+  wakeWordEnabled: false,
+  wakePhrase: "jarvis",
+};
+
+const SETTINGS_STORAGE_KEY = "jarvis-settings-v1";
+const ACTIVITY_STORAGE_KEY = "jarvis-activity-v1";
 
 // ── Store ─────────────────────────────────────────────────
 
@@ -75,6 +126,18 @@ export interface AppState {
   isSpeaking: boolean;
   lastInteraction: number;
 
+  // Assistant
+  assistantOpen: boolean;
+  assistantSeed: string;
+  openAssistant: (seed?: string) => void;
+  closeAssistant: () => void;
+  toggleAssistant: () => void;
+
+  // Activity
+  activity: ActivityEntry[];
+  logActivity: (event: string, kind?: ActivityKind) => void;
+  clearActivity: () => void;
+
   // Notifications
   notifications: Notification[];
   addNotification: (n: Omit<Notification, "id" | "timestamp" | "read">) => void;
@@ -85,6 +148,11 @@ export interface AppState {
   // Settings
   settings: SettingsState;
   updateSettings: (partial: Partial<SettingsState>) => void;
+  resetSettings: () => void;
+  hydrateSettings: () => void;
+
+  // Reboot
+  reboot: () => void;
 
   // Debug
   debugOpen: boolean;
@@ -140,6 +208,7 @@ export interface AppState {
 }
 
 let notifCounter = 0;
+let activityCounter = 0;
 
 export const useAppStore = create<AppState>((set) => ({
   // ── Navigation ──────────────────────────────────────────
@@ -175,6 +244,48 @@ export const useAppStore = create<AppState>((set) => ({
   isSpeaking: false,
   lastInteraction: 0,
 
+  // ── Assistant ───────────────────────────────────────────
+  assistantOpen: false,
+  assistantSeed: "",
+  openAssistant: (seed = "") =>
+    set({ assistantOpen: true, assistantSeed: seed }),
+  closeAssistant: () => set({ assistantOpen: false, assistantSeed: "" }),
+  toggleAssistant: () =>
+    set((s) => ({
+      assistantOpen: !s.assistantOpen,
+      assistantSeed: s.assistantOpen ? "" : s.assistantSeed,
+    })),
+
+  // ── Activity ────────────────────────────────────────────
+  activity: [],
+  logActivity: (event, kind = "info") =>
+    set((s) => {
+      const entry: ActivityEntry = {
+        id: `act-${++activityCounter}-${Date.now()}`,
+        timestamp: Date.now(),
+        event,
+        kind,
+      };
+      const activity = [entry, ...s.activity].slice(0, 60);
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            ACTIVITY_STORAGE_KEY,
+            JSON.stringify(activity)
+          );
+        } catch {
+          // Storage can be unavailable in private mode — ignore.
+        }
+      }
+      return { activity };
+    }),
+  clearActivity: () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(ACTIVITY_STORAGE_KEY);
+    }
+    set({ activity: [] });
+  },
+
   // ── Notifications ───────────────────────────────────────
   notifications: [],
   addNotification: (n) =>
@@ -202,15 +313,69 @@ export const useAppStore = create<AppState>((set) => ({
   clearNotifications: () => set({ notifications: [] }),
 
   // ── Settings ────────────────────────────────────────────
-  settings: {
-    scanlines: true,
-    particles: true,
-    soundEnabled: false,
-    volume: 75,
-    theme: "tactical-red",
-  },
+  settings: { ...DEFAULT_SETTINGS },
   updateSettings: (partial) =>
-    set((s) => ({ settings: { ...s.settings, ...partial } })),
+    set((s) => {
+      const settings = { ...s.settings, ...partial };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            SETTINGS_STORAGE_KEY,
+            JSON.stringify(settings)
+          );
+        } catch {
+          // Ignore storage failures.
+        }
+      }
+      return { settings };
+    }),
+  resetSettings: () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
+    }
+    set({ settings: { ...DEFAULT_SETTINGS } });
+  },
+  hydrateSettings: () => {
+    if (typeof window === "undefined") return;
+    const next: Partial<SettingsState> = {};
+    try {
+      const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (raw) {
+        const stored = JSON.parse(raw) as Record<string, unknown>;
+        for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof SettingsState)[]) {
+          const value = stored[key];
+          if (typeof value === typeof DEFAULT_SETTINGS[key]) {
+            (next as Record<string, unknown>)[key] = value;
+          }
+        }
+      }
+    } catch {
+      // Corrupt settings — fall back to defaults.
+    }
+
+    let activity: ActivityEntry[] = [];
+    try {
+      const rawActivity = window.localStorage.getItem(ACTIVITY_STORAGE_KEY);
+      if (rawActivity) {
+        const parsed = JSON.parse(rawActivity);
+        if (Array.isArray(parsed)) {
+          activity = parsed.filter(
+            (entry): entry is ActivityEntry =>
+              Boolean(entry) &&
+              typeof entry.event === "string" &&
+              typeof entry.timestamp === "number"
+          );
+        }
+      }
+    } catch {
+      // Ignore corrupt activity.
+    }
+
+    set((s) => ({
+      settings: { ...s.settings, ...next },
+      activity: activity.length > 0 ? activity : s.activity,
+    }));
+  },
 
   // ── Debug ───────────────────────────────────────────────
   debugOpen: false,
@@ -621,4 +786,18 @@ export const useAppStore = create<AppState>((set) => ({
     }),
 
   closeAll: () => set({ windows: [], focusedWindow: null }),
+
+  // ── Reboot ─────────────────────────────────────────────
+  reboot: () =>
+    set({
+      booted: false,
+      bootProgress: 0,
+      bootStage: "neural-core",
+      paletteOpen: false,
+      assistantOpen: false,
+      assistantSeed: "",
+      windows: [],
+      focusedWindow: null,
+      activity: [],
+    }),
 }));

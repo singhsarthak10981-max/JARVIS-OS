@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAppStore } from "@/lib/store";
-import { getModule } from "@/lib/modules";
+import { getModule, type ModuleId } from "@/lib/modules";
 import { tokens } from "@/lib/tokens";
+import { openModuleWindow } from "@/lib/window-actions";
 
 interface DesktopShortcutProps {
   id: string;
@@ -20,42 +21,13 @@ export default function DesktopShortcut({
   label,
 }: DesktopShortcutProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const openWindow = useAppStore((s) => s.openWindow);
-  const focusWindow = useAppStore((s) => s.focusWindow);
-  const restoreWindow = useAppStore((s) => s.restoreWindow);
-  const windows = useAppStore((s) => s.windows);
-  const updatePosition = useAppStore((s) => s.updateDesktopShortcutPosition);
   const removeShortcut = useAppStore((s) => s.removeDesktopShortcut);
 
-  const module = getModule(moduleId as never);
-  if (!module) return null;
+  const moduleDef = getModule(moduleId as ModuleId);
+  if (!moduleDef) return null;
 
   const handleDoubleClick = () => {
-    const existing = windows.find((w) => w.moduleId === moduleId);
-    if (existing) {
-      if (existing.minimized) {
-        restoreWindow(existing.id);
-      }
-      focusWindow(existing.id);
-      return;
-    }
-      openWindow({
-        id: `window-${moduleId}-${Date.now()}`,
-        moduleId: moduleId as never,
-        title: module.label,
-        icon: module.icon,
-        x: position.x + 80,
-        y: position.y,
-        width: 900,
-        height: 600,
-        minWidth: 400,
-        minHeight: 300,
-        minimized: false,
-        maximized: false,
-        resizable: true,
-        closable: true,
-        draggable: true,
-      });
+    openModuleWindow(moduleId as ModuleId);
   };
 
   return (
@@ -70,6 +42,21 @@ export default function DesktopShortcut({
       exit={{ opacity: 0, scale: 0.8 }}
       transition={{ duration: tokens.duration.small / 1000 }}
     >
+      {isHovered && (
+        <button
+          type="button"
+          aria-label={`Remove ${moduleDef.label} shortcut`}
+          title="Remove shortcut"
+          onClick={(event) => {
+            event.stopPropagation();
+            removeShortcut(id);
+          }}
+          className="absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-jarvis-red/30 bg-jarvis-bg-secondary text-[9px] text-jarvis-text-muted transition-colors hover:text-jarvis-red"
+        >
+          ✕
+        </button>
+      )}
+
       <motion.div
         className={`flex h-14 w-14 items-center justify-center rounded-xl border transition-all duration-200 ${
           isHovered
@@ -84,7 +71,7 @@ export default function DesktopShortcut({
             isHovered ? "text-jarvis-red" : "text-jarvis-text-secondary"
           }`}
         >
-          {module.icon}
+          {moduleDef.icon}
         </span>
       </motion.div>
       <span
@@ -92,7 +79,7 @@ export default function DesktopShortcut({
           isHovered ? "text-jarvis-text-primary" : "text-jarvis-text-muted"
         }`}
       >
-        {label || module.label}
+        {label || moduleDef.label}
       </span>
     </motion.div>
   );

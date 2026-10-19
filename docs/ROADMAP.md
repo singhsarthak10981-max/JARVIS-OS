@@ -50,36 +50,41 @@ Status: Complete
 
 ---
 
-# Upcoming
-
-## Sprint 6
+## ✅ Sprint 6
 Voice Assistant Foundation
 
-- Whisper integration
-- Wake Word
+- Browser speech recognition (Web Speech API)
+- Wake Word ("Jarvis")
 - Conversation Manager
 - Intent Router
+- Spoken replies (speech synthesis)
+- Multi-provider LLM uplink + zero-key local core
+
+Status: Complete (v1.0.0)
 
 ---
 
-## Sprint 7
+## ✅ Sprint 7
 Memory System
 
-- Short-term memory
-- Long-term memory
-- Semantic search
-- User profile
+- Conversation history persistence
+- Long-term memory (remember / recall / forget)
+- Memory injection into model context
+- User profile (owner name, voice, provider preferences)
+
+Status: Complete (v1.0.0)
 
 ---
 
 ## Sprint 8
 Desktop Integration
 
-- System control
-- App launcher
-- Notifications
-- Clipboard
-- File search
+- System control (windows, modules, themes, timers) ✅
+- App launcher ✅
+- Notifications ✅
+- Clipboard 🚧
+- File search 🚧
+- Calendar / weather / smart-home integrations 🚧
 
 ---
 

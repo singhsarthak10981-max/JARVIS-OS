@@ -51,6 +51,8 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
   const notifications = useAppStore((s) => s.notifications);
   const markNotificationRead = useAppStore((s) => s.markNotificationRead);
   const clearNotifications = useAppStore((s) => s.clearNotifications);
+  const toggleAssistant = useAppStore((s) => s.toggleAssistant);
+  const assistantOpen = useAppStore((s) => s.assistantOpen);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
@@ -83,19 +85,29 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
       </div>
 
       <div className="flex shrink-0 items-center gap-3 sm:gap-5 lg:gap-6">
-        <div
-          className="flex items-center gap-1.5"
-          title={`AI state: ${aiState}`}
-          aria-label={`AI state: ${aiState}`}
+        <button
+          type="button"
+          onClick={toggleAssistant}
+          aria-pressed={assistantOpen}
+          className={`group flex items-center gap-1.5 rounded-md border px-1.5 py-1 transition-colors ${
+            assistantOpen
+              ? "border-jarvis-red/30 bg-jarvis-red/10"
+              : "border-transparent hover:border-jarvis-red/15 hover:bg-jarvis-red/5"
+          }`}
+          title={`Summon JARVIS · AI state: ${aiState} (⌘/Ctrl + Shift + J)`}
+          aria-label={`Summon JARVIS. AI state: ${aiState}`}
         >
-          <div
+          <span
             className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: AI_STATE_COLORS[aiState] ?? c.textDisabled }}
+            style={{
+              backgroundColor: AI_STATE_COLORS[aiState] ?? c.textDisabled,
+              boxShadow: `0 0 6px ${AI_STATE_COLORS[aiState] ?? c.textDisabled}80`,
+            }}
           />
-          <span className="hidden text-[10px] tracking-wider text-jarvis-text-muted uppercase sm:inline">
+          <span className="hidden text-[10px] tracking-wider text-jarvis-text-muted uppercase transition-colors group-hover:text-jarvis-text-secondary sm:inline">
             AI: {aiState.toUpperCase()}
           </span>
-        </div>
+        </button>
 
         <div className="hidden items-center gap-4 md:flex lg:gap-5">
           <StatusIndicator label="NETWORK" />

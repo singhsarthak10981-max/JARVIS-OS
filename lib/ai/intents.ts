@@ -106,6 +106,10 @@ const THEME_ALIASES: Record<string, ThemeId> = {
   "stealth": "stealth",
   "amber": "stealth",
   "yellow": "stealth",
+  "stark": "stark-interface",
+  "stark interface": "stark-interface",
+  "iron man": "stark-interface",
+  "jarvis blue": "stark-interface",
 };
 
 const WALLPAPER_ALIASES: Record<string, string> = {

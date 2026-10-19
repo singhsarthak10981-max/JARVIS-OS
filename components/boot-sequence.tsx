@@ -15,35 +15,35 @@ interface BootLine {
 }
 
 const BOOT_LINES: BootLine[] = [
-  // Stage 1: Neural Core
+  // Boot copy describes what the shell actually does. Fabricated readouts
+  // ("144B neurons", "2.4 PB", "Firewall SECURE") were removed: this is a
+  // local desktop shell, not a measured machine.
   { text: "JARVIS OS v1.0.0 — Just A Rather Very Intelligent System", type: "system", stage: "neural-core" },
-  { text: "Neural core initializing...", type: "info", stage: "neural-core" },
-  { text: "Loading quantum processing modules...", type: "info", stage: "neural-core" },
-  { text: "Synaptic mesh calibrated — 144B neurons online", type: "success", stage: "neural-core" },
+  { text: "Interface core initializing...", type: "info", stage: "neural-core" },
+  { text: "Loading shell and window manager...", type: "info", stage: "neural-core" },
+  { text: "Desktop session ready", type: "success", stage: "neural-core" },
 
-  // Stage 2: Memory
-  { text: "Memory subsystem online", type: "info", stage: "memory" },
-  { text: "Synchronizing memory banks...", type: "info", stage: "memory" },
-  { text: "2.4 PB available — Latency: 0.3ns", type: "success", stage: "memory" },
-  { text: "Cache hierarchy: L1[32MB] L2[256MB] L3[2GB]", type: "success", stage: "memory" },
+  // Stage 2: Local state
+  { text: "Reading local workspace state...", type: "info", stage: "memory" },
+  { text: "Loading saved preferences...", type: "info", stage: "memory" },
+  { text: "Local memory store available", type: "success", stage: "memory" },
 
   // Stage 3: Voice
-  { text: "Voice synthesis engine loading...", type: "info", stage: "voice" },
-  { text: "Acoustic model: JARVIS-v7-EN", type: "info", stage: "voice" },
-  { text: "Voice module online — Ready for input", type: "success", stage: "voice" },
+  { text: "Checking speech services...", type: "info", stage: "voice" },
+  { text: "Voice uses your browser's speech engine", type: "info", stage: "voice" },
+  { text: "Voice interface loaded", type: "success", stage: "voice" },
 
   // Stage 4: Modules
-  { text: "Scanning installed modules...", type: "info", stage: "modules" },
-  { text: "Command Center .......... LOADED", type: "success", stage: "modules" },
-  { text: "DJ Module ............... LOADED", type: "success", stage: "modules" },
-  { text: "Producer Module .......... LOADED", type: "success", stage: "modules" },
-  { text: "Business Module .......... LOADED", type: "success", stage: "modules" },
+  { text: "Scanning workspaces...", type: "info", stage: "modules" },
+  { text: "Command Center ......... READY", type: "success", stage: "modules" },
+  { text: "DJ workspace ........... READY", type: "success", stage: "modules" },
+  { text: "Producer, Bar, Business — shells only", type: "warning", stage: "modules" },
 
-  // Stage 5: AI Services
-  { text: "Establishing encrypted uplink...", type: "info", stage: "ai-services" },
-  { text: "Firewall perimeter: SECURE", type: "success", stage: "ai-services" },
-  { text: "Threat assessment: NONE DETECTED", type: "success", stage: "ai-services" },
-  { text: "All subsystems nominal", type: "success", stage: "ai-services" },
+  // Stage 5: AI services
+  { text: "Checking AI service configuration...", type: "info", stage: "ai-services" },
+  { text: "Provider credentials stay on the server", type: "info", stage: "ai-services" },
+  { text: "Local core ready", type: "success", stage: "ai-services" },
+  { text: "Interface ready", type: "success", stage: "ai-services" },
 ];
 
 const STAGE_LABELS: Record<string, string> = {
@@ -77,7 +77,7 @@ export default function BootSequence() {
           : hour < 18
             ? "Good afternoon"
             : "Good evening";
-    return [`${greeting}, ${ownerName}.`, "All systems operational."];
+    return [`${greeting}, ${ownerName}.`, "Workspace ready."];
   }, [ownerName]);
   const [bootPhase, setBootPhase] = useState<"booting" | "greeting" | "done">("booting");
   const [greetingIndex, setGreetingIndex] = useState(0);

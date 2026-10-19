@@ -22,10 +22,14 @@ export default function AnimatedBackground() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const accent =
-      getComputedStyle(document.documentElement)
-        .getPropertyValue("--jarvis-glow-rgb")
-        .trim() || "229, 0, 0";
+    let accent = "229 0 0";
+    const readAccent = () => {
+      accent =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--jarvis-glow-rgb")
+          .trim() || "229 0 0";
+    };
+    readAccent();
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -82,12 +86,12 @@ export default function AnimatedBackground() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${accent}, ${p.opacity})`;
+        ctx.fillStyle = `rgb(${accent} / ${p.opacity})`;
         ctx.fill();
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${accent}, ${p.opacity * 0.15})`;
+        ctx.fillStyle = `rgb(${accent} / ${p.opacity * 0.15})`;
         ctx.fill();
       }
 
@@ -99,7 +103,7 @@ export default function AnimatedBackground() {
       for (const p of particlesRef.current) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${accent}, ${p.opacity})`;
+        ctx.fillStyle = `rgb(${accent} / ${p.opacity})`;
         ctx.fill();
       }
     };
@@ -124,8 +128,17 @@ export default function AnimatedBackground() {
     if (prefersReducedMotion.matches) drawStaticFrame();
     else if (!document.hidden) start();
 
+    // `data-theme` is applied by SystemEffects in a sibling effect, which can
+    // run after this one. Re-read the accent once the frame is committed so the
+    // particles use the active theme instead of the boot default.
+    const accentFrame = requestAnimationFrame(() => {
+      readAccent();
+      if (prefersReducedMotion.matches) drawStaticFrame();
+    });
+
     return () => {
       stop();
+      cancelAnimationFrame(accentFrame);
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", handleVisibility);
       prefersReducedMotion.removeEventListener("change", handleReducedMotion);

@@ -52,14 +52,12 @@ function WindowHeaderInner({
 
   return (
     <div
-      className="flex h-9 items-center gap-2 border-b px-3 select-none"
+      className="flex h-9 shrink-0 items-center gap-2 border-b px-3 select-none"
       style={{
         borderColor: focused
-          ? "rgba(229,0,0,0.15)"
-          : "rgba(255,255,255,0.04)",
-        background: focused
-          ? "rgba(229,0,0,0.04)"
-          : "rgba(255,255,255,0.02)",
+          ? "color-mix(in srgb, rgb(var(--jarvis-glow-rgb)) 18%, transparent)"
+          : "rgba(255,255,255,0.06)",
+        background: focused ? "rgba(255,255,255,0.035)" : "transparent",
         cursor: draggable ? "grab" : "default",
       }}
       onMouseDown={handleMouseDown}
@@ -67,12 +65,12 @@ function WindowHeaderInner({
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
         {icon && (
-          <span className="text-xs text-jarvis-red flex-shrink-0">
+          <span className="shrink-0 text-[11px] text-jarvis-red">
             {icon}
           </span>
         )}
         <span
-          className="text-xs font-medium tracking-wide truncate"
+          className="truncate text-[11.5px] font-medium tracking-wide"
           style={{
             color: focused ? c.textPrimary : c.textMuted,
           }}

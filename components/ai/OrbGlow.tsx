@@ -12,9 +12,11 @@ interface OrbGlowProps {
   state: OrbState;
   size: number;
   wakeUp: boolean;
+  /** Compact orbs draw a smaller halo so it stays inside a dense card. */
+  compact?: boolean;
 }
 
-function OrbGlowInner({ state, size, wakeUp }: OrbGlowProps) {
+function OrbGlowInner({ state, size, wakeUp, compact = false }: OrbGlowProps) {
   const coreColor = orb.core[state];
   const glowRadius = orb.glowRadius[state];
   const glowOpacity = orb.glow[state];
@@ -26,10 +28,10 @@ function OrbGlowInner({ state, size, wakeUp }: OrbGlowProps) {
       className="absolute"
       style={{
         borderRadius: r.orb,
-        width: size * 0.35,
-        height: size * 0.35,
+        width: size * (compact ? 0.52 : 0.35),
+        height: size * (compact ? 0.52 : 0.35),
         background: `radial-gradient(circle, color-mix(in srgb, ${coreColor} ${Math.round(glowOpacity * 100)}%, transparent) 0%, color-mix(in srgb, ${coreColor} 12%, transparent) 50%, transparent 70%)`,
-        filter: `blur(${glowRadius * 0.4}px)`,
+        filter: `blur(${glowRadius * (compact ? 0.22 : 0.4)}px)`,
       }}
       animate={
         wakeUp

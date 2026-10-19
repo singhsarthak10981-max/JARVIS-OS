@@ -10,6 +10,8 @@ const orb = tokens.orb;
 interface OrbParticlesProps {
   state: OrbState;
   radius: number;
+  /** Compact orbs keep the dust inside their own box. */
+  compact?: boolean;
 }
 
 const STATE_SPEED: Record<OrbState, number> = {
@@ -32,11 +34,11 @@ const STATE_SPREAD: Record<OrbState, number> = {
   error: 50,
 };
 
-function OrbParticlesInner({ state, radius }: OrbParticlesProps) {
+function OrbParticlesInner({ state, radius, compact = false }: OrbParticlesProps) {
   const count = orb.particleCount[state];
   const color = orb.core[state];
   const speed = STATE_SPEED[state];
-  const spread = STATE_SPREAD[state];
+  const spread = compact ? STATE_SPREAD[state] * 0.35 : STATE_SPREAD[state];
 
   const config = useMemo(
     () => ({ count, color, speed, spread }),

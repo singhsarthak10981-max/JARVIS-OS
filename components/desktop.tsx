@@ -82,6 +82,14 @@ export default function Desktop() {
           navigate(modules[idx]);
           openModuleWindow(modules[idx]);
         }
+        return;
+      }
+      // Settings advertises Ctrl+, in the sidebar, the HUD hint strip and its
+      // tooltip; without this branch the hint pointed at nothing.
+      if (isMod && e.key === ",") {
+        e.preventDefault();
+        navigate("settings");
+        openModuleWindow("settings");
       }
     };
     window.addEventListener("keydown", handler);
@@ -146,7 +154,13 @@ export default function Desktop() {
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <TopHUD activeModule={active} />
 
-        <main className="relative flex-1 overflow-hidden" onContextMenu={handleContextMenu}>
+        {/* The sidebar is an overlay tray; its 14px reveal sliver would sit
+            over the first window. Reserve just enough to keep the tab
+            clickable without shrinking the workspace meaningfully. */}
+        <main
+          className="relative flex-1 overflow-hidden pl-[28px]"
+          onContextMenu={handleContextMenu}
+        >
           <DesktopGrid />
           <TacticalArc />
           <div className="relative z-10 h-full w-full">

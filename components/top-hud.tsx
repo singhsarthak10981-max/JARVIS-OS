@@ -100,11 +100,11 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
 
   return (
     <motion.header
-      className="relative z-30 flex items-center justify-between border-b border-jarvis-red/10 bg-jarvis-bg-secondary/70 px-3 sm:px-4 lg:px-6 backdrop-blur-[20px]"
+      className="relative z-30 flex shrink-0 items-center justify-between border-b border-white/[0.06] bg-jarvis-bg-secondary/85 px-3 backdrop-blur-[12px] sm:px-4 lg:px-5"
       style={{ height: tokens.hud.height }}
       initial={{ y: -tokens.hud.height, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: dur.large / 1000, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: dur.large / 1000, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="flex min-w-0 items-center gap-3 sm:gap-6">
         <div className="flex shrink-0 items-center gap-2">
@@ -114,7 +114,7 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
           </span>
         </div>
 
-        <div className="hidden h-4 w-px bg-jarvis-red/15 sm:block" />
+        <div className="hidden h-4 w-px bg-white/[0.08] sm:block" aria-hidden />
 
         <span className="truncate text-[10px] tracking-wider text-jarvis-text-muted sm:text-[11px]">
           {mod?.label.toUpperCase() || "SYSTEM"}
@@ -129,7 +129,7 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
           className={`group flex items-center gap-1.5 rounded-md border px-1.5 py-1 transition-colors ${
             assistantOpen
               ? "border-jarvis-red/30 bg-jarvis-red/10"
-              : "border-transparent hover:border-jarvis-red/15 hover:bg-jarvis-red/5"
+              : "border-transparent hover:border-white/10 hover:bg-white/[0.03]"
           }`}
           title={`Summon JARVIS · AI state: ${aiState} (⌘/Ctrl + Shift + J)`}
           aria-label={`Summon JARVIS. AI state: ${aiState}`}
@@ -158,7 +158,7 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
             aria-label={unreadCount ? `${unreadCount} unread notifications` : "Notifications"}
             aria-expanded={notificationsOpen}
             onClick={() => setNotificationsOpen((open) => !open)}
-            className="relative flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-jarvis-text-muted transition-colors hover:border-jarvis-red/15 hover:bg-jarvis-red/5 hover:text-jarvis-red focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50"
+            className="relative flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-jarvis-text-muted transition-colors hover:border-white/10 hover:bg-white/[0.03] hover:text-jarvis-red focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-jarvis-red/50"
           >
             <span className="text-[11px]">◉</span>
             {unreadCount > 0 && (
@@ -174,9 +174,9 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
                 initial={{ opacity: 0, y: -6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                className="absolute right-0 top-9 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-lg border border-jarvis-red/15 bg-jarvis-bg-secondary/95 shadow-2xl backdrop-blur-xl"
+                className="absolute top-9 right-0 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-[12px] border border-white/10 bg-jarvis-bg-secondary shadow-2xl"
               >
-                <div className="flex items-center justify-between border-b border-jarvis-red/10 px-3 py-2.5">
+                <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
                   <span className="text-[10px] font-semibold tracking-[0.14em] text-jarvis-text-secondary uppercase">
                     Notifications
                   </span>
@@ -186,15 +186,15 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
                       onClick={clearNotifications}
                       className="text-[9px] tracking-wider text-jarvis-text-disabled transition-colors hover:text-jarvis-red"
                     >
-                      CLEAR
+                      Clear
                     </button>
                   )}
                 </div>
 
-                <div className="max-h-64 overflow-y-auto">
+                <div className="max-h-64 overflow-y-auto jarvis-scroll">
                   {notifications.length === 0 ? (
                     <div className="px-3 py-6 text-center text-[10px] tracking-wider text-jarvis-text-disabled">
-                      NO ACTIVE NOTIFICATIONS
+                      No notifications
                     </div>
                   ) : (
                     notifications.slice(0, 8).map((notification) => (

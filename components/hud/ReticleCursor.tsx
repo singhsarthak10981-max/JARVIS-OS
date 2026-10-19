@@ -25,14 +25,25 @@ export default function ReticleCursor() {
         return;
       }
 
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="range"]), textarea, [contenteditable="true"]'
+        )
+      ) {
+        // Keep the native text caret easy to see while editing.
+        element.style.opacity = "0";
+        return;
+      }
+
       element.style.transform =
         `translate3d(${event.clientX}px, ${event.clientY}px, 0) translate(-50%, -50%)`;
-      const target = event.target;
       const interactive =
         target instanceof Element &&
         Boolean(
           target.closest(
-            'button, a, [role="button"], input, select, textarea, [data-cursor-interactive]'
+            'button, a, select, [role="button"], [data-cursor-interactive]'
           )
         );
 

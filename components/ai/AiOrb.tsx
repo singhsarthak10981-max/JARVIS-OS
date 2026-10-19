@@ -31,8 +31,8 @@ export default function AiOrb({
   const validTransitions = useMemo(() => getValidTransitions(state), [state]);
 
   const borderColor = tokens.orb.core[state];
-  const softGlow = "color-mix(in srgb, var(--jarvis-glow-rgb) 20%, transparent)";
-  const strongGlow = "color-mix(in srgb, var(--jarvis-glow-rgb) 48%, transparent)";
+  const softGlow = "color-mix(in srgb, rgb(var(--jarvis-glow-rgb)) 20%, transparent)";
+  const strongGlow = "color-mix(in srgb, rgb(var(--jarvis-glow-rgb)) 48%, transparent)";
 
   return (
     <div

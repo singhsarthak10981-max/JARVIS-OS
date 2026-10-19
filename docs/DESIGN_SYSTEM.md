@@ -282,3 +282,35 @@ Bar: Green
 - Keep animations subtle.
 - Use TypeScript.
 - Keep features modular.
+
+
+---
+
+# Stark Interface — Alternate Theme
+
+Stark Interface is a selectable appearance mode, not a replacement for the Tactical Red identity.
+
+## Palette
+
+| Token | Value | Intent |
+| --- | --- | --- |
+| Background | `#020812` / `#06111F` | Midnight graphite-blue |
+| Surface | `#081B2B` | Layered instrument surfaces |
+| Panel | `#0B2235` | Raised HUD panels |
+| Primary accent | `#31E7FF` | Cyan instrumentation |
+| Text | `#DDF4FF` | Cool-white labels |
+| Muted text | `#86A9BD` | Secondary telemetry |
+| Success | `#70F5C4` | Confirmed ready state |
+| Warning | `#FFD36A` | Caution |
+| Error | `#FF5C73` | Fault state |
+
+## Principles
+
+- Use cyan for instrument focus, not every surface.
+- Use red/coral sparingly for faults; green/mint indicates positive results only when grounded in actual state.
+- Use radial arcs, reticles, micro-labels and measured scanning motion as instrumentation, not decoration covering the work area.
+- Keep the AI core, ambient arc, state LEDs and cursor tied to theme variables.
+- Do not claim external systems are online based on a visual effect.
+- Respect reduced-motion preferences, keyboard use, text selection and touch input.
+
+See [Stark Interface Sprint](./STARK_INTERFACE_SPRINT.md) and [Integrations Roadmap](./INTEGRATIONS_ROADMAP.md).

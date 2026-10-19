@@ -4,6 +4,7 @@ import type { WindowInstance, WindowBounds, SnapPosition } from "@/types/window"
 import type { Workspace } from "./workspaces";
 import type { WallpaperConfig, DesktopShortcutConfig } from "@/services/storage/DesktopPersistence";
 import { desktopPersistence } from "@/services/storage/DesktopPersistence";
+import { buildDesktopSnapshot } from "./desktop-snapshot";
 import type { AiProviderId } from "@/lib/ai/providers";
 
 export type DjView = "launchpad" | "performance" | "library";
@@ -476,52 +477,10 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setRestoreSession: (restore) => set({ restoreSession: restore }),
   saveDesktopState: () => {
-    const state = useAppStore.getState();
-    desktopPersistence.save({
-      windows: state.windows.map((w) => ({
-        id: w.id,
-        moduleId: w.moduleId,
-        title: w.title,
-        bounds: { x: w.x, y: w.y, width: w.width, height: w.height },
-        minimized: w.minimized,
-        maximized: w.maximized,
-        zIndex: w.zIndex,
-      })),
-      workspaces: state.workspaces.map((ws) => ({
-        id: ws.id,
-        name: ws.name,
-        icon: ws.icon,
-        windowIds: ws.windowIds,
-      })),
-      activeWorkspaceId: state.activeWorkspaceId,
-      wallpaper: state.wallpaper,
-      pinnedModules: state.pinnedModules,
-      desktopShortcuts: state.desktopShortcuts,
-    });
+    desktopPersistence.save(buildDesktopSnapshot(useAppStore.getState()));
   },
   saveDesktopStateDebounced: () => {
-    const state = useAppStore.getState();
-    desktopPersistence.debouncedSave({
-      windows: state.windows.map((w) => ({
-        id: w.id,
-        moduleId: w.moduleId,
-        title: w.title,
-        bounds: { x: w.x, y: w.y, width: w.width, height: w.height },
-        minimized: w.minimized,
-        maximized: w.maximized,
-        zIndex: w.zIndex,
-      })),
-      workspaces: state.workspaces.map((ws) => ({
-        id: ws.id,
-        name: ws.name,
-        icon: ws.icon,
-        windowIds: ws.windowIds,
-      })),
-      activeWorkspaceId: state.activeWorkspaceId,
-      wallpaper: state.wallpaper,
-      pinnedModules: state.pinnedModules,
-      desktopShortcuts: state.desktopShortcuts,
-    });
+    desktopPersistence.debouncedSave(buildDesktopSnapshot(useAppStore.getState()));
   },
   flushDesktopState: () => {
     desktopPersistence.flush();

@@ -14,6 +14,7 @@ import type { ContextMenuItem } from "./context-menu/ContextMenu";
 import { generateWorkspaceId } from "@/lib/workspaces";
 import type { ModuleId } from "@/lib/modules";
 import { openModuleWindow } from "@/lib/window-actions";
+import { subscribeToPersistence } from "@/lib/desktop-snapshot";
 
 export default function Desktop() {
   const active = useAppStore((s) => s.activeModule);
@@ -21,7 +22,7 @@ export default function Desktop() {
   const restoreSession = useAppStore((s) => s.restoreSession);
   const loadDesktopState = useAppStore((s) => s.loadDesktopState);
   const saveDesktopStateDebounced = useAppStore((s) => s.saveDesktopStateDebounced);
-  const flushDesktopState = useAppStore((s) => s.flushDesktopState);
+  const saveDesktopState = useAppStore((s) => s.saveDesktopState);
   const addDesktopShortcut = useAppStore((s) => s.addDesktopShortcut);
   const addWorkspace = useAppStore((s) => s.addWorkspace);
   const workspaces = useAppStore((s) => s.workspaces);
@@ -32,38 +33,35 @@ export default function Desktop() {
     if (restoreSession) loadDesktopState();
   }, [restoreSession, loadDesktopState]);
 
+  // Persist desktop changes through a store subscription rather than a React
+  // effect. An effect keyed on `windows` re-rendered the whole desktop chrome
+  // on every drag frame and wrote to localStorage each time; a subscription
+  // sees the same changes without any component re-render.
+  //
+  // Every persisted slice is observed here — not just windows and workspaces —
+  // because a change to wallpaper, pinned modules, workspaces or desktop
+  // shortcuts would otherwise only reach storage when some *other* change
+  // happened to trigger a save.
   useEffect(() => {
-    // Safety net only. Uses the debounced path so it never forces a
-    // synchronous serialisation in the middle of a drag.
-    const interval = setInterval(() => saveDesktopStateDebounced(), 30000);
-    return () => clearInterval(interval);
+    return subscribeToPersistence(useAppStore, saveDesktopStateDebounced);
   }, [saveDesktopStateDebounced]);
 
-  // Persist window/workspace changes through a store subscription rather than
-  // a React effect. An effect keyed on `windows` re-rendered the whole desktop
-  // chrome on every drag frame and wrote to localStorage each time; a
-  // subscription sees the same changes without any component re-render.
+  // Write the live state synchronously when the page is hidden or unloaded.
+  // `saveDesktopState` supersedes any queued debounced snapshot, so a drag or
+  // settings change made moments before closing is never lost.
   useEffect(() => {
-    return useAppStore.subscribe((state, prev) => {
-      if (state.windows === prev.windows && state.workspaces === prev.workspaces) {
-        return;
-      }
-      if (state.windows.length === 0) return;
-      saveDesktopStateDebounced();
-    });
-  }, [saveDesktopStateDebounced]);
-
-  // Flush anything queued before the page is hidden or unloaded so a drag that
-  // ends exactly at close/reload is never lost.
-  useEffect(() => {
-    const flush = () => flushDesktopState();
-    window.addEventListener("pagehide", flush);
-    document.addEventListener("visibilitychange", flush);
-    return () => {
-      window.removeEventListener("pagehide", flush);
-      document.removeEventListener("visibilitychange", flush);
+    const persistNow = () => {
+      if (document.visibilityState === "hidden") saveDesktopState();
     };
-  }, [flushDesktopState]);
+    const persistOnHide = () => saveDesktopState();
+
+    window.addEventListener("pagehide", persistOnHide);
+    document.addEventListener("visibilitychange", persistNow);
+    return () => {
+      window.removeEventListener("pagehide", persistOnHide);
+      document.removeEventListener("visibilitychange", persistNow);
+    };
+  }, [saveDesktopState]);
 
   useEffect(() => {
     // Runs after session restore; read live state rather than a stale render.

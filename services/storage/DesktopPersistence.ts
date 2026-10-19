@@ -51,6 +51,9 @@ export interface DesktopShortcutConfig {
 const STORAGE_KEY = "jarvis-desktop-state";
 const CURRENT_VERSION = 1;
 
+/** Coalescing window for high-frequency changes (window drag/resize). */
+const DEBOUNCE_MS = 400;
+
 export class DesktopPersistence {
   private static instance: DesktopPersistence | null = null;
   private enabled: boolean = true;
@@ -82,6 +85,9 @@ export class DesktopPersistence {
   }
 
   save(snapshot: Omit<DesktopSnapshot, "version" | "timestamp">): void {
+    // A full save supersedes any queued debounced snapshot. Cancel it so a
+    // timer that is already in flight cannot overwrite fresher data.
+    this.clearPending();
     if (!this.enabled || typeof window === "undefined") return;
 
     const fullSnapshot: DesktopSnapshot = {
@@ -113,19 +119,29 @@ export class DesktopPersistence {
     this.pendingTimer = setTimeout(() => {
       this.pendingTimer = null;
       this.flush();
-    }, 400);
+    }, DEBOUNCE_MS);
   }
 
   /** Writes any queued snapshot now. Safe to call when nothing is queued. */
   flush(): void {
+    const snapshot = this.pending;
+    this.clearPending();
+    if (!snapshot) return;
+    this.save(snapshot);
+  }
+
+  /** Drops a queued snapshot and its timer without writing it. */
+  private clearPending(): void {
     if (this.pendingTimer) {
       clearTimeout(this.pendingTimer);
       this.pendingTimer = null;
     }
-    if (!this.pending) return;
-    const snapshot = this.pending;
     this.pending = null;
-    this.save(snapshot);
+  }
+
+  /** True while a debounced write is queued. Used by tests. */
+  hasPendingSave(): boolean {
+    return this.pending !== null;
   }
 
   load(): DesktopSnapshot | null {

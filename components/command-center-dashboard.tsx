@@ -10,7 +10,6 @@ import { loadMemories } from "@/lib/ai/memory";
 import { supportsRecognition, supportsSynthesis } from "@/lib/ai/voice";
 import AiOrb from "./ai/AiOrb";
 import GlassCard from "./glass-card";
-import TacticalArc from "./hud/TacticalArc";
 
 const dur = tokens.duration;
 
@@ -150,11 +149,9 @@ export default function CommandCenterDashboard() {
 
   return (
     <div className="relative min-h-full overflow-hidden">
-      {/* The ambient TacticalArc lives in the desktop shell. Rendering a second,
-          window-sized copy here painted a ~980px arc across the dashboard and
-          visually overpowered the content. */}
-      <TacticalArc opacity={0.28} />
-
+      {/* No TacticalArc here on purpose: the single ambient arc is rendered by
+          the desktop shell behind the window. A second window-sized copy painted
+          a ~980px arc across the dashboard and overpowered the content. */}
       <div className="relative z-10 mx-auto w-full max-w-7xl space-y-3 p-3 sm:space-y-4 sm:p-4 lg:space-y-4 lg:p-5 [@media(max-height:820px)]:space-y-2 [@media(max-height:820px)]:p-3">
         <motion.header
           className="flex flex-col gap-2 border-b border-jarvis-red/10 pb-3 sm:flex-row sm:items-end sm:justify-between [@media(max-height:820px)]:pb-2"

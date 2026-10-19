@@ -316,25 +316,25 @@
   }
 }
 
-/* Stark reticle cursor: a quiet precision overlay, never an input blocker. */
+/* Stark reticle cursor: a compact, latency-free precision overlay. */
 .jarvis-reticle {
   position: fixed;
   left: 0;
   top: 0;
-  width: 30px;
-  height: 30px;
+  width: 20px;
+  height: 20px;
   z-index: 100;
   pointer-events: none;
   opacity: 0;
-  color: rgb(var(--jarvis-glow-rgb) / 0.9);
-  filter: drop-shadow(0 0 5px rgb(var(--jarvis-glow-rgb) / 0.28));
-  transition: opacity 120ms ease, scale 140ms ease;
-  contain: layout style;
+  color: rgb(var(--jarvis-glow-rgb) / 0.92);
+  transition: opacity 70ms linear;
+  contain: layout paint style;
+  will-change: transform;
 }
 
 .jarvis-reticle__ring {
   position: absolute;
-  inset: 3px;
+  inset: 2px;
   border: 1px solid currentColor;
   border-radius: 50%;
 }
@@ -343,33 +343,32 @@
 .jarvis-reticle__ring::after {
   content: "";
   position: absolute;
-  inset: 5px;
-  border: 1px solid rgb(var(--jarvis-glow-rgb) / 0.35);
+  inset: 3px;
+  border: 1px solid rgb(var(--jarvis-glow-rgb) / 0.38);
   border-radius: 50%;
 }
 
 .jarvis-reticle__ring::after {
-  inset: 9px;
+  inset: 6px;
   border-color: currentColor;
-  background: rgb(var(--jarvis-glow-rgb) / 0.18);
+  background: rgb(var(--jarvis-glow-rgb) / 0.16);
 }
 
 .jarvis-reticle__tick {
   position: absolute;
   display: block;
   background: currentColor;
-  box-shadow: 0 0 4px rgb(var(--jarvis-glow-rgb) / 0.65);
 }
 
 .jarvis-reticle__tick--vertical {
   width: 1px;
-  height: 4px;
+  height: 3px;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .jarvis-reticle__tick--horizontal {
-  width: 4px;
+  width: 3px;
   height: 1px;
   top: 50%;
   transform: translateY(-50%);
@@ -379,10 +378,6 @@
 .jarvis-reticle__tick--bottom { bottom: 0; }
 .jarvis-reticle__tick--left { left: 0; }
 .jarvis-reticle__tick--right { right: 0; }
-
-.jarvis-reticle[data-interactive="true"] {
-  scale: 1.18;
-}
 
 @media (pointer: fine) {
   html.jarvis-reticle-active,
@@ -400,6 +395,4 @@
   html.jarvis-reticle-active [contenteditable="true"] {
     cursor: text !important;
   }
-
 }
-

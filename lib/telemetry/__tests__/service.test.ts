@@ -203,9 +203,44 @@ describe("failure handling", () => {
     writeFileSync(blocked, "not a directory");
     process.env.JARVIS_DATA_DIR = blocked;
 
-    // Reading `blocked/telemetry/telemetry.jsonl` fails with ENOTDIR, which is
-    // a storage failure — not an empty dataset.
+    // The base path is a regular file. Windows and POSIX differ in the
+    // error code for a child path beneath it, so storage layout is validated
+    // with filesystem metadata rather than inferred from that code.
     const summary = await safeTelemetrySummary();
+    expect(summary.available).toBe(false);
+    if (!summary.available) {
+      expect(summary.reason).toBe("telemetry_unavailable");
+      expect(JSON.stringify(summary)).not.toContain(root);
+    }
+  });
+
+  it("treats a missing configured base directory as an available empty store", async () => {
+    process.env.JARVIS_DATA_DIR = path.join(root, "not-created");
+
+    const summary = await safeTelemetrySummary();
+
+    expect(summary.available).toBe(true);
+    if (summary.available) {
+      expect(summary.hasData).toBe(false);
+      expect(summary.result.records).toEqual([]);
+    }
+  });
+
+  it("reports a valid empty telemetry directory as available with no data", async () => {
+    const summary = await safeTelemetrySummary();
+
+    expect(summary.available).toBe(true);
+    if (summary.available) {
+      expect(summary.hasData).toBe(false);
+      expect(summary.result.records).toEqual([]);
+    }
+  });
+
+  it("reports a telemetry subpath that is a regular file as unavailable", async () => {
+    writeFileSync(telemetryDirectory(), "not a directory");
+
+    const summary = await safeTelemetrySummary();
+
     expect(summary.available).toBe(false);
     if (!summary.available) {
       expect(summary.reason).toBe("telemetry_unavailable");

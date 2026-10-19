@@ -65,18 +65,73 @@ export interface TelemetryReadResult {
  * by whoever runs the server — never by a request. A relative value is
  * resolved against the package root.
  */
-export function telemetryDirectory(): string {
+function telemetryBaseDirectory(): string {
   const override = process.env.JARVIS_DATA_DIR?.trim();
   // `turbopackIgnore` is a build-time hint, not a security boundary: the path
-  // is still resolved and confined at runtime. Without it, Turbopack's file
-  // tracer sees a dynamic `cwd` join and traces the whole project.
-  const base = override
+  // is still resolved at runtime. Without it, Turbopack's file tracer sees a
+  // dynamic cwd join and traces the whole project.
+  return override
     ? path.resolve(/* turbopackIgnore: true */ process.cwd(), override)
-    : path.join(
-        /* turbopackIgnore: true */ process.cwd(),
-        ".jarvis-data"
-      );
+    : path.join(/* turbopackIgnore: true */ process.cwd(), ".jarvis-data");
+}
+
+/** Absolute path to the telemetry subdirectory within the configured data dir. */
+export function telemetryDirectory(): string {
+  const base = telemetryBaseDirectory();
   return path.join(/* turbopackIgnore: true */ base, TELEMETRY_DIR);
+}
+
+class TelemetryStorageUnavailableError extends Error {
+  constructor() {
+    super("Telemetry storage is unavailable");
+    this.name = "TelemetryStorageUnavailableError";
+  }
+}
+
+type DirectoryInspection = "directory" | "missing" | "unavailable";
+
+/**
+ * Distinguish a genuinely missing directory from an invalid path. Windows can
+ * report ENOENT for a child beneath a regular file, while POSIX commonly
+ * reports ENOTDIR. Walk up to the nearest existing ancestor so both outcomes
+ * are classified consistently without exposing paths or OS error text.
+ */
+async function inspectDirectory(target: string): Promise<DirectoryInspection> {
+  try {
+    const info = await stat(target);
+    return info.isDirectory() ? "directory" : "unavailable";
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      return "unavailable";
+    }
+
+    let ancestor = path.dirname(target);
+    while (true) {
+      try {
+        const info = await stat(ancestor);
+        return info.isDirectory() ? "missing" : "unavailable";
+      } catch (ancestorError) {
+        if ((ancestorError as NodeJS.ErrnoException)?.code !== "ENOENT") {
+          return "unavailable";
+        }
+        const parent = path.dirname(ancestor);
+        if (parent === ancestor) return "missing";
+        ancestor = parent;
+      }
+    }
+  }
+}
+
+/** Return missing for a valid absent layout; throw for an unusable one. */
+async function inspectStorageLayout(): Promise<"ready" | "missing"> {
+  const base = await inspectDirectory(telemetryBaseDirectory());
+  if (base === "unavailable") throw new TelemetryStorageUnavailableError();
+  if (base === "missing") return "missing";
+
+  const directory = await inspectDirectory(telemetryDirectory());
+  if (directory === "unavailable") throw new TelemetryStorageUnavailableError();
+  if (directory === "missing") return "missing";
+  return "ready";
 }
 
 /** `<dir>/telemetry.jsonl`, `<dir>/telemetry.1.jsonl`, … */
@@ -161,6 +216,9 @@ export async function appendTelemetryEvents(
 export async function readTelemetryRecords(
   limit: number = MAX_EVENTS_READ
 ): Promise<TelemetryRecord[]> {
+  const layout = await inspectStorageLayout();
+  if (layout === "missing") return [];
+
   const directory = telemetryDirectory();
   const records: TelemetryRecord[] = [];
 

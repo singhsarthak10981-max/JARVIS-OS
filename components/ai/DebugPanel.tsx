@@ -178,12 +178,12 @@ export default function DebugPanel() {
                       className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all"
                       style={{
                         background: isActive
-                          ? `${STATE_COLORS[state]}20`
+                          ? `color-mix(in srgb, ${STATE_COLORS[state]} 12%, transparent)`
                           : canGo
                             ? "rgba(255,255,255,0.03)"
                             : "transparent",
                         border: isActive
-                          ? `1px solid ${STATE_COLORS[state]}40`
+                          ? `1px solid color-mix(in srgb, ${STATE_COLORS[state]} 24%, transparent)`
                           : "1px solid transparent",
                         opacity: canGo || isActive ? 1 : 0.3,
                         cursor: canGo ? "pointer" : "not-allowed",

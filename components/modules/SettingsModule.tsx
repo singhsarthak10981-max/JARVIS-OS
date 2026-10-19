@@ -32,6 +32,7 @@ import {
   type MemoryEntry,
 } from "@/lib/ai/memory";
 import { executeJarvisAction } from "@/lib/ai/actions";
+import LocalDiagnosticsPanel from "./settings/LocalDiagnosticsPanel";
 
 type TabId = "intelligence" | "voice" | "interface" | "system" | "about";
 
@@ -976,6 +977,52 @@ export default function SettingsModule() {
                     )}
                   </div>
                 )}
+              </Section>
+
+              <Section
+                title="Local telemetry"
+                description="Optional operational metrics, stored on this machine. Off by default."
+              >
+                <Row
+                  title="Local telemetry"
+                  description="Record turn timings, capability outcomes and safe failure categories."
+                >
+                  <Toggle
+                    checked={settings.localTelemetryEnabled}
+                    onChange={(next) => {
+                      updateSettings({ localTelemetryEnabled: next });
+                      logActivity(
+                        `Local telemetry ${next ? "enabled" : "disabled"}`,
+                        "info"
+                      );
+                    }}
+                    label="Local telemetry"
+                  />
+                </Row>
+                <div className="space-y-1.5 rounded-lg border border-jarvis-red/10 bg-jarvis-surface/30 px-3 py-2.5 text-[9px] leading-relaxed text-jarvis-text-disabled">
+                  <p>
+                    <span className="text-jarvis-text-muted">Recorded:</span>{" "}
+                    turn type and outcome, measured durations, registered
+                    capability id, action success/failure, search outcome and a
+                    coarse failure category.
+                  </p>
+                  <p>
+                    <span className="text-jarvis-text-muted">Never recorded:</span>{" "}
+                    your messages, assistant replies, memories, file names or
+                    contents, page contents, URLs you visit, API keys, headers,
+                    environment values or raw provider errors.
+                  </p>
+                  <p>
+                    <span className="text-jarvis-text-muted">Stored:</span>{" "}
+                    <code className="font-mono text-[8.5px]">
+                      .jarvis-data/telemetry/telemetry.jsonl
+                    </code>{" "}
+                    inside your JARVIS checkout, in three rotating 256 KB files.
+                    Nothing is uploaded anywhere. Switch this off to stop
+                    collecting immediately.
+                  </p>
+                </div>
+                <LocalDiagnosticsPanel />
               </Section>
 
               <Section title="Data" description="Local browser storage only.">

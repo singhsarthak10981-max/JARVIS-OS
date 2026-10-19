@@ -37,6 +37,23 @@ describe("web search settings", () => {
   });
 });
 
+describe("local telemetry preference", () => {
+  it("defaults to off and stores only a boolean", async () => {
+    const store = await freshStore();
+
+    expect(store.getState().settings.localTelemetryEnabled).toBe(false);
+
+    store.getState().updateSettings({ localTelemetryEnabled: true });
+
+    const raw = (localStorage.getItem(SETTINGS_STORAGE_KEY) ?? "").toLowerCase();
+    expect(raw).toContain('"localtelemetryenabled":true');
+    // The preference is a switch, not a data store.
+    expect(raw).not.toContain("telemetry.jsonl");
+    expect(raw).not.toContain(".jarvis-data");
+    expect(raw).not.toMatch(/prompt|message|response/);
+  });
+});
+
 describe("API key persistence", () => {
   it("does not expose an api key field in default settings", async () => {
     const store = await freshStore();

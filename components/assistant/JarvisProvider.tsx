@@ -43,6 +43,14 @@ import type {
   ServerStatus,
 } from "@/lib/ai/types";
 import type { SearchNotice } from "@/lib/ai/search/types";
+import { createTelemetryReporter } from "@/lib/telemetry/client";
+import { nowMs } from "@/lib/telemetry/clock";
+import {
+  buildActionEvent,
+  isFailureCategory,
+  isTelemetryProvider,
+} from "@/lib/telemetry/events";
+import { createTurnTrace } from "@/lib/telemetry/turn";
 import {
   JARVIS_CLEAR_CHAT_EVENT,
   JARVIS_LISTEN_EVENT,
@@ -104,6 +112,15 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   const fallbackNotifiedRef = useRef(false);
   const initializedRef = useRef(false);
   const greetedRef = useRef(false);
+
+  // Telemetry is opt-in and read live at send time, so switching it off in
+  // Settings immediately stops new events. The reporter never throws and its
+  // identity is stable for the life of the provider.
+  const [telemetry] = useState(() =>
+    createTelemetryReporter({
+      enabled: () => useAppStore.getState().settings.localTelemetryEnabled,
+    })
+  );
 
   const [recognitionSupported, setRecognitionSupported] = useState(false);
   const [synthesisSupported, setSynthesisSupported] = useState(false);
@@ -234,6 +251,15 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
       const owner = settings.ownerName || "sir";
       lastUserRef.current = text;
 
+      const turnStartedAt = nowMs();
+      const traceFor = (dispatch: "deterministic" | "model") =>
+        createTurnTrace({
+          dispatch,
+          now: nowMs,
+          startedAt: turnStartedAt,
+          emit: (event) => telemetry.record(event),
+        });
+
       pushMessage({
         id: newId(),
         role: "user",
@@ -267,12 +293,27 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         store.setAiState("executing");
         if (intent.thought) store.logActivity(intent.thought, "info");
         await wait(220);
+        const actionStartedAt = nowMs();
         const result = executeJarvisAction(intent.action, {
           ownerName: owner,
           speak: (reply) => {
             void speakNow(reply);
           },
         });
+        const actionDuration = nowMs() - actionStartedAt;
+
+        // The action event records what actually happened — a requested launch
+        // is not a confirmed launch, and `result.status` comes from the
+        // executor, never from the router.
+        if (result.capabilityId) {
+          const actionEvent = buildActionEvent({
+            capabilityId: result.capabilityId,
+            outcome: result.status,
+            durationMs: actionDuration,
+          });
+          if (actionEvent) telemetry.record(actionEvent);
+        }
+
         const reply = result.message || intent.reply || "Done.";
         pushMessage({
           id: newId(),
@@ -285,6 +326,10 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
           `Action: ${reply.slice(0, 70)}`,
           result.ok ? "success" : "warning"
         );
+        const actionTrace = traceFor("deterministic");
+        actionTrace.markVisible();
+        actionTrace.finish(result.ok ? "completed" : "failed");
+        void telemetry.flush();
         if (settings.voiceEnabled) void speakNow(reply);
         else if (useAppStore.getState().aiState === "executing") {
           useAppStore.getState().setAiState("idle");
@@ -301,6 +346,10 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
           timestamp: Date.now(),
           provider: "local core",
         });
+        const answerTrace = traceFor("deterministic");
+        answerTrace.markVisible();
+        answerTrace.finish("completed");
+        void telemetry.flush();
         if (settings.voiceEnabled) void speakNow(intent.reply);
         return;
       }
@@ -336,7 +385,9 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
 
       const controller = new AbortController();
       abortRef.current = controller;
+      const trace = traceFor("model");
       let streamError: string | null = null;
+      let streamErrorCode: string | undefined;
       let received = "";
       let meta: AssistantMeta | null = null;
       let searchNotice: SearchNotice | undefined;
@@ -373,6 +424,16 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
               }
             },
             onSearch: (notice) => {
+              // Search duration is measured separately from the model turn:
+              // "searching" starts the clock, any terminal state stops it.
+              if (notice.status === "searching") {
+                trace.markSearchStart();
+              } else {
+                trace.markSearchEnd(
+                  notice.mode === "official" ? "official" : "web",
+                  notice.status
+                );
+              }
               // Show retrieval state immediately, before any tokens arrive.
               searchNotice = notice;
               updateMessage(assistantId, (message) => ({
@@ -381,14 +442,17 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
               }));
             },
             onDelta: (chunk) => {
+              // First visible response token — not the metadata or search frame.
+              trace.markVisible();
               received += chunk;
               updateMessage(assistantId, (message) => ({
                 ...message,
                 text: message.text + chunk,
               }));
             },
-            onError: (message) => {
+            onError: (message, code) => {
               streamError = message;
+              streamErrorCode = code;
             },
           }
         );
@@ -402,6 +466,8 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
           setIsStreaming(false);
           abortRef.current = null;
           useAppStore.getState().setAiState("idle");
+          trace.finish("cancelled", { failure: "aborted" });
+          void telemetry.flush();
           return;
         }
         streamError =
@@ -440,6 +506,23 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Completed, failed or empty — the turn event is emitted exactly once.
+      const traceProvider = isTelemetryProvider(meta?.provider)
+        ? meta?.provider
+        : undefined;
+      if (streamError) {
+        trace.finish("failed", {
+          provider: traceProvider,
+          failure:
+            streamErrorCode && isFailureCategory(streamErrorCode)
+              ? streamErrorCode
+              : "request_failed",
+        });
+      } else {
+        trace.finish("completed", { provider: traceProvider });
+      }
+      void telemetry.flush();
+
       const finalText = received.trim() || "I didn't get a response. Try again.";
       updateMessage(assistantId, (message) => ({
         ...message,
@@ -463,7 +546,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         useAppStore.getState().setAiState("idle");
       }
     },
-    [pushMessage, speakNow, updateMessage]
+    [pushMessage, speakNow, telemetry, updateMessage]
   );
 
   const stopListening = useCallback(() => {

@@ -242,6 +242,79 @@ never treated as an instruction, and its text cannot close the fence.
 
 ---
 
+## Local telemetry (opt-in)
+
+JARVIS can record a small amount of **operational metadata** so Settings →
+System can show whether turns, desktop actions and searches are working and how
+long they take. It is **off by default** and never leaves the machine.
+
+Enable it in **Settings → System → Local telemetry**, then use JARVIS normally;
+the panel below the switch shows the aggregates. Switch it off to stop
+collecting immediately — the client checks the toggle at send time, so no new
+event is sent even mid-session.
+
+### What is recorded
+
+| Field | Example |
+| --- | --- |
+| Schema version | `1` |
+| Server receive time | epoch milliseconds |
+| Turn dispatch and outcome | `model` / `completed`, `failed`, `cancelled` |
+| Turn durations | time to first response token, total turn |
+| Capability id and action outcome | `window-control` / `success` |
+| Search outcome and duration | `official-complete`, `empty`, `error` |
+| Coarse failure category | `network`, `rate_limited`, `aborted` |
+| Provider id (not the model) | `google` |
+
+### What is never recorded
+
+Prompts, assistant replies, memories, file names or contents, visited page
+contents or URLs, API keys, authorization headers, environment values, raw
+upstream error bodies, or any request payload. The event type has no field for
+them, and the ingest route rejects unknown fields rather than dropping them
+silently.
+
+### Where it lives
+
+```
+<frontend checkout>/.jarvis-data/telemetry/telemetry.jsonl
+                    .jarvis-data/telemetry/telemetry.1.jsonl
+                    .jarvis-data/telemetry/telemetry.2.jsonl
+```
+
+The default is derived from `process.cwd()` when you run the app from the
+frontend package root (for example `D:\JARVIS OS\frontend\.jarvis-data`).
+Set `JARVIS_DATA_DIR` **on the server** to move it — for example to keep the
+data on another drive. It is a server environment value only; a request can
+never choose the directory or a file path.
+
+The folder is git-ignored. Retention is bounded: 256 KB per file, three files
+(768 KB maximum), newest 5 000 records read for a summary. Older files are
+deleted as new ones rotate in; there is no unbounded growth.
+
+Writes are best-effort. If the directory is read-only or the disk is full, the
+event is dropped and the assistant keeps working normally.
+
+### Reading the numbers correctly
+
+- "Action success" is `successful executions / (successful + failed)`. The panel
+  prints the denominator. Denied, cancelled and unsupported requests are
+  excluded and shown separately.
+- Missing measurements show as `—`, never as `0 ms`. A 100% action success rate
+  with one action is one action, not a quality guarantee.
+- These are **operational** metrics. They can show that an action ran, a
+  request failed or a response took 800 ms. They cannot show that a factual
+  answer was correct, and source counts are not an accuracy score.
+
+The only endpoint is the app's own `/api/jarvis/telemetry` on the same origin.
+Nothing is sent to a third party, and there is no analytics SDK.
+
+### Automated tests
+
+The telemetry suites mock all I/O and point `JARVIS_DATA_DIR` at a temporary
+directory. They need no live credentials and never touch your real data. See
+[`docs/TESTING.md`](TESTING.md).
+
 ## Reading the errors
 
 Failures are classified so you know what to fix without reading server logs.

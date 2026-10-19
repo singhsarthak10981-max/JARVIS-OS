@@ -18,6 +18,20 @@ The visual shell is complete. The assistant is no longer a mock-up — it stream
 - **Memory** — “remember that…” persists facts across sessions; memories are injected into every model prompt.
 - **Timers** — “remind me in 20 minutes to check the mix”, with desktop notification and voice alert.
 
+### See what it actually did
+
+JARVIS describes its own abilities in a typed capability registry
+(`lib/ai/capabilities/`) and can keep a **local, opt-in** record of operational
+metadata: which capability ran, whether the executor reported success, and how
+long turns and searches took. It is metadata only — never prompts, replies,
+memories or keys — and it stays in `.jarvis-data/telemetry/` inside your
+checkout.
+
+Enable it in **Settings → System → Local telemetry**; the diagnostics panel
+below the switch shows action success with its denominator, first-response and
+total latency, search outcomes and failure categories. Action success means the
+action *executed*, not that an answer was factually correct.
+
 ### Control the OS with your voice
 | Say this | JARVIS does |
 | --- | --- |
@@ -133,6 +147,7 @@ Browser
 ├── Desktop shell (windows, dock, sidebar, HUD, palette)
 ├── JARVIS provider ─────────────────────────────────────────┐
 │   ├── intent router  (deterministic desktop actions)       │
+│   ├── capability registry (what each action can really do) │
 │   ├── action executor (zustand store + timers + memory)    │
 │   ├── voice layer (recognition + synthesis)                │
 │   └── stream client ──► /api/jarvis ──► provider adapter   │
@@ -151,7 +166,10 @@ Key files:
 app/api/jarvis/route.ts      Streaming API route (NDJSON)
 lib/ai/server.ts             Provider adapters, prompts, connection probe
 lib/ai/intents.ts            Intent router + wake word handling helpers
-lib/ai/actions.ts            Executes intents against the OS
+lib/ai/actions.ts            Executes intents against the OS (returns a CapabilityResult)
+lib/ai/capabilities/         Registry: implemented / unavailable / planned capabilities
+lib/telemetry/               Opt-in operational telemetry (schema, timing, local store)
+app/api/jarvis/telemetry/    Validated ingest + aggregate summaries
 lib/ai/voice.ts              Speech recognition + synthesis
 lib/ai/memory.ts             Long-term memory + conversation persistence
 lib/ai/timers.ts             Timer manager
@@ -171,7 +189,7 @@ components/modules/SettingsModule.tsx
 | `npm start` | Serve the production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Vitest suite (intent router + math engine) |
+| `npm test` | Vitest suite (router, providers, search, telemetry, UI) |
 | `npm run verify` | Lint + typecheck + tests (the full pre-push gate) |
 
 The bundled GitHub workflow builds the app on every push and pull request. Run `npm run verify` locally before pushing; see [`docs/TESTING.md`](docs/TESTING.md) for details.
@@ -199,6 +217,7 @@ See [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) and [`docs/ARCHITECTURE.md`
 - Tavily search runs server-side only: the endpoint is a code constant (never a request field), and `TAVILY_API_KEY` is never sent to the browser or returned by the API. Only the query and up to five results leave the machine.
 - The custom / Ollama base URL is user-controlled. **Do not expose this app publicly without adding authentication** — the route is an open proxy to whatever URL the client supplies.
 - Voice recognition is provided by the browser; Chrome may send audio to its own speech service. Speech synthesis is local.
+- Local telemetry is off by default and never leaves the server. Events are metadata only (capability id, outcome, validated durations, safe failure category) and are written to a git-ignored `.jarvis-data/telemetry/` directory. The ingest route rejects unknown fields, enforces same-origin writes, caps request size and never accepts a filesystem path from the browser.
 
 ---
 

@@ -10,19 +10,34 @@ import {
 } from "@/lib/window-actions";
 import { desktopPersistence } from "@/services/storage/DesktopPersistence";
 import { nextTheme, type JarvisAction } from "./intents";
+import {
+  capabilityForAction,
+  capabilityResult,
+  type CapabilityResult,
+} from "./capabilities";
 import { THEMES, getProviderMeta } from "./providers";
 import { addMemory, clearMemories, loadConversation, loadMemories } from "./memory";
 import { cancelAllTimers, startTimer } from "./timers";
 import { stopSpeaking } from "./voice";
 
-export interface ActionResult {
-  ok: boolean;
-  message: string;
-}
+/**
+ * Result of one deterministic action.
+ *
+ * It is now a `CapabilityResult`: `ok`/`message` are unchanged for existing
+ * callers, plus a stable capability id and an explicit status. `denied` and
+ * `cancelled` exist for future capabilities that need consent or long-running
+ * work; the desktop actions here only produce success, failure or unsupported.
+ */
+export type ActionResult = CapabilityResult;
 
 interface ExecuteOptions {
   ownerName: string;
   speak: (text: string) => void;
+}
+
+interface RawActionResult {
+  ok: boolean;
+  message: string;
 }
 
 function labelForPreset(preset: string): string {
@@ -50,6 +65,32 @@ export function executeJarvisAction(
   action: JarvisAction,
   options: ExecuteOptions
 ): ActionResult {
+  const capability = capabilityForAction(action);
+  const result = runAction(action, options);
+
+  // An action the registry does not describe is reported as unsupported
+  // rather than being attributed to a capability it does not belong to.
+  if (!capability) {
+    // No guessed attribution: an action the registry does not describe is
+    // reported as unsupported and produces no capability event.
+    return capabilityResult(
+      null,
+      "unsupported",
+      "That capability isn't registered in this build."
+    );
+  }
+
+  return capabilityResult(
+    capability.id,
+    result.ok ? "success" : "failed",
+    result.message
+  );
+}
+
+function runAction(
+  action: JarvisAction,
+  options: ExecuteOptions
+): RawActionResult {
   const store = useAppStore.getState();
   const owner = options.ownerName || "sir";
 

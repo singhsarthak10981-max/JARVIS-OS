@@ -55,7 +55,7 @@ export default function AiOrb({
           borderRadius: tokens.radius.orb,
           width: size * 0.6,
           height: size * 0.6,
-          borderColor: `${borderColor}4D`,
+          borderColor: `color-mix(in srgb, ${borderColor} 30%, transparent)`,
         }}
         animate={
           wakeUp

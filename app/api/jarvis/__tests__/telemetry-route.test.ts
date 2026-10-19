@@ -442,4 +442,16 @@ describe("GET aggregates", () => {
     expect(payload.reason).toBe("telemetry_unavailable");
     expect(JSON.stringify(payload)).not.toContain(root);
   });
+
+  it("reports unavailable when the telemetry subpath is a regular file", async () => {
+    writeFileSync(path.join(root, "telemetry"), "not a directory");
+
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(payload.available).toBe(false);
+    expect(payload.hasData).toBe(false);
+    expect(payload.reason).toBe("telemetry_unavailable");
+    expect(JSON.stringify(payload)).not.toContain(root);
+  });
 });

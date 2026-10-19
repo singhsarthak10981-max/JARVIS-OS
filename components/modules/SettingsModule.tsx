@@ -153,6 +153,7 @@ function TextField({
   type = "text",
   hint,
   mono,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -161,6 +162,7 @@ function TextField({
   type?: string;
   hint?: string;
   mono?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
@@ -174,9 +176,12 @@ function TextField({
         placeholder={placeholder}
         spellCheck={false}
         autoComplete="off"
+        disabled={disabled}
+        readOnly={disabled}
         className={cn(
           "h-8 w-full rounded-md border border-jarvis-red/12 bg-jarvis-bg-primary/60 px-2.5 text-[11px] text-white placeholder:text-jarvis-text-disabled/70 focus:border-jarvis-red/40 focus:outline-none focus:ring-1 focus:ring-jarvis-red/20",
-          mono && "font-mono text-[10.5px]"
+          mono && "font-mono text-[10.5px]",
+          disabled && "cursor-not-allowed opacity-50"
         )}
       />
       {hint && (
@@ -186,6 +191,24 @@ function TextField({
       )}
     </label>
   );
+}
+
+/**
+ * Env vars that override a provider's base URL on the server. Mirrors
+ * ENV_BASE_URLS in lib/ai/server.ts — the first name is the documented one.
+ */
+const BASE_URL_ENV: Record<string, string[]> = {
+  openai: ["OPENAI_BASE_URL"],
+  anthropic: ["ANTHROPIC_BASE_URL"],
+  google: ["GOOGLE_GENERATIVE_AI_BASE_URL", "GEMINI_BASE_URL"],
+  groq: ["GROQ_BASE_URL"],
+  openrouter: ["OPENROUTER_BASE_URL"],
+  ollama: ["OLLAMA_BASE_URL"],
+  custom: ["CUSTOM_AI_BASE_URL"],
+};
+
+function providerEnvBaseUrl(provider: string): string {
+  return BASE_URL_ENV[provider]?.join(" or ") ?? "a server base URL variable";
 }
 
 export default function SettingsModule() {
@@ -493,8 +516,13 @@ export default function SettingsModule() {
                             providerMeta.defaultBaseUrl ??
                             "https://api.example.com/v1"
                           }
-                          hint="OpenAI-compatible endpoint. Leave blank for the default."
+                          hint={
+                            providerMeta.requiresKey
+                              ? `Fixed endpoint. A server-side key is never sent to a URL chosen here — use ${providerEnvBaseUrl(settings.aiProvider)} to change it.`
+                              : "OpenAI-compatible endpoint. Leave blank for the default."
+                          }
                           mono
+                          disabled={providerMeta.requiresKey}
                         />
                       )}
 

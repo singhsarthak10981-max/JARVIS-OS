@@ -120,6 +120,51 @@ export async function POST(request: Request) {
       ? body.ownerName.trim().slice(0, 60)
       : "Sarthak";
 
+  // An omitted provider means "Local Core". An explicitly supplied but
+  // invalid id is a caller error and must be reported as one — silently
+  // treating it as Local Core would misrepresent which engine answered.
+  const providerWasSupplied =
+    typeof body.provider === "string" && body.provider.trim().length > 0;
+
+  if (providerWasSupplied && !isProviderId(body.provider)) {
+    const error = {
+      code: "configuration" as const,
+      message:
+        "Unknown provider. Select a provider in Settings → Intelligence.",
+    };
+    if (body.test === true) {
+      return NextResponse.json({
+        ok: false,
+        ...error,
+        provider: "unknown",
+        model: typeof body.model === "string" ? body.model : "",
+      });
+    }
+    const encoder = new TextEncoder();
+    const frames = [
+      `{"type":"meta","provider":"unknown","model":"","source":"none","fallback":false,"configured":false,"reason":${JSON.stringify(
+        error.message
+      )},"code":"configuration"}\n`,
+      `{"type":"error","message":${JSON.stringify(
+        error.message
+      )},"code":"configuration"}\n`,
+    ];
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const frame of frames) controller.enqueue(encoder.encode(frame));
+          controller.close();
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+        },
+      }
+    );
+  }
+
   const provider = isProviderId(body.provider) ? body.provider : "local";
 
   // `body.apiKey` is intentionally not passed: credentials come from the

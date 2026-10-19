@@ -100,6 +100,35 @@ export function providerStatus(): Record<string, boolean> {
   return status;
 }
 
+/**
+ * Blocks the classic SSRF credential-theft targets.
+ *
+ * This is defence in depth, not a complete SSRF solution: a keyless endpoint
+ * may legitimately live on loopback or a LAN host (Ollama commonly does), so
+ * arbitrary private ranges cannot simply be denied. What is blocked is cloud
+ * instance metadata, which would otherwise hand out cloud IAM credentials.
+ */
+const FORBIDDEN_HOSTS = new Set([
+  "metadata.google.internal",
+  "metadata.goog",
+  "169.254.169.254",
+  "100.100.100.200",
+  "fd00:ec2::254",
+]);
+
+function isForbiddenHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (FORBIDDEN_HOSTS.has(host)) return true;
+    // The whole link-local block is metadata-adjacent on cloud providers.
+    if (/^169\.254\./.test(host)) return true;
+    return false;
+  } catch {
+    // Unparseable URLs are rejected by sanitizeBaseUrl anyway.
+    return false;
+  }
+}
+
 function sanitizeBaseUrl(value: string): string {
   const trimmed = value.trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(trimmed)) {
@@ -145,35 +174,9 @@ export function resolveProviderConfig(input: ResolveInput): ResolvedProvider {
       ? input.baseUrl.trim()
       : "";
 
-  let baseUrl: string;
-  try {
-    baseUrl = sanitizeBaseUrl(
-      clientBase ||
-        envValue(ENV_BASE_URLS[meta.id]) ||
-        meta.defaultBaseUrl ||
-        ""
-    );
-  } catch {
-    return resolveFailure(meta.id, requestedModel, {
-      code: "configuration",
-      message: `${meta.label} has an invalid base URL. It must start with http:// or https://.`,
-    });
-  }
-
-  // Ollama's OpenAI-compatible surface lives under /v1.
-  if (meta.id === "ollama" && !/\/v1$/i.test(baseUrl)) {
-    baseUrl = `${baseUrl}/v1`;
-  }
-
-  if (!baseUrl) {
-    return resolveFailure(meta.id, requestedModel, {
-      code: "configuration",
-      message: `${meta.label} is missing a base URL. Set one in Settings or the server environment.`,
-    });
-  }
-
-  // Keys are read from the server environment only. A key supplied in the
-  // request body is ignored entirely — the browser is not a trust boundary.
+  // ── Credentials (server-side only) ───────────────────────
+  // A key supplied in the request body is ignored entirely — the browser is
+  // not a trust boundary.
   const apiKey = serverKeyFor(meta.id) ?? "";
 
   if (meta.requiresKey && !apiKey) {
@@ -183,6 +186,65 @@ export function resolveProviderConfig(input: ResolveInput): ResolvedProvider {
         meta.label,
         meta.envKeys[0] ?? "API_KEY"
       ),
+    });
+  }
+
+  // ── Base URL ─────────────────────────────────────────────
+  // SECURITY: a server-side API key must never travel to a destination the
+  // browser chose. If this request will carry a secret, the base URL is taken
+  // exclusively from server configuration (an env override) or the provider's
+  // documented default; a client-supplied override is ignored.
+  const serverBase = envValue(ENV_BASE_URLS[meta.id]) ?? "";
+
+  const normalise = (value: string): string => {
+    const trimmed = sanitizeBaseUrl(value);
+    return meta.id === "ollama" && !/\/v1$/i.test(trimmed)
+      ? `${trimmed}/v1`
+      : trimmed;
+  };
+
+  const carriesSecret = apiKey.length > 0;
+
+  let baseUrl: string;
+  try {
+    if (carriesSecret) {
+      const trusted = serverBase || meta.defaultBaseUrl || "";
+      if (!trusted) {
+        return resolveFailure(meta.id, requestedModel, {
+          code: "configuration",
+          message: `${meta.label} uses a server-side API key, so its base URL must be configured on the server. Set ${
+            ENV_BASE_URLS[meta.id][0] ?? "a base URL environment variable"
+          } in .env.local.`,
+        });
+      }
+
+      // Any client-supplied override is ignored outright. It can never change
+      // the destination while a secret is attached. Ignoring (rather than
+      // rejecting) keeps a stale value saved by an older build from becoming
+      // an unrecoverable error now that the UI no longer offers the field.
+      baseUrl = normalise(trusted);
+    } else {
+      // Keyless (Ollama without a key, Custom without CUSTOM_AI_API_KEY).
+      // There is no secret to leak, so a client base URL is legitimate.
+      const candidate = clientBase || serverBase || meta.defaultBaseUrl || "";
+      if (!candidate) {
+        return resolveFailure(meta.id, requestedModel, {
+          code: "configuration",
+          message: `${meta.label} is missing a base URL. Set one in Settings or the server environment.`,
+        });
+      }
+      if (isForbiddenHost(candidate)) {
+        return resolveFailure(meta.id, requestedModel, {
+          code: "configuration",
+          message: `${meta.label} cannot point at a cloud metadata endpoint. Use the model server's own address.`,
+        });
+      }
+      baseUrl = normalise(candidate);
+    }
+  } catch {
+    return resolveFailure(meta.id, requestedModel, {
+      code: "configuration",
+      message: `${meta.label} has an invalid base URL. It must start with http:// or https://.`,
     });
   }
 

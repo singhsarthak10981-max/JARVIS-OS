@@ -61,9 +61,21 @@ A successful test reports the provider and model that actually answered.
 | Ollama | `OLLAMA_BASE_URL` | `llama3.2` |
 | Custom (OpenAI-compatible) | `CUSTOM_AI_BASE_URL` | any |
 
-Optional base-URL overrides: `OPENAI_BASE_URL`, `ANTHROPIC_BASE_URL`,
-`GEMINI_BASE_URL`, `GROQ_BASE_URL`, `OPENROUTER_BASE_URL`, `OLLAMA_BASE_URL`,
-`CUSTOM_AI_BASE_URL`.
+Optional base-URL overrides (server-side only): `OPENAI_BASE_URL`,
+`ANTHROPIC_BASE_URL`, `GOOGLE_GENERATIVE_AI_BASE_URL` (alias `GEMINI_BASE_URL`),
+`GROQ_BASE_URL`, `OPENROUTER_BASE_URL`, `OLLAMA_BASE_URL`, `CUSTOM_AI_BASE_URL`.
+
+**Base URLs are never taken from the browser when a server key exists.** For a
+credentialed provider the endpoint comes only from the environment variable
+above or the provider default; the Base URL field in Settings is disabled, and
+any value already stored in the browser is ignored — it is never combined with
+a server-side key.
+
+For Custom endpoints holding `CUSTOM_AI_API_KEY`, `CUSTOM_AI_BASE_URL` must be
+set on the server; a browser-supplied URL is rejected with a configuration
+error. Keyless providers (Ollama, Keyless Custom) may still point at a URL, but
+cloud metadata addresses (`169.254.169.254`, `metadata.google.internal`, …) are
+blocked.
 
 Every model name is editable in Settings. The provider's default is used when
 the field is left blank.

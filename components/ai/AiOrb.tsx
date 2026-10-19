@@ -30,12 +30,9 @@ export default function AiOrb({
 
   const validTransitions = useMemo(() => getValidTransitions(state), [state]);
 
-  const borderColor =
-    state === "offline"
-      ? tokens.color.textDisabled
-      : state === "error"
-        ? tokens.orb.core.error
-        : tokens.orb.core[state];
+  const borderColor = tokens.orb.core[state];
+  const softGlow = "color-mix(in srgb, var(--jarvis-glow-rgb) 20%, transparent)";
+  const strongGlow = "color-mix(in srgb, var(--jarvis-glow-rgb) 48%, transparent)";
 
   return (
     <div
@@ -64,13 +61,13 @@ export default function AiOrb({
           wakeUp
             ? {
                 boxShadow: [
-                  `0 0 10px ${borderColor}33`,
-                  `0 0 35px ${borderColor}80, 0 0 60px ${borderColor}40`,
-                  `0 0 18px ${borderColor}59`,
+                  `0 0 10px ${softGlow}`,
+                  `0 0 35px ${strongGlow}, 0 0 60px ${softGlow}`,
+                  `0 0 18px ${strongGlow}`,
                 ],
               }
             : {
-                boxShadow: `0 0 18px ${borderColor}59`,
+                boxShadow: `0 0 18px color-mix(in srgb, ${borderColor} 35%, transparent)`,
               }
         }
         transition={
@@ -84,7 +81,7 @@ export default function AiOrb({
         className="relative z-10 font-mono text-sm font-bold tracking-[0.3em] uppercase"
         style={{
           color: tokens.orb.core[state],
-          textShadow: `0 0 15px ${tokens.orb.core[state]}99`,
+          textShadow: `0 0 15px color-mix(in srgb, ${tokens.orb.core[state]} 60%, transparent)`,
         }}
         animate={{
           opacity: wakeUp ? [0, 1] : 1,

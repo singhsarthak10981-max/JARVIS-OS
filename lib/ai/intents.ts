@@ -518,7 +518,7 @@ export function resolveIntent(
     }
   }
 
-  if (/(switch|change|set|use|activate|load).*(arc reactor|stealth|tactical red)/.test(t)) {
+  if (/(switch|change|set|use|activate|load).*(arc reactor|stealth|tactical red|stark(?: interface)?|iron man|jarvis blue)/.test(t)) {
     const theme = matchTheme(t);
     if (theme) {
       const label = THEMES.find((x) => x.id === theme)?.label ?? theme;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import GlassCard from "@/components/glass-card";
 import { useAppStore } from "@/lib/store";
@@ -73,8 +73,9 @@ export default function DjLaunchpad({
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const djLaunchRequest = useAppStore((s) => s.djLaunchRequest);
+  const djLaunchConsumed = useAppStore((s) => s.djLaunchConsumed);
+  const consumeDjLaunch = useAppStore((s) => s.consumeDjLaunch);
   const requestDjLaunch = useAppStore((s) => s.requestDjLaunch);
-  const handledRequest = useRef(djLaunchRequest);
   const [requested, setRequested] = useState(false);
 
   const bridgeOnline = status.state === "online";
@@ -83,10 +84,18 @@ export default function DjLaunchpad({
   // A voice intent asked for Rekordbox. Attempt the launch only once a bridge
   // has actually answered; otherwise surface the setup panel and say nothing
   // about success.
+  //
+  // Two ordering rules, both covered by tests:
+  //  1. The request is consumed only *after* the probe settles. Consuming it
+  //     while `status.state` is "checking" would drop a request that arrives
+  //     during the probe, because the effect would never run again for it.
+  //  2. Consumption is recorded in the store, so a request made while the
+  //     launchpad was unmounted is still honoured when it mounts, and is not
+  //     replayed afterwards.
   useEffect(() => {
-    if (djLaunchRequest === handledRequest.current) return;
-    handledRequest.current = djLaunchRequest;
-    if (status.state === "checking") return; // wait for the probe to settle
+    if (djLaunchRequest <= djLaunchConsumed) return;
+    if (status.state === "checking") return; // keep the request pending
+    consumeDjLaunch(djLaunchRequest);
 
     if (!bridgeOnline) {
       setRequested(true);
@@ -105,7 +114,7 @@ export default function DjLaunchpad({
           : result.error ?? "The bridge could not launch Rekordbox."
       );
     })();
-  }, [djLaunchRequest, status.state, bridgeOnline, run]);
+  }, [djLaunchRequest, djLaunchConsumed, consumeDjLaunch, status.state, bridgeOnline, run]);
 
   async function launchRekordbox() {
     if (!bridgeOnline) {

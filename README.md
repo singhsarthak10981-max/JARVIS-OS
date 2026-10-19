@@ -61,29 +61,41 @@ Open **http://localhost:3000**. JARVIS boots into the local core — no configur
 
 Two ways:
 
-**1. Server-side keys (recommended)** — copy `.env.example` to `.env.local`:
+API keys are **server-side only**. They are read inside `/api/jarvis`, never
+sent to the browser, and never stored in `localStorage` or desktop snapshots.
+
+Copy `.env.example` to `.env.local` and fill in the provider you want:
 
 ```bash
 cp .env.example .env.local
-# then set one of:
+# then set ONE of:
+# GEMINI_API_KEY=...
 # OPENAI_API_KEY=...
 # ANTHROPIC_API_KEY=...
-# GEMINI_API_KEY=...
 ```
 
-**2. In-app** — open **Settings → Intelligence**, choose a provider, paste a key, press **Test connection**. The key is stored in this browser’s `localStorage` only and sent to your own `/api/jarvis` route.
+Then **restart** the dev server (`npm run dev`) — Next.js does not hot-reload
+`.env.local` — and press **Test connection** in **Settings → Intelligence**.
 
 | Provider | Env variable | Default model |
 | --- | --- | --- |
+| Google Gemini | `GEMINI_API_KEY` (alias `GOOGLE_GENERATIVE_AI_API_KEY`) | `gemini-3.8-flash` |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-sonnet-4-5` |
-| Google Gemini | `GEMINI_API_KEY` | `gemini-2.5-flash` |
 | Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
 | OpenRouter | `OPENROUTER_API_KEY` | `openai/gpt-4o-mini` |
 | Ollama | `OLLAMA_BASE_URL` | `llama3.2` |
 | Custom OpenAI-compatible | `CUSTOM_AI_BASE_URL` | any |
 
-Every model name is editable. If a provider has no usable key, the API automatically falls back to the local core and tells the assistant panel why.
+Every model name is editable.
+
+**If the selected provider has no server-side key, JARVIS says so.** It does not
+silently answer with the local core and present it as a model response — a
+connection test for Google fails, with the specific variable to set. Local Core
+remains a deliberate, explicit offline choice.
+
+See [`docs/AI_SETUP.md`](docs/AI_SETUP.md) for the full setup and
+troubleshooting guide.
 
 #### Run fully local with Ollama
 
@@ -161,8 +173,10 @@ See [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) and [`docs/ARCHITECTURE.md`
 
 ## Security notes
 
-- API keys in **Settings** live in this browser’s `localStorage` and are only sent to your own Next.js route. Prefer `.env.local` for permanent keys.
-- Keys are never included in diagnostics exports and never returned by the API.
+- Provider API keys are read from server-side environment variables only (`GEMINI_API_KEY`, `OPENAI_API_KEY`, …). They are never sent to the browser, stored in `localStorage`, included in desktop snapshots, or returned by the API. Older builds persisted a key in browser settings; it is deleted from storage on first load after upgrading.
+- The browser cannot supply a key to `/api/jarvis` — a key in the request body is ignored.
+- Provider status is exposed as booleans only ("configured / not configured"), never as key material.
+- Gemini credentials travel in the `x-goog-api-key` header, so they cannot leak into proxy logs or URLs.
 - The custom / Ollama base URL is user-controlled. **Do not expose this app publicly without adding authentication** — the route is an open proxy to whatever URL the client supplies.
 - Voice recognition is provided by the browser; Chrome may send audio to its own speech service. Speech synthesis is local.
 

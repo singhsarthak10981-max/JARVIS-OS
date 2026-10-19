@@ -1,6 +1,18 @@
 import "server-only";
 
-import { getProviderMeta, type AiProviderId } from "./providers";
+import {
+  getProviderMeta,
+  isProviderId,
+  type AiProviderId,
+} from "./providers";
+import {
+  ProviderRequestError,
+  classifyFetchError,
+  classifyHttpStatus,
+  missingCredentialMessage,
+  type ProviderError,
+  type ProviderErrorCode,
+} from "./errors";
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -10,18 +22,40 @@ export interface ChatTurn {
 export interface ProviderConfig {
   provider: AiProviderId;
   model: string;
+  /** Always resolved server-side. Never sourced from the request body. */
   apiKey: string;
   baseUrl: string;
-  /** "local" when a cloud provider was requested without usable credentials. */
-  source: "client" | "server" | "none";
-  fallbackReason?: string;
+  source: "server" | "none";
 }
+
+/**
+ * Resolution either yields a usable config or a classified failure.
+ *
+ * There is deliberately no "fell back to local" variant: an explicitly
+ * selected cloud provider that cannot be used is an error, not a silent
+ * downgrade that reports success.
+ */
+export type ResolvedProvider =
+  | { ok: true; config: ProviderConfig }
+  | {
+      ok: false;
+      provider: AiProviderId;
+      model: string;
+      error: ProviderError;
+    };
 
 interface ResolveInput {
   provider?: unknown;
   model?: unknown;
-  apiKey?: unknown;
   baseUrl?: unknown;
+}
+
+function resolveFailure(
+  provider: AiProviderId,
+  model: string,
+  error: ProviderError
+): ResolvedProvider {
+  return { ok: false, provider, model, error };
 }
 
 const ENV_BASE_URLS: Record<AiProviderId, string[]> = {
@@ -74,46 +108,31 @@ function sanitizeBaseUrl(value: string): string {
   return trimmed;
 }
 
-export function resolveProviderConfig(input: ResolveInput): ProviderConfig {
+export function resolveProviderConfig(input: ResolveInput): ResolvedProvider {
   const requested = (
     typeof input.provider === "string" ? input.provider : "local"
   ) as AiProviderId;
+
+  if (!isProviderId(requested)) {
+    return resolveFailure("local", "jarvis-local", {
+      code: "configuration",
+      message: "Unknown provider. Select a provider in Settings → Intelligence.",
+    });
+  }
+
   const meta = getProviderMeta(requested);
 
   if (meta.local) {
     return {
-      provider: "local",
-      model: meta.defaultModel,
-      apiKey: "",
-      baseUrl: "",
-      source: "none",
+      ok: true,
+      config: {
+        provider: "local",
+        model: meta.defaultModel,
+        apiKey: "",
+        baseUrl: "",
+        source: "none",
+      },
     };
-  }
-
-  const clientKey =
-    typeof input.apiKey === "string" ? input.apiKey.trim() : "";
-  const serverKey = serverKeyFor(meta.id);
-  const apiKey = clientKey || serverKey || "";
-  const source: ProviderConfig["source"] = clientKey
-    ? "client"
-    : serverKey
-      ? "server"
-      : "none";
-
-  const clientBase =
-    typeof input.baseUrl === "string" && input.baseUrl.trim()
-      ? input.baseUrl.trim()
-      : "";
-  let baseUrl = sanitizeBaseUrl(
-    clientBase ||
-      envValue(ENV_BASE_URLS[meta.id]) ||
-      meta.defaultBaseUrl ||
-      ""
-  );
-
-  // Ollama's OpenAI-compatible surface lives under /v1.
-  if (meta.id === "ollama" && !/\/v1$/i.test(baseUrl)) {
-    baseUrl = `${baseUrl}/v1`;
   }
 
   const requestedModel =
@@ -121,45 +140,68 @@ export function resolveProviderConfig(input: ResolveInput): ProviderConfig {
       ? input.model.trim()
       : meta.defaultModel;
 
-  if (!baseUrl) {
-    return {
-      provider: "local",
-      model: meta.defaultModel,
-      apiKey: "",
-      baseUrl: "",
-      source: "none",
-      fallbackReason: `${meta.label} is missing a base URL.`,
-    };
+  const clientBase =
+    typeof input.baseUrl === "string" && input.baseUrl.trim()
+      ? input.baseUrl.trim()
+      : "";
+
+  let baseUrl: string;
+  try {
+    baseUrl = sanitizeBaseUrl(
+      clientBase ||
+        envValue(ENV_BASE_URLS[meta.id]) ||
+        meta.defaultBaseUrl ||
+        ""
+    );
+  } catch {
+    return resolveFailure(meta.id, requestedModel, {
+      code: "configuration",
+      message: `${meta.label} has an invalid base URL. It must start with http:// or https://.`,
+    });
   }
 
+  // Ollama's OpenAI-compatible surface lives under /v1.
+  if (meta.id === "ollama" && !/\/v1$/i.test(baseUrl)) {
+    baseUrl = `${baseUrl}/v1`;
+  }
+
+  if (!baseUrl) {
+    return resolveFailure(meta.id, requestedModel, {
+      code: "configuration",
+      message: `${meta.label} is missing a base URL. Set one in Settings or the server environment.`,
+    });
+  }
+
+  // Keys are read from the server environment only. A key supplied in the
+  // request body is ignored entirely — the browser is not a trust boundary.
+  const apiKey = serverKeyFor(meta.id) ?? "";
+
   if (meta.requiresKey && !apiKey) {
-    return {
-      provider: "local",
-      model: getProviderMeta("local").defaultModel,
-      apiKey: "",
-      baseUrl: "",
-      source: "none",
-      fallbackReason: `No API key configured for ${meta.label}.`,
-    };
+    return resolveFailure(meta.id, requestedModel, {
+      code: "missing_credentials",
+      message: missingCredentialMessage(
+        meta.label,
+        meta.envKeys[0] ?? "API_KEY"
+      ),
+    });
   }
 
   if (!requestedModel) {
-    return {
-      provider: "local",
-      model: getProviderMeta("local").defaultModel,
-      apiKey: "",
-      baseUrl: "",
-      source: "none",
-      fallbackReason: `No model specified for ${meta.label}.`,
-    };
+    return resolveFailure(meta.id, meta.defaultModel, {
+      code: "configuration",
+      message: `No model specified for ${meta.label}. Enter a model name in Settings.`,
+    });
   }
 
   return {
-    provider: meta.id,
-    model: requestedModel,
-    apiKey,
-    baseUrl,
-    source,
+    ok: true,
+    config: {
+      provider: meta.id,
+      model: requestedModel,
+      apiKey,
+      baseUrl,
+      source: apiKey ? "server" : "none",
+    },
   };
 }
 
@@ -196,30 +238,16 @@ async function* readSse(response: Response): AsyncGenerator<unknown> {
 
 async function ensureOk(response: Response, label: string): Promise<void> {
   if (response.ok) return;
+
   let detail = "";
   try {
-    const text = await response.text();
-    detail = text.replace(/\s+/g, " ").slice(0, 300);
+    detail = (await response.text()).replace(/\s+/g, " ").slice(0, 300);
   } catch {
-    // ignore
+    // Body already consumed or unavailable — the status is still enough.
   }
 
-  if (response.status === 401 || response.status === 403) {
-    throw new Error(
-      `${label} rejected the credentials (${response.status}). Check the API key in Settings.`
-    );
-  }
-  if (response.status === 404) {
-    throw new Error(
-      `${label} returned 404. Check the base URL and model name.`
-    );
-  }
-  if (response.status === 429) {
-    throw new Error(`${label} is rate limiting requests (429). Try again shortly.`);
-  }
-  throw new Error(
-    `${label} request failed (${response.status})${detail ? `: ${detail}` : ""}`
-  );
+  const error = classifyHttpStatus(response.status, label, detail);
+  throw new ProviderRequestError(error.code, error.message);
 }
 
 type Delta = { text?: string };
@@ -320,11 +348,15 @@ async function* streamGoogle(
     `${config.baseUrl}/v1beta/models/${encodeURIComponent(config.model)}:streamGenerateContent`
   );
   url.searchParams.set("alt", "sse");
-  url.searchParams.set("key", config.apiKey);
 
+  // The key travels in a header, not the query string, so it cannot leak into
+  // proxy logs, browser history or error messages that echo the URL.
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": config.apiKey,
+    },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: system }] },
       contents: messages.map((m) => ({
@@ -380,10 +412,16 @@ export async function* streamChat(
   }
 }
 
+export interface ProbeResult {
+  ok: boolean;
+  message: string;
+  code?: ProviderErrorCode;
+}
+
 /** Validates credentials/model with the smallest possible request. */
 export async function probeProvider(
   config: ProviderConfig
-): Promise<{ ok: boolean; message: string }> {
+): Promise<ProbeResult> {
   if (config.provider === "local") {
     return {
       ok: true,
@@ -416,10 +454,12 @@ export async function probeProvider(
       const url = new URL(
         `${config.baseUrl}/v1beta/models/${encodeURIComponent(config.model)}:generateContent`
       );
-      url.searchParams.set("key", config.apiKey);
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": config.apiKey,
+        },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: "Reply with OK" }] }],
           generationConfig: { maxOutputTokens: 1 },
@@ -452,9 +492,11 @@ export async function probeProvider(
       message: `Uplink established with ${getProviderMeta(config.provider).label} · ${config.model}.`,
     };
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown connection error.";
-    return { ok: false, message };
+    const classified = classifyFetchError(
+      error,
+      getProviderMeta(config.provider).label
+    );
+    return { ok: false, message: classified.message, code: classified.code };
   } finally {
     clearTimeout(timeout);
   }

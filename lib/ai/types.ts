@@ -18,9 +18,12 @@ export interface ChatMessage {
 export interface AssistantMeta {
   provider: AiProviderId;
   model: string;
-  source: "client" | "server" | "none";
+  source: "server" | "none";
   fallback: boolean;
+  /** False when the selected provider is missing server-side configuration. */
+  configured?: boolean;
   reason?: string | null;
+  code?: string;
 }
 
 export interface ServerStatus {
@@ -36,7 +39,6 @@ export interface JarvisRequest {
   ownerName: string;
   provider: AiProviderId;
   model: string;
-  apiKey: string;
   baseUrl: string;
   context: {
     activeModule: string;
@@ -47,6 +49,7 @@ export interface JarvisRequest {
 export interface TestConnectionResult {
   ok: boolean;
   message: string;
+  code?: string;
   provider?: string;
   model?: string;
 }

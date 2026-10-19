@@ -112,32 +112,33 @@ export default function AssistantPanel() {
       };
     }
     const meta = getProviderMeta(provider);
+    // Credentials are server-side only, so "configured" is answered by the
+    // server for the *selected* provider — not by whether any key exists.
     const serverConfigured = serverStatus?.providers?.[provider] ?? false;
-    const hasClientKey = Boolean(settings.aiApiKey.trim());
-    const keyless = provider === "ollama" || provider === "custom";
 
-    if (hasClientKey || serverConfigured) {
+    if (serverConfigured) {
       return {
-        label: `${meta.label.toUpperCase()} · ${hasClientKey ? "KEY" : "SERVER"}`,
+        label: `${meta.label.toUpperCase()} · SERVER`,
         color: tokens.color.success,
-        title: serverConfigured && !hasClientKey
-          ? `Using the server-side key for ${meta.label}.`
-          : `Using your local ${meta.label} configuration.`,
+        title: `Using the server-side credentials for ${meta.label}.`,
       };
     }
-    if (keyless && settings.aiBaseUrl.trim()) {
+    // Ollama and Custom need no key, so they are never "not configured".
+    if (!meta.requiresKey) {
       return {
         label: `${meta.label.toUpperCase()} · LOCAL`,
         color: tokens.color.info,
-        title: `Pointing at ${settings.aiBaseUrl}.`,
+        title: settings.aiBaseUrl.trim()
+          ? `Pointing at ${settings.aiBaseUrl}.`
+          : `Using the default endpoint for ${meta.label}.`,
       };
     }
     return {
-      label: "LOCAL FALLBACK",
+      label: "NOT CONFIGURED",
       color: tokens.color.warning,
-      title: `No credentials for ${meta.label}. Add a key in Settings, or JARVIS falls back to the local core.`,
+      title: `${meta.label} has no server-side credentials. Add ${meta.envKeys[0] ?? "an API key"} to .env.local and restart JARVIS. Local Core stays available if you select it.`,
     };
-  }, [settings.aiProvider, settings.aiApiKey, settings.aiBaseUrl, serverStatus]);
+  }, [settings.aiProvider, settings.aiBaseUrl, serverStatus]);
 
   const stateColor = tokens.orb.core[aiState] ?? tokens.color.textDisabled;
 

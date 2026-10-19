@@ -64,9 +64,11 @@ export interface SettingsState {
   ownerName: string;
 
   // Intelligence
+  // NOTE: API keys are deliberately absent. Credentials live only in the
+  // server environment (.env.local / deployment vars) and never reach the
+  // browser, so there is nothing here to persist or leak.
   aiProvider: AiProviderId;
   aiModel: string;
-  aiApiKey: string;
   aiBaseUrl: string;
 
   // Voice
@@ -87,7 +89,6 @@ export const DEFAULT_SETTINGS: SettingsState = {
   ownerName: "Sarthak",
   aiProvider: "local",
   aiModel: "",
-  aiApiKey: "",
   aiBaseUrl: "",
   voiceEnabled: false,
   voiceRate: 1,
@@ -98,6 +99,12 @@ export const DEFAULT_SETTINGS: SettingsState = {
 };
 
 const SETTINGS_STORAGE_KEY = "jarvis-settings-v1";
+
+/**
+ * Settings fields that used to hold provider secrets. They are deleted from
+ * storage on hydration so upgrading scrubs any previously saved key.
+ */
+const LEGACY_SECRET_KEYS = ["aiApiKey"] as const;
 const ACTIVITY_STORAGE_KEY = "jarvis-activity-v1";
 
 // ── Store ─────────────────────────────────────────────────
@@ -387,6 +394,26 @@ export const useAppStore = create<AppState>((set) => ({
       const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (raw) {
         const stored = JSON.parse(raw) as Record<string, unknown>;
+
+        // ── Legacy credential migration ──────────────────
+        // Earlier builds persisted the provider API key in settings, which
+        // meant a live secret sat in localStorage indefinitely. Strip it and
+        // rewrite the record so the value is erased rather than merely
+        // ignored. Every unrelated setting is preserved.
+        if (LEGACY_SECRET_KEYS.some((key) => key in stored)) {
+          for (const key of LEGACY_SECRET_KEYS) {
+            delete stored[key];
+          }
+          try {
+            window.localStorage.setItem(
+              SETTINGS_STORAGE_KEY,
+              JSON.stringify(stored)
+            );
+          } catch {
+            // Storage unavailable — the key simply won't be re-read.
+          }
+        }
+
         for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof SettingsState)[]) {
           const value = stored[key];
           if (typeof value === typeof DEFAULT_SETTINGS[key]) {

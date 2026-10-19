@@ -60,7 +60,7 @@ export const PROVIDERS: ProviderMeta[] = [
     label: "Google Gemini",
     description: "Gemini models via the Generative Language API.",
     envKeys: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3.8-flash",
     defaultBaseUrl: "https://generativelanguage.googleapis.com",
     requiresKey: true,
     keyPlaceholder: "AIza…",

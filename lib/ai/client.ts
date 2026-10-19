@@ -19,10 +19,7 @@ export async function fetchServerStatus(): Promise<ServerStatus | null> {
 }
 
 export async function testConnection(
-  config: Pick<
-    JarvisRequest,
-    "provider" | "model" | "apiKey" | "baseUrl"
-  >
+  config: Pick<JarvisRequest, "provider" | "model" | "baseUrl">
 ): Promise<TestConnectionResult> {
   try {
     const response = await fetch("/api/jarvis", {

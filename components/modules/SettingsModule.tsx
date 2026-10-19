@@ -232,6 +232,7 @@ export default function SettingsModule() {
   const [configuredProviders, setConfiguredProviders] = useState<
     Record<string, boolean>
   >({});
+  const [searchConfigured, setSearchConfigured] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [memoryCount, setMemoryCount] = useState(0);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
@@ -244,6 +245,7 @@ export default function SettingsModule() {
       if (!status) return;
       // Booleans only — the server never exposes a key or any part of one.
       setConfiguredProviders(status.providers ?? {});
+      setSearchConfigured(Boolean(status.webSearch));
     });
   }, []);
 
@@ -299,7 +301,9 @@ export default function SettingsModule() {
     );
     if (result.ok) {
       fetchServerStatus().then((status) => {
-        if (status) setConfiguredProviders(status.providers ?? {});
+        if (!status) return;
+        setConfiguredProviders(status.providers ?? {});
+        setSearchConfigured(Boolean(status.webSearch));
       });
     }
   };
@@ -569,6 +573,61 @@ export default function SettingsModule() {
                       no key required.
                     </div>
                   )}
+                </div>
+              </Section>
+
+              <Section
+                title="Web search"
+                description="Lets the connected model look things up when a question needs current information, and cite the sources it used."
+              >
+                <Row
+                  title="Live web search"
+                  description="Only runs when you ask to search or when a question is clearly about something that changes — news, releases, prices, versions."
+                >
+                  <Toggle
+                    checked={settings.webSearchEnabled}
+                    onChange={(value) =>
+                      updateSettings({ webSearchEnabled: value })
+                    }
+                    label="Live web search"
+                  />
+                </Row>
+
+                <div className="rounded-lg border border-jarvis-red/10 bg-jarvis-surface/30 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] tracking-[0.16em] text-jarvis-text-muted uppercase">
+                      Search provider
+                    </span>
+                    <span
+                      data-testid="search-credential-panel"
+                      className={cn(
+                        "rounded border px-1.5 py-0.5 text-[8px] tracking-wider uppercase",
+                        searchConfigured
+                          ? "border-jarvis-success/30 bg-jarvis-success/10 text-jarvis-success"
+                          : "border-jarvis-warning/30 bg-jarvis-warning/10 text-jarvis-warning"
+                      )}
+                    >
+                      {searchConfigured ? "configured" : "not configured"}
+                    </span>
+                  </div>
+
+                  <p className="mt-1.5 text-[9px] leading-relaxed text-jarvis-text-muted">
+                    Queries go to <span className="text-jarvis-text">Tavily</span>{" "}
+                    (<code className="font-mono">api.tavily.com</code>), a
+                    third-party search service. Only the search query and the
+                    number of results are sent. API keys stay on the server and
+                    are never sent to this browser.
+                  </p>
+
+                  <p className="mt-1.5 text-[9px] leading-relaxed text-jarvis-text-disabled">
+                    Set{" "}
+                    <code className="font-mono text-jarvis-red/80">
+                      TAVILY_API_KEY
+                    </code>{" "}
+                    in <code className="font-mono">.env.local</code> on the
+                    server, then restart JARVIS. Web search needs a cloud model
+                    to read the results — Local Core cannot.
+                  </p>
                 </div>
               </Section>
 

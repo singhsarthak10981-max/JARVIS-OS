@@ -101,6 +101,63 @@ JARVIS distinguishes two different Ollama failures:
 
 ---
 
+## Web search (Tavily)
+
+Optional. It gives the connected model current information and clickable
+source links. Without it, JARVIS says live search is unavailable instead of
+presenting stale knowledge as current.
+
+1. **Create a key** — <https://app.tavily.com> → *API Keys* (there is a free
+   tier).
+2. **Add it** to `.env.local`:
+
+   ```bash
+   TAVILY_API_KEY=tvly-your-key-here
+   ```
+
+3. **Restart** the server (`Ctrl+C`, then `npm run dev`).
+4. **Verify** — **Settings → Intelligence → Web search**. The badge should read
+   **configured**, and the toggle should be on.
+
+### When JARVIS searches
+
+Only when one of these is true:
+
+- you explicitly ask — *"search the web for…"*, *"look up…"*, *"google…"*;
+- the question is plainly about something that changes — news, releases,
+  prices, versions, specs, weather, today's information.
+
+Ordinary conversation, analysis, writing and the deterministic desktop
+commands (*open the DJ module*, *set a timer*, *switch theme*, *remember…*)
+never trigger a search. The **Live web search** toggle turns the feature off
+entirely.
+
+### What leaves your machine
+
+- the focused search query, up to 5 results per query;
+- **not** your API keys, your conversation history, or your memories.
+
+The Tavily endpoint is a constant in `lib/ai/search/tavily.ts`. It cannot be
+set from Settings, the request body or an environment variable, so a browser
+cannot redirect the search key to another host.
+
+### What the model sees
+
+Bounded results (title, URL, snippet, optional publication date) inside a
+fenced block labelled **untrusted reference data**: the model is told to treat
+page contents as evidence, never as instructions, and to cite only the supplied
+URLs. If retrieval fails, the model is told to say that live search could not
+be completed.
+
+### Limits
+
+- Up to **five** results per query, `search_depth: basic` (one Tavily credit).
+- Search is skipped when Local Core is selected — a local core has no model to
+  read the sources.
+- A search runs before generation, not as an iterative tool loop.
+
+---
+
 ## Reading the errors
 
 Failures are classified so you know what to fix without reading server logs.

@@ -70,6 +70,8 @@ export interface SettingsState {
   aiProvider: AiProviderId;
   aiModel: string;
   aiBaseUrl: string;
+  /** Live web search (Tavily) for questions that need current information. */
+  webSearchEnabled: boolean;
 
   // Voice
   voiceEnabled: boolean;
@@ -90,6 +92,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   aiProvider: "local",
   aiModel: "",
   aiBaseUrl: "",
+  webSearchEnabled: true,
   voiceEnabled: false,
   voiceRate: 1,
   voicePitch: 0.9,

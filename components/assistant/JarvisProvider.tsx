@@ -17,7 +17,10 @@ import {
   type IntentContext,
 } from "@/lib/ai/intents";
 import { executeJarvisAction, providerDisplayName } from "@/lib/ai/actions";
-import { buildLocalReply } from "@/lib/ai/local";
+import {
+  replyProviderLabel,
+  resolveFailureReply,
+} from "@/lib/ai/reply-policy";
 import { fetchServerStatus, streamJarvis } from "@/lib/ai/client";
 import {
   loadConversation,
@@ -39,6 +42,7 @@ import type {
   ChatMessage,
   ServerStatus,
 } from "@/lib/ai/types";
+import type { SearchNotice } from "@/lib/ai/search/types";
 import {
   JARVIS_CLEAR_CHAT_EVENT,
   JARVIS_LISTEN_EVENT,
@@ -335,6 +339,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
       let streamError: string | null = null;
       let received = "";
       let meta: AssistantMeta | null = null;
+      let searchNotice: SearchNotice | undefined;
 
       try {
         meta = await streamJarvis(
@@ -345,6 +350,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
             provider: settings.aiProvider,
             model: settings.aiModel,
             baseUrl: settings.aiBaseUrl,
+            webSearch: settings.webSearchEnabled,
             context: {
               activeModule: store.activeModule,
               openWindows: store.windows.length,
@@ -365,6 +371,14 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
                   type: "info",
                 });
               }
+            },
+            onSearch: (notice) => {
+              // Show retrieval state immediately, before any tokens arrive.
+              searchNotice = notice;
+              updateMessage(assistantId, (message) => ({
+                ...message,
+                search: notice,
+              }));
             },
             onDelta: (chunk) => {
               received += chunk;
@@ -400,9 +414,17 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
 
       if (streamError) {
         setError(streamError);
-        if (!received.trim()) {
-          const fallback = buildLocalReply(text, owner, memories.length);
-          received = fallback;
+        const failure = resolveFailureReply({
+          userMessage: text,
+          error: streamError,
+          received,
+          configured: meta?.configured,
+          ownerName: owner,
+          memoryCount: memories.length,
+        });
+        received = failure.text;
+
+        if (failure.usedLocalFallback) {
           meta = {
             provider: "local",
             model: "jarvis-local",
@@ -423,11 +445,9 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         ...message,
         text: finalText,
         streaming: false,
-        provider:
-          meta && meta.provider !== "local"
-            ? providerDisplayName(meta.provider, meta.model)
-            : "local core",
+        provider: replyProviderLabel(meta),
         error: Boolean(streamError),
+        search: searchNotice,
       }));
 
       useAppStore

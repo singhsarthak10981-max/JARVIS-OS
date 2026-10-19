@@ -4,50 +4,8 @@ import { memo } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/ai/types";
-
-function renderInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={index} className="font-semibold text-white">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return (
-        <code
-          key={index}
-          className="rounded bg-jarvis-red/10 px-1 py-0.5 font-mono text-[0.9em] text-jarvis-red-bright"
-        >
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    return <span key={index}>{part}</span>;
-  });
-}
-
-function formatBody(text: string): React.ReactNode {
-  return text.split("\n").map((line, index) => {
-    if (!line.trim()) return <span key={index} className="block h-2" />;
-    const bullet = line.match(/^\s*[•\-*]\s+(.*)$/);
-    if (bullet) {
-      return (
-        <span key={index} className="flex gap-2">
-          <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-jarvis-red/70" />
-          <span>{renderInline(bullet[1])}</span>
-        </span>
-      );
-    }
-    return (
-      <span key={index} className={index > 0 ? "mt-1.5 block" : "block"}>
-        {renderInline(line)}
-      </span>
-    );
-  });
-}
+import MessageText from "./MessageText";
+import SearchStatus from "./SearchStatus";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -111,8 +69,16 @@ function MessageBubbleInner({ message }: MessageBubbleProps) {
               : "border-jarvis-red/10 bg-jarvis-surface/50 text-jarvis-text"
           )}
         >
+          {message.search && (
+            <div className="mb-2">
+              <SearchStatus notice={message.search} />
+            </div>
+          )}
+
           {message.text ? (
-            <div className="whitespace-pre-wrap">{formatBody(message.text)}</div>
+            <div className="whitespace-pre-wrap">
+              <MessageText text={message.text} />
+            </div>
           ) : (
             <span className="flex items-center gap-1.5 py-0.5">
               {[0, 1, 2].map((dot) => (
@@ -128,6 +94,7 @@ function MessageBubbleInner({ message }: MessageBubbleProps) {
           {message.streaming && message.text && (
             <span className="ml-0.5 inline-block h-3 w-[2px] animate-pulse bg-jarvis-red align-middle" />
           )}
+
         </div>
 
         <div className="mt-1 flex items-center gap-2 text-[8px] tracking-wider text-jarvis-text-disabled/60">

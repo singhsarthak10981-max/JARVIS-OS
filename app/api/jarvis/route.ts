@@ -7,9 +7,12 @@ import {
   resolveProviderConfig,
   streamChat,
   type ChatTurn,
+  type SearchPromptContext,
 } from "@/lib/ai/server";
 import { buildLocalReply } from "@/lib/ai/local";
 import { classifyFetchError } from "@/lib/ai/errors";
+import { runWebSearch, toSearchNotice } from "@/lib/ai/search";
+import { searchConfigured } from "@/lib/ai/search/tavily";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +27,8 @@ export async function GET() {
     version: "1.0.0",
     local: true,
     providers: providerStatus(),
+    // Boolean only. The key itself never leaves the server.
+    webSearch: searchConfigured(),
   });
 }
 
@@ -36,6 +41,8 @@ interface JarvisRequestBody {
   baseUrl?: unknown;
   /** @deprecated Ignored. Keys are read from the server environment only. */
   apiKey?: unknown;
+  /** Settings toggle. Any other value than `false` means enabled. */
+  webSearch?: unknown;
   context?: {
     activeModule?: unknown;
     openWindows?: unknown;
@@ -218,11 +225,12 @@ export async function POST(request: Request) {
       : `${getProviderMeta(resolved.config.provider).label} · ${resolved.config.model}`
     : `${getProviderMeta(resolved.provider).label} · ${resolved.model} (not connected)`;
 
-  const system = buildSystemPrompt(ownerName, memories, {
-    activeModule,
-    openWindows,
-    providerLabel,
-  });
+  const webSearchEnabled = body.webSearch !== false;
+  const lastUserMessage = messages[messages.length - 1]?.content ?? "";
+  const previousUserMessage = [...messages]
+    .reverse()
+    .slice(1)
+    .find((message) => message.role === "user")?.content;
 
   const encoder = new TextEncoder();
 
@@ -256,6 +264,10 @@ export async function POST(request: Request) {
       }
 
       const config = resolved.config;
+      const abort = new AbortController();
+      request.signal.addEventListener("abort", () => abort.abort(), {
+        once: true,
+      });
 
       send({
         type: "meta",
@@ -266,6 +278,52 @@ export async function POST(request: Request) {
         configured: true,
         reason: null,
       });
+
+      // ── Web search (retrieval before generation) ────────
+      // Search state is streamed so the UI can show what happened even when
+      // the model later fails. The browser never sees the key or a snippet.
+      let searchPrompt: SearchPromptContext | undefined;
+      try {
+        const outcome = await runWebSearch({
+          message: lastUserMessage,
+          previousMessage: previousUserMessage,
+          enabled: webSearchEnabled,
+          providerIsLocal: config.provider === "local",
+          signal: abort.signal,
+          onSearching: (query) => send({ type: "search", status: "searching", query }),
+        });
+
+        const notice = toSearchNotice(outcome);
+        if (notice) send({ type: "search", ...notice });
+
+        if (outcome.status === "complete") {
+          searchPrompt = {
+            kind: "results",
+            query: outcome.query,
+            sources: outcome.sources,
+          };
+        } else if (outcome.status !== "skipped") {
+          searchPrompt = { kind: "failure", message: outcome.message };
+        }
+      } catch {
+        // Search must never take the whole request down.
+        send({
+          type: "search",
+          status: "error",
+          message: "Live web search could not be completed.",
+        });
+        searchPrompt = {
+          kind: "failure",
+          message: "Live web search could not be completed.",
+        };
+      }
+
+      const system = buildSystemPrompt(
+        ownerName,
+        memories,
+        { activeModule, openWindows, providerLabel },
+        searchPrompt
+      );
 
       try {
         if (config.provider === "local") {
@@ -278,11 +336,6 @@ export async function POST(request: Request) {
             await new Promise((resolve) => setTimeout(resolve, 12));
           }
         } else {
-          const abort = new AbortController();
-          request.signal.addEventListener("abort", () => abort.abort(), {
-            once: true,
-          });
-
           for await (const delta of streamChat(
             config,
             system,

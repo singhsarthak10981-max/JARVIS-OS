@@ -5,7 +5,7 @@ import type { Workspace } from "./workspaces";
 import type { WallpaperConfig, DesktopShortcutConfig } from "@/services/storage/DesktopPersistence";
 import { desktopPersistence } from "@/services/storage/DesktopPersistence";
 import { buildDesktopSnapshot } from "./desktop-snapshot";
-import type { AiProviderId } from "@/lib/ai/providers";
+import type { AiProviderId, ThemeId } from "@/lib/ai/providers";
 
 export type DjView = "launchpad" | "performance" | "library";
 
@@ -58,7 +58,7 @@ export interface SettingsState {
   particles: boolean;
   soundEnabled: boolean;
   volume: number;
-  theme: "tactical-red" | "arc-reactor" | "stealth";
+  theme: ThemeId;
 
   // Identity
   ownerName: string;
@@ -92,7 +92,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   particles: true,
   soundEnabled: false,
   volume: 75,
-  theme: "tactical-red",
+  theme: "stark-interface",
   ownerName: "Sarthak",
   aiProvider: "local",
   aiModel: "",

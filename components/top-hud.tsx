@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { ModuleId } from "@/lib/modules";
 import { getModule } from "@/lib/modules";
+import { fetchServerStatus } from "@/lib/ai/client";
+import type { ServerStatus } from "@/lib/ai/types";
+import { supportsSynthesis } from "@/lib/ai/voice";
+import {
+  getApiHudStatus,
+  getNetworkHudStatus,
+  getVoiceHudStatus,
+} from "@/lib/hud-status";
 import { useAppStore } from "@/lib/store";
 import { tokens } from "@/lib/tokens";
 
@@ -46,6 +54,10 @@ const AI_STATE_COLORS: Record<string, string> = {
 export default function TopHUD({ activeModule = "command-center" }: TopHUDProps) {
   const [time, setTime] = useState<Date | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [networkOnline, setNetworkOnline] = useState<boolean | null>(null);
+  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
+  const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
+  const settings = useAppStore((s) => s.settings);
   const mod = getModule(activeModule);
   const aiState = useAppStore((s) => s.aiState);
   const notifications = useAppStore((s) => s.notifications);
@@ -60,6 +72,32 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const syncNetworkState = () => setNetworkOnline(navigator.onLine);
+    syncNetworkState();
+    window.addEventListener("online", syncNetworkState);
+    window.addEventListener("offline", syncNetworkState);
+    return () => {
+      window.removeEventListener("online", syncNetworkState);
+      window.removeEventListener("offline", syncNetworkState);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchServerStatus().then((status) => {
+      if (!cancelled) setServerStatus(status);
+    });
+    setVoiceSupported(supportsSynthesis());
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const networkStatus = getNetworkHudStatus(networkOnline);
+  const apiStatus = getApiHudStatus(serverStatus);
+  const voiceStatus = getVoiceHudStatus(settings.voiceEnabled, voiceSupported);
 
   return (
     <motion.header
@@ -110,9 +148,9 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
         </button>
 
         <div className="hidden items-center gap-4 md:flex lg:gap-5">
-          <StatusIndicator label="NETWORK" />
-          <StatusIndicator label="NEURAL" />
-          <StatusIndicator label="SHIELD" />
+          <StatusIndicator label="NETWORK" status={networkStatus} />
+          <StatusIndicator label="API" status={apiStatus} />
+          <StatusIndicator label="VOICE" status={voiceStatus} />
         </div>
 
         <div className="relative">
@@ -206,12 +244,43 @@ export default function TopHUD({ activeModule = "command-center" }: TopHUDProps)
   );
 }
 
-function StatusIndicator({ label }: { label: string }) {
+type HudIndicatorStatus = ReturnType<typeof getNetworkHudStatus>;
+
+function StatusIndicator({
+  label,
+  status,
+}: {
+  label: string;
+  status: HudIndicatorStatus;
+}) {
+  const color =
+    status.tone === "ready"
+      ? c.success
+      : status.tone === "problem"
+        ? c.redBright
+        : c.textDisabled;
+
   return (
-    <div className="flex items-center gap-1.5" title={`${label}: online`}>
+    <div
+      className="flex items-center gap-1.5"
+      role="img"
+      aria-label={`${label}: ${status.detail}`}
+      title={`${label}: ${status.detail}`}
+    >
       <div className="relative">
-        <div className="h-1.5 w-1.5 rounded-full bg-jarvis-success" />
-        <div className="absolute inset-0 h-1.5 w-1.5 animate-ping rounded-full bg-jarvis-success opacity-40" />
+        <div
+          className="h-1.5 w-1.5 rounded-full"
+          style={{
+            backgroundColor: color,
+            boxShadow: status.tone === "ready" ? `0 0 6px ${color}80` : undefined,
+          }}
+        />
+        {status.tone === "ready" && (
+          <div
+            className="absolute inset-0 h-1.5 w-1.5 animate-ping rounded-full opacity-40"
+            style={{ backgroundColor: color }}
+          />
+        )}
       </div>
       <span className="text-[10px] tracking-wider text-jarvis-text-muted uppercase">
         {label}

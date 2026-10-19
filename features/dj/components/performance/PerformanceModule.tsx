@@ -6,7 +6,9 @@ import type { DjLibraryMeta, DjTrack } from "@/features/dj/types";
 import { useDjBridge } from "@/features/dj/hooks/useDjBridge";
 import {
   countAssigned,
+  deckLabel,
   loadDeckState,
+  pickTargetDeck,
   resolveDecks,
   saveDeckSlots,
   type DeckSlots,
@@ -99,11 +101,11 @@ export default function PerformanceModule({
 
   const assign = useCallback(
     (track: DjTrack, slot?: number) => {
+      // Resolve the target once and use it for both the write and the log, so
+      // the activity entry can never name a different deck than the one filled.
+      const index = pickTargetDeck(slots, slot, activeDeck);
+
       setSlots((previous) => {
-        // Explicit slot wins; otherwise the first free slot; otherwise the
-        // deck the user last touched.
-        const firstFree = previous.findIndex((id) => id === null);
-        const index = slot ?? (firstFree >= 0 ? firstFree : activeDeck);
         const next = [...previous];
         next[index] = track.id;
         return next;
@@ -116,7 +118,7 @@ export default function PerformanceModule({
         });
       }
 
-      logActivity(`Deck ${(slot ?? 0) + 1} ← ${track.title}`, "info");
+      logActivity(`${deckLabel(index)} ← ${track.title}`, "info");
     },
     [activeDeck, slots, logActivity]
   );

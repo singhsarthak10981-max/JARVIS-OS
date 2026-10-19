@@ -136,6 +136,13 @@ export interface AppState {
    */
   djLaunchRequest: number;
   requestDjLaunch: () => void;
+  /**
+   * Highest launch request id already acted on. Lives in the store rather than
+   * component state so a request is not lost when the launchpad is unmounted,
+   * and is not replayed when it remounts.
+   */
+  djLaunchConsumed: number;
+  consumeDjLaunch: (id: number) => void;
 
   /** Which surface the DJ module shows. Driven by UI and by voice intents. */
   djView: DjView;
@@ -275,6 +282,12 @@ export const useAppStore = create<AppState>((set) => ({
   djLaunchRequest: 0,
   requestDjLaunch: () =>
     set((s) => ({ djLaunchRequest: s.djLaunchRequest + 1 })),
+
+  djLaunchConsumed: 0,
+  consumeDjLaunch: (id) =>
+    set((s) => ({
+      djLaunchConsumed: Math.max(s.djLaunchConsumed, id),
+    })),
 
   djView: "launchpad",
   setDjView: (view) => set({ djView: view }),

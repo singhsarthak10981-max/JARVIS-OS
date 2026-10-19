@@ -51,16 +51,8 @@ export interface DesktopShortcutConfig {
 const STORAGE_KEY = "jarvis-desktop-state";
 const CURRENT_VERSION = 1;
 
-function debounce<T extends (...args: never[]) => unknown>(
-  fn: T,
-  ms: number
-): (...args: Parameters<T>) => void {
-  let timer: ReturnType<typeof setTimeout>;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
-  };
-}
+/** Coalescing window for high-frequency changes (window drag/resize). */
+const DEBOUNCE_MS = 400;
 
 export class DesktopPersistence {
   private static instance: DesktopPersistence | null = null;
@@ -93,6 +85,9 @@ export class DesktopPersistence {
   }
 
   save(snapshot: Omit<DesktopSnapshot, "version" | "timestamp">): void {
+    // A full save supersedes any queued debounced snapshot. Cancel it so a
+    // timer that is already in flight cannot overwrite fresher data.
+    this.clearPending();
     if (!this.enabled || typeof window === "undefined") return;
 
     const fullSnapshot: DesktopSnapshot = {
@@ -110,12 +105,44 @@ export class DesktopPersistence {
     }
   }
 
-  debouncedSave = debounce(
-    (snapshot: Omit<DesktopSnapshot, "version" | "timestamp">) => {
-      this.save(snapshot);
-    },
-    500
-  );
+  /**
+   * Coalesces bursts of high-frequency changes (window drag/resize) into a
+   * single write. `pending` holds the latest snapshot so `flush()` can write it
+   * immediately on drag end or when the page is being hidden.
+   */
+  private pending: Omit<DesktopSnapshot, "version" | "timestamp"> | null = null;
+  private pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  debouncedSave(snapshot: Omit<DesktopSnapshot, "version" | "timestamp">): void {
+    this.pending = snapshot;
+    if (this.pendingTimer) clearTimeout(this.pendingTimer);
+    this.pendingTimer = setTimeout(() => {
+      this.pendingTimer = null;
+      this.flush();
+    }, DEBOUNCE_MS);
+  }
+
+  /** Writes any queued snapshot now. Safe to call when nothing is queued. */
+  flush(): void {
+    const snapshot = this.pending;
+    this.clearPending();
+    if (!snapshot) return;
+    this.save(snapshot);
+  }
+
+  /** Drops a queued snapshot and its timer without writing it. */
+  private clearPending(): void {
+    if (this.pendingTimer) {
+      clearTimeout(this.pendingTimer);
+      this.pendingTimer = null;
+    }
+    this.pending = null;
+  }
+
+  /** True while a debounced write is queued. Used by tests. */
+  hasPendingSave(): boolean {
+    return this.pending !== null;
+  }
 
   load(): DesktopSnapshot | null {
     if (typeof window === "undefined") return null;

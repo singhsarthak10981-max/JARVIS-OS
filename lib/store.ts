@@ -4,6 +4,7 @@ import type { WindowInstance, WindowBounds, SnapPosition } from "@/types/window"
 import type { Workspace } from "./workspaces";
 import type { WallpaperConfig, DesktopShortcutConfig } from "@/services/storage/DesktopPersistence";
 import { desktopPersistence } from "@/services/storage/DesktopPersistence";
+import { buildDesktopSnapshot } from "./desktop-snapshot";
 import type { AiProviderId } from "@/lib/ai/providers";
 
 export type DjView = "launchpad" | "performance" | "library";
@@ -203,6 +204,14 @@ export interface AppState {
   setPersistenceEnabled: (enabled: boolean) => void;
   setRestoreSession: (restore: boolean) => void;
   saveDesktopState: () => void;
+  /**
+   * Debounced variant used for high-frequency changes (window drag/resize).
+   * Serialising the snapshot on every mousemove wrote ~44 KB to localStorage
+   * per drag; this coalesces bursts into one write.
+   */
+  saveDesktopStateDebounced: () => void;
+  /** Flush any pending debounced save immediately (drag end, page hide). */
+  flushDesktopState: () => void;
   loadDesktopState: () => void;
 
   // Desktop Shortcuts
@@ -481,29 +490,15 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setRestoreSession: (restore) => set({ restoreSession: restore }),
   saveDesktopState: () => {
-    const state = useAppStore.getState();
-    desktopPersistence.save({
-      windows: state.windows.map((w) => ({
-        id: w.id,
-        moduleId: w.moduleId,
-        title: w.title,
-        bounds: { x: w.x, y: w.y, width: w.width, height: w.height },
-        minimized: w.minimized,
-        maximized: w.maximized,
-        zIndex: w.zIndex,
-      })),
-      workspaces: state.workspaces.map((ws) => ({
-        id: ws.id,
-        name: ws.name,
-        icon: ws.icon,
-        windowIds: ws.windowIds,
-      })),
-      activeWorkspaceId: state.activeWorkspaceId,
-      wallpaper: state.wallpaper,
-      pinnedModules: state.pinnedModules,
-      desktopShortcuts: state.desktopShortcuts,
-    });
+    desktopPersistence.save(buildDesktopSnapshot(useAppStore.getState()));
   },
+  saveDesktopStateDebounced: () => {
+    desktopPersistence.debouncedSave(buildDesktopSnapshot(useAppStore.getState()));
+  },
+  flushDesktopState: () => {
+    desktopPersistence.flush();
+  },
+
   loadDesktopState: () => {
     const snapshot = desktopPersistence.load();
     if (!snapshot) return;

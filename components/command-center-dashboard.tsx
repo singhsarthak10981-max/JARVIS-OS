@@ -10,7 +10,6 @@ import { loadMemories } from "@/lib/ai/memory";
 import { supportsRecognition, supportsSynthesis } from "@/lib/ai/voice";
 import AiOrb from "./ai/AiOrb";
 import GlassCard from "./glass-card";
-import TacticalArc from "./hud/TacticalArc";
 
 const dur = tokens.duration;
 
@@ -150,11 +149,12 @@ export default function CommandCenterDashboard() {
 
   return (
     <div className="relative min-h-full overflow-hidden">
-      <TacticalArc />
-
-      <div className="relative z-10 mx-auto w-full max-w-7xl space-y-4 p-3 sm:space-y-5 sm:p-5 lg:space-y-6 lg:p-6">
+      {/* No TacticalArc here on purpose: the single ambient arc is rendered by
+          the desktop shell behind the window. A second window-sized copy painted
+          a ~980px arc across the dashboard and overpowered the content. */}
+      <div className="relative z-10 mx-auto w-full max-w-7xl space-y-3 p-3 sm:space-y-4 sm:p-4 lg:space-y-4 lg:p-5 [@media(max-height:820px)]:space-y-2 [@media(max-height:820px)]:p-3">
         <motion.header
-          className="flex flex-col gap-3 border-b border-jarvis-red/10 pb-4 sm:flex-row sm:items-end sm:justify-between"
+          className="flex flex-col gap-2 border-b border-jarvis-red/10 pb-3 sm:flex-row sm:items-end sm:justify-between [@media(max-height:820px)]:pb-2"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: dur.large / 1000 }}
@@ -187,15 +187,15 @@ export default function CommandCenterDashboard() {
           </div>
         </motion.header>
 
-        <div className="grid grid-cols-1 gap-4 lg:gap-5 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-3 lg:gap-4">
           <motion.div
-            className="relative xl:col-span-1"
+            className="relative lg:col-span-1"
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.55, duration: dur.large / 1000 }}
           >
             <GlassCard
-              className="relative flex min-h-[300px] flex-col items-center justify-center overflow-hidden p-4 sm:min-h-[330px]"
+              className="relative flex min-h-[230px] flex-col items-center justify-center overflow-hidden p-3 sm:min-h-[260px] sm:p-4 [@media(max-height:820px)]:min-h-[138px] [@media(max-height:820px)]:p-2"
               glow
             >
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(229,0,0,0.08),transparent_58%)]" />
@@ -203,11 +203,11 @@ export default function CommandCenterDashboard() {
               <button
                 type="button"
                 onClick={() => openAssistant()}
-                className="group relative z-10 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jarvis-red/40"
+                className="group relative z-10 origin-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jarvis-red/40 [@media(max-height:820px)]:scale-[0.78]"
                 title="Summon JARVIS"
                 aria-label="Open the JARVIS assistant"
               >
-                <AiOrb size={180} wakeUp={orbWakeUp} />
+                <AiOrb size={148} wakeUp={orbWakeUp} />
                 <span className="mt-2 block text-center text-[8.5px] tracking-[0.18em] text-jarvis-text-disabled uppercase transition-colors group-hover:text-jarvis-red/80">
                   Tap to initiate contact
                 </span>
@@ -229,7 +229,7 @@ export default function CommandCenterDashboard() {
           </motion.div>
 
           <motion.div
-            className="space-y-4 xl:col-span-2"
+            className="space-y-3 lg:col-span-2 lg:space-y-4"
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.65, duration: dur.large / 1000 }}
@@ -312,7 +312,7 @@ export default function CommandCenterDashboard() {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 [@media(max-height:820px)]:gap-3">
           {systemCards.map((card, i) => (
             <motion.div
               key={card.title}
@@ -325,8 +325,8 @@ export default function CommandCenterDashboard() {
                 onClick={card.action}
                 className="block w-full text-left"
               >
-                <GlassCard className="p-4 sm:p-5">
-                  <div className="mb-3 flex items-center gap-3">
+                <GlassCard className="p-4 sm:p-5 [@media(max-height:820px)]:p-3">
+                  <div className="mb-3 flex items-center gap-3 [@media(max-height:820px)]:mb-2">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-jarvis-red/20 bg-jarvis-red/10 text-jarvis-red">
                       {card.icon}
                     </div>
@@ -340,7 +340,7 @@ export default function CommandCenterDashboard() {
                     </div>
                   </div>
                   <div className="h-px w-full bg-gradient-to-r from-jarvis-red/20 via-jarvis-red/5 to-transparent" />
-                  <div className="mt-3 flex justify-between text-[9px] tracking-wider text-jarvis-text-disabled sm:text-[10px]">
+                  <div className="mt-3 flex justify-between text-[9px] tracking-wider text-jarvis-text-disabled sm:text-[10px] [@media(max-height:820px)]:mt-2">
                     <span>STATUS</span>
                     <span className="text-jarvis-red/60">{card.detail}</span>
                   </div>

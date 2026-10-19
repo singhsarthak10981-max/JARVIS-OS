@@ -239,3 +239,20 @@
   0%, 100% { opacity: 0.6; }
   50% { opacity: 0.4; }
 }
+
+/*
+ * Accessibility / battery: users who ask their OS to reduce motion shouldn't
+ * get infinitely scrolling scanlines, drifting gradient blobs or spinning
+ * orb rings. Decoration is collapsed to a static state while layout, colour
+ * and all functionality stay intact.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

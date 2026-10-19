@@ -16,6 +16,10 @@ import path from "node:path";
 const projectRoot = typeof __dirname === "string" ? __dirname : process.cwd();
 
 const nextConfig: NextConfig = {
+  // better-sqlite3 ships a native .node addon; loading it from node_modules
+  // at runtime (instead of bundling it) is what makes the memory database
+  // (lib/memory/db.ts) work under Turbopack.
+  serverExternalPackages: ["better-sqlite3"],
   // Allow the sandbox / tunnel preview host (and any subdomain) to talk to
   // the dev server. Production deployments are unaffected.
   allowedDevOrigins: ["*.e2b.app", "*.vercel.app", "localhost", "127.0.0.1"],

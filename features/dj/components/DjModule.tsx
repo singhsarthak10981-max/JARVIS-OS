@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import ModuleShell from "@/components/modules/ModuleShell";
 import type { DjSetlist, DjTrack } from "@/features/dj/types";
 import { useDjLibrary } from "@/features/dj/hooks/useDjLibrary";
+import { useAppStore } from "@/lib/store";
 import {
   addTrackToSetlist,
   createSetlist,
@@ -14,6 +15,7 @@ import {
 } from "@/features/dj/setlistStore";
 import { formatImportedAt } from "@/features/dj/format";
 import DjLaunchpad from "./DjLaunchpad";
+import PerformanceModule from "./performance/PerformanceModule";
 import LibraryTable from "./LibraryTable";
 import SetlistPanel from "./SetlistPanel";
 
@@ -55,7 +57,8 @@ export default function DjModule() {
   const [sortKey, setSortKey] = useState<SortKey>("artist");
   const [page, setPage] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [view, setView] = useState<"launchpad" | "library">("launchpad");
+  const view = useAppStore((s) => s.djView);
+  const setView = useAppStore((s) => s.setDjView);
 
   const [setlists, setSetlists] = useState<DjSetlist[]>(() => loadSetlists());
   const [activeSetlistId, setActiveSetlistId] = useState<string | null>(
@@ -187,9 +190,13 @@ export default function DjModule() {
       title="DJ"
       description="Rekordbox launchpad — hand off to your decks, then build harmonic sets from an optional collection import."
       hideHeader
+      flush={view === "performance"}
     >
       <div
-        className="relative flex h-full min-h-0 flex-col gap-2.5 @container"
+        className={`relative flex h-full min-h-0 flex-col @container ${
+          view === "performance" ? "" : "gap-2.5"
+        }`}
+        data-view={view}
         onDragOver={(event) => {
           event.preventDefault();
           if (!dragging) setDragging(true);
@@ -217,10 +224,12 @@ export default function DjModule() {
           }}
         />
 
+        {view !== "performance" && (
         <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-jarvis-red/10 pb-2">
           {(
             [
               { id: "launchpad", label: "Launchpad" },
+              { id: "performance", label: "Performance" },
               { id: "library", label: "Library" },
             ] as const
           ).map((item) => (
@@ -248,6 +257,7 @@ export default function DjModule() {
               : "No collection imported"}
           </span>
         </div>
+        )}
 
         {error && (
           <div className="flex items-start gap-2 rounded border border-jarvis-warning/30 bg-jarvis-warning/5 px-2.5 py-1.5">
@@ -266,7 +276,15 @@ export default function DjModule() {
           </div>
         )}
 
-        {view === "launchpad" ? (
+        {view === "performance" ? (
+          <PerformanceModule
+            tracks={tracks}
+            meta={meta}
+            onOpenLaunchpad={() => setView("launchpad")}
+            onOpenLibrary={() => setView("library")}
+            onImport={() => fileInputRef.current?.click()}
+          />
+        ) : view === "launchpad" ? (
           <div className="min-h-0 flex-1 overflow-auto pr-0.5">
             <DjLaunchpad
               meta={meta}

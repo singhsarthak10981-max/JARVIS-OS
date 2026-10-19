@@ -6,6 +6,8 @@ import type { WallpaperConfig, DesktopShortcutConfig } from "@/services/storage/
 import { desktopPersistence } from "@/services/storage/DesktopPersistence";
 import type { AiProviderId } from "@/lib/ai/providers";
 
+export type DjView = "launchpad" | "performance" | "library";
+
 // ── AI State ──────────────────────────────────────────────
 
 export type AiState =
@@ -134,6 +136,10 @@ export interface AppState {
    */
   djLaunchRequest: number;
   requestDjLaunch: () => void;
+
+  /** Which surface the DJ module shows. Driven by UI and by voice intents. */
+  djView: DjView;
+  setDjView: (view: DjView) => void;
 
   // Assistant
   assistantOpen: boolean;
@@ -269,6 +275,9 @@ export const useAppStore = create<AppState>((set) => ({
   djLaunchRequest: 0,
   requestDjLaunch: () =>
     set((s) => ({ djLaunchRequest: s.djLaunchRequest + 1 })),
+
+  djView: "launchpad",
+  setDjView: (view) => set({ djView: view }),
 
   // ── Activity ────────────────────────────────────────────
   activity: [],

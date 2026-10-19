@@ -20,6 +20,8 @@ export type JarvisAction =
       moduleId: ModuleId;
       /** Ask the DJ module to attempt a launch through the local bridge. */
       launch?: "rekordbox";
+      /** Open the DJ module directly on a specific surface. */
+      view?: "launchpad" | "performance" | "library";
     }
   | { type: "close-module"; moduleId: ModuleId }
   | { type: "close-all-windows" }
@@ -38,7 +40,8 @@ export type JarvisAction =
   | { type: "clear-session" }
   | { type: "open-palette" }
   | { type: "export-logs" }
-  | { type: "stop-speaking" };
+  | { type: "stop-speaking" }
+  | { type: "set-dj-view"; view: "launchpad" | "performance" | "library" };
 
 export interface IntentContext {
   ownerName: string;
@@ -585,6 +588,84 @@ export function resolveIntent(
 
   // Accept natural openers ("let me groove", "let's open my DJ setup",
   // "time to mix") as well as bare imperatives.
+  // ── DJ performance surface ────────────────────────────────
+  if (
+    /\bperformance\b/.test(t) &&
+    /(open|show|enter|start|switch|go\s+to|launch|view|mode|screen)/.test(t) &&
+    !/(exit|close|leave|back)/.test(t)
+  ) {
+    return {
+      kind: "action",
+      action: { type: "open-module", moduleId: "dj", view: "performance" },
+      thought: "Entering performance view",
+      reply: "Performance view online. Decks, library and voice control are live — transport stays with Rekordbox.",
+    };
+  }
+
+  if (
+    /(exit|close|leave|back\s+from)/.test(t) &&
+    /(performance|decks?\s+view|dj\s+view)/.test(t)
+  ) {
+    return {
+      kind: "action",
+      action: { type: "set-dj-view", view: "launchpad" },
+      thought: "Leaving performance view",
+      reply: "Back to the DJ launchpad.",
+    };
+  }
+
+  if (/(launchpad|dj\s+launchpad|dj\s+home)/.test(t) && /(show|open|back|go|switch)/.test(t)) {
+    return {
+      kind: "action",
+      action: { type: "open-module", moduleId: "dj" },
+      thought: "Returning to the DJ launchpad",
+      reply: "DJ launchpad online.",
+    };
+  }
+
+  // "recommend energy 126" / "suggest something at 124 bpm"
+  const energyMatch = t.match(
+    /(?:recommend|suggest|pick|give\s+me)\b[^\d]{0,24}(\d{2,3})/
+  );
+  if (energyMatch) {
+    const target = Number(energyMatch[1]);
+    const snapshot = getLibrarySnapshot();
+    if (!snapshot || snapshot.trackCount === 0) {
+      return {
+        kind: "answer",
+        reply:
+          "I can recommend tracks near a BPM once your collection is imported. Open the DJ module, Library tab, and import a Rekordbox XML export.",
+      };
+    }
+
+    const candidates = snapshot.tracks
+      .filter((track) => typeof track.bpm === "number" && track.bpm > 0)
+      .map((track) => ({ track, delta: Math.abs((track.bpm ?? 0) - target) }))
+      .sort((a, b) => a.delta - b.delta)
+      .slice(0, 3);
+
+    if (candidates.length === 0) {
+      return {
+        kind: "answer",
+        reply: `No tracks in your library carry a BPM, so I cannot pick for ${target} BPM.`,
+      };
+    }
+
+    const list = candidates
+      .map(
+        ({ track, delta }) =>
+          `${track.title} by ${track.artist} (${track.bpm?.toFixed(1)} BPM${
+            track.camelot ? `, ${track.camelot}` : ""
+          }, ${delta.toFixed(1)} away)`
+      )
+      .join("; ");
+
+    return {
+      kind: "answer",
+      reply: `Closest to ${target} BPM: ${list}. Assign one to a deck from the performance view.`,
+    };
+  }
+
   const openMatch = t.match(
     /^(?:please\s+|hey\s+|ok(?:ay)?\s+|so\s+)?(?:(?:let\s+me|let'?s|i\s+want\s+to|i'?d\s+like\s+to|time\s+to|gonna|going\s+to)\s+(?:go\s+|get\s+)?|(?:can you\s+|could you\s+|would you\s+)?)(?:open|launch|run|start|show|bring up|go to|take me to|navigate to|switch to|focus|fire up|load)\s+(?:the\s+|my\s+|a\s+)?(.+?)(?:\s+(?:module|app|window|workspace|please|for me|up))?[.!]?$/
   );

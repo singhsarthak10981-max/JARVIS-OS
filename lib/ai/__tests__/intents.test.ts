@@ -101,6 +101,50 @@ describe("DJ launch phrasings", () => {
     expect(result.reply).not.toMatch(/launched rekordbox|rekordbox is open/i);
   });
 
+  it("opens the performance surface directly", () => {
+    for (const phrase of [
+      "open performance view",
+      "Hey JARVIS, open performance view",
+      "enter performance mode",
+      "show me the performance screen",
+    ]) {
+      expect(resolve(phrase)).toMatchObject({
+        kind: "action",
+        action: { type: "open-module", moduleId: "dj", view: "performance" },
+      });
+    }
+  });
+
+  it("exits the performance surface", () => {
+    expect(resolve("exit performance view")).toMatchObject({
+      action: { type: "set-dj-view", view: "launchpad" },
+    });
+    expect(resolve("Hey JARVIS, close the performance view")).toMatchObject({
+      action: { type: "set-dj-view", view: "launchpad" },
+    });
+  });
+
+  it("recommends tracks by energy/BPM from the real library", () => {
+    setLibrarySnapshot([
+      { id: "a", title: "Midnight Drive", artist: "Kessler", bpm: 128, camelot: "8A", durationSec: 372 },
+      { id: "b", title: "Night Bus", artist: "Sable", bpm: 126, camelot: "9B", durationSec: 341 },
+    ] as never);
+
+    const result = resolve("recommend energy 126");
+    expect(result.kind).toBe("answer");
+    expect(result.reply).toContain("Night Bus");
+    expect(result.reply).toContain("126");
+
+    clearLibrarySnapshot();
+  });
+
+  it("does not invent a recommendation without a library", () => {
+    clearLibrarySnapshot();
+    const result = resolve("recommend energy 126");
+    expect(result.kind).toBe("answer");
+    expect(result.reply).toMatch(/import/i);
+  });
+
   it("keeps other modules unaffected by the new aliases", () => {
     expect(resolve("open the producer")).toMatchObject({
       action: { type: "open-module", moduleId: "producer" },

@@ -107,6 +107,13 @@ Shipped:
 - Setlists persisted locally; JARVIS can query library status and search by
   BPM/key/artist
 
+Sprint 9b — Performance surface (v1.3.0):
+- Performance view: four decks, collection strip, voice/Spotify/session rail
+- Real local waveform decode (Web Audio, no upload, no capture)
+- Deck assignment + per-deck harmonic suggestions from the Camelot engine
+- Voice intents for entering/exiting the view and BPM recommendations
+- Honest status bar: unmeasurable fields are UNVERIFIED, never invented
+
 Remaining:
 - Local bridge for terminal launch/focus — proposed in `docs/BRIDGE.md`,
   **awaiting approval**; nothing runs on the PC yet

@@ -10,6 +10,8 @@ interface ModuleShellProps {
   /** Hide the in-module header when the surrounding window chrome already
    *  shows the title (avoids a duplicated title stack). */
   hideHeader?: boolean;
+  /** Remove inner padding so a dense surface can own its own layout. */
+  flush?: boolean;
   children: React.ReactNode;
 }
 
@@ -18,6 +20,7 @@ function ModuleShell({
   title,
   description,
   hideHeader = false,
+  flush = false,
   children,
 }: ModuleShellProps) {
   return (
@@ -39,7 +42,15 @@ function ModuleShell({
         <div className="h-2 w-2 rounded-full bg-jarvis-red shadow-[0_0_12px_rgba(229,0,0,0.7)]" />
       </header>
       )}
-      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">{children}</div>
+      <div
+        className={
+          flush
+            ? "min-h-0 flex-1 overflow-hidden"
+            : "min-h-0 flex-1 overflow-auto p-4 sm:p-5"
+        }
+      >
+        {children}
+      </div>
     </section>
   );
 }

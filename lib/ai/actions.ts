@@ -58,6 +58,10 @@ export function executeJarvisAction(
       openModuleWindow(action.moduleId);
       const label = getModule(action.moduleId)?.label ?? action.moduleId;
 
+      if (action.view) {
+        store.setDjView(action.view);
+      }
+
       if (action.launch === "rekordbox") {
         // The DJ launchpad attempts the launch through the local bridge and
         // reports the real outcome. No bridge means no launch — never faked.
@@ -69,6 +73,11 @@ export function executeJarvisAction(
       }
 
       return { ok: true, message: `${label} online, ${owner}.` };
+    }
+
+    case "set-dj-view": {
+      store.setDjView(action.view);
+      return { ok: true, message: `DJ view set to ${action.view}.` };
     }
 
     case "close-module": {

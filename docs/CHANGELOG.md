@@ -4,6 +4,44 @@ All notable changes to JARVIS OS are documented here.
 
 ---
 
+# v1.3.0 — DJ Performance Surface
+Date: 19 October 2026
+
+## Added
+- **Performance view** in the DJ module, following the performance-module
+  reference layout: four decks, collection strip, and a right rail for voice,
+  Spotify and session state.
+- **Real local waveform analysis** — pick a local audio file and the browser
+  decodes it with the Web Audio API and draws the actual peak envelope. Nothing
+  is uploaded and no stream is captured. No file, no waveform; never a
+  generated pattern.
+- **Deck assignment** from the imported collection, with per-deck harmonic
+  suggestions scored by the existing Camelot engine.
+- **Voice activation panel** wired to the real Web Speech recogniser, listing
+  only commands that resolve today and marking bridge-dependent ones.
+- **Spotify Free · Brave panel** — detects Brave via `navigator.brave` and
+  offers web-player and `spotify:` hand-offs. Deliberately not an integration.
+- **Status bar and session log** built from measured state, with unmeasurable
+  fields marked `UNVERIFIED` / `—`.
+- Voice intents: "open/exit performance view", "show the launchpad", and
+  "recommend energy 126" (real BPM search over the imported library).
+- 12 new tests (performance rendering, status-bar truthfulness, intent routing)
+  — 114 total
+
+## Changed
+- `DjView` moved into the store so voice intents and UI share one source of
+  truth for the active DJ surface.
+- `ModuleShell` gained a `flush` mode for dense surfaces that own their layout.
+- DJ module has three tabs: Launchpad, Performance, Library.
+
+## Not implemented (by design)
+- Deck transport, hot cues, loops and EQ are inert. They belong to Rekordbox;
+  a browser cannot drive them.
+- Audio interface, latency and controller state are not readable from a page
+  and are reported as unverified. Controller support is a later phase.
+
+---
+
 # v1.2.0 — Rekordbox Launchpad
 Date: 19 October 2026
 

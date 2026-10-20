@@ -347,7 +347,12 @@ describe("saved memories reach prompts relevance-selected (all providers)", () =
     const system = openAiSystemPrompt(calls[0].body);
     expect(system).not.toContain("oat flat white");
     expect(system).not.toContain("corner roaster");
-    expect(system).toContain("(no stored memories yet)");
+    // The empty-selection wording must not imply the memory bank is empty.
+    expect(system).toContain(
+      "no relevant saved-memory facts were supplied for this request"
+    );
+    expect(system).toContain("do not infer whether the memory bank is empty");
+    expect(system).not.toContain("(no stored memories yet)");
 
     await vi.waitFor(() => expect(calls).toHaveLength(2));
   });
@@ -398,6 +403,14 @@ describe("memoryEnabled setting", () => {
     // Neither the SQLite fact nor the pinboard memory reached the prompt.
     expect(calls[0].body).not.toContain("coffee_preference");
     expect(calls[0].body).not.toContain("oat flat white");
+    // The prompt carries the neutral empty-selection wording instead of
+    // claiming the memory bank is empty (it isn't — see overview below).
+    expect(calls[0].body).toContain(
+      "no relevant saved-memory facts were supplied for this request"
+    );
+    expect(calls[0].body).toContain(
+      "do not infer whether the memory bank is empty"
+    );
 
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(calls).toHaveLength(1); // no reflection call

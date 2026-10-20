@@ -260,6 +260,21 @@ describe("selectRelevantMemories", () => {
     ).toEqual(["i always order café con leche", "favourite genre is r&b"]);
   });
 
+  it("matches whole tokens only — substrings do not count", () => {
+    // Regression: "art" occurs inside "party", but they are different
+    // tokens, so the memory must not be selected.
+    expect(
+      selectRelevantMemories(["i love a good party"], "tell me about art")
+    ).toEqual([]);
+    // The same term still selects a memory containing it as a word.
+    expect(
+      selectRelevantMemories(
+        ["my favourite art is baroque"],
+        "tell me about art"
+      )
+    ).toEqual(["my favourite art is baroque"]);
+  });
+
   it("handles empty inputs", () => {
     expect(selectRelevantMemories([], "coffee")).toEqual([]);
     expect(selectRelevantMemories(texts, "")).toEqual([]);

@@ -608,13 +608,16 @@ export function buildSystemPrompt(
         ? `\n${buildSearchFailureNotice(search.message)}\n`
         : "";
 
+  // Deliberately neutral when empty: no selection can mean memory is
+  // disabled or nothing matched this turn — it does not mean the memory
+  // bank is empty, and the prompt must not tell the model otherwise.
   const memoryBlock =
     memories.length > 0
       ? memories
           .slice(0, 30)
           .map((m) => `- ${m}`)
           .join("\n")
-      : "(no stored memories yet)";
+      : "(no relevant saved-memory facts were supplied for this request; do not infer whether the memory bank is empty)";
 
   const storedBlock = storedMemory
     ? `\nRelevant entries from the local memory store:\n${storedMemory}\n`

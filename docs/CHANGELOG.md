@@ -4,6 +4,63 @@ All notable changes to JARVIS OS are documented here.
 
 ---
 
+# v1.5.0 — Multimodal Foundation: Image Input
+Date: 20 October 2026
+
+## Added
+- **Image input for vision-capable models.** Attach PNG, JPEG or WebP images
+  (file picker, drag-and-drop onto the panel, or clipboard paste), preview and
+  remove them, then send a normal prompt and get a streamed answer. Limits:
+  3 images per message, 5 MiB each, 10 MiB total, enforced in the browser and
+  again on the server (strict base64 plus magic-byte type verification —
+  declared types are never trusted).
+- **A typed model-capability registry** (`lib/ai/model-capabilities.ts`),
+  separate from both availability and credentials. The initial catalog is
+  verified against official provider documentation. Unknown models, Custom
+  endpoints and Local Core are text-only; Local Core never pretends to have
+  seen an image. The repository defaults for OpenAI, Anthropic, Google and
+  OpenRouter are vision-capable; Groq and Ollama need a vision model selected
+  (e.g. `qwen/qwen3.8-27b`, `ollama pull qwen3-vl:8b`).
+- **Honest refusals.** A model that cannot view images blocks submission with
+  the reason in the composer (`unsupported_modality` server-side) — the image
+  is never silently dropped and JARVIS never switches provider or model on
+  its own. The composer names the destination (cloud provider + model, or
+  local Ollama) before anything is sent.
+- Per-adapter serialization on the existing HTTP transports (no new SDK):
+  OpenAI-compatible `image_url` parts (including Ollama's `/v1` endpoint),
+  Anthropic base64 image blocks, Gemini `inline_data` parts. Text-only
+  requests are byte-for-byte what they were before.
+- `docs/MULTIMODAL.md` (architecture, verified catalog, privacy invariants,
+  known limitations) and an "Image input (vision)" section in
+  `docs/AI_SETUP.md`. Audio/video/image-generation capability fields exist in
+  the registry, all off, so future work doesn't reshape it.
+
+## Privacy
+- Image bytes and data URLs never enter browser persistence, the saved-memory
+  pinboard, SQLite (memory, conversation history, reflection learning),
+  telemetry, logs, diagnostics, error messages or provider metadata. History
+  stays text-only: follow-up turns can't see an earlier image — re-attach to
+  ask more. No third-party file hosting; an image leaves the machine only on
+  deliberate submission to the provider the user selected. Memory v2's
+  boundaries are unchanged.
+
+## Tests
+- 79 new tests (capability lookup incl. unknown/Local Core defaults,
+  attachment validation incl. spoofed types and size caps, per-adapter
+  serialization, route gating with zero provider calls on refusal,
+  persistence/reflection exclusion, composer UI) — 831 total across 59 files.
+  `npm run verify` and `npm run build` pass. A manual smoke ran against a
+  fake local Ollama endpoint (streamed vision reply, refusal for a text-only
+  model, 400 for malformed payloads, empty-handed SQLite); no live cloud
+  provider was called.
+
+## Not implemented
+- Audio transcription, real-time voice, video understanding and image
+  generation. They are designed for in the capability registry and are not
+  advertised anywhere as working.
+
+---
+
 # v1.4.0 — Persistent Decks & Bridge Design
 Date: 19 October 2026
 

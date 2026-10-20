@@ -27,6 +27,20 @@ function MessageBubbleInner({ message }: MessageBubbleProps) {
         className="flex justify-end"
       >
         <div className="max-w-[85%] rounded-2xl rounded-br-sm border border-jarvis-red/25 bg-jarvis-red/10 px-3.5 py-2.5">
+          {message.imagePreviews && message.imagePreviews.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {message.imagePreviews.map((src, index) => (
+                // Session-only blob: previews cannot use the Next.js image optimizer.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={src}
+                  src={src}
+                  alt={`Attached image ${index + 1}`}
+                  className="h-16 w-16 rounded-lg border border-jarvis-red/20 object-cover"
+                />
+              ))}
+            </div>
+          )}
           <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-white">
             {message.text}
           </p>

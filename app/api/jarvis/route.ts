@@ -18,6 +18,8 @@ import {
   type CompletionResult,
 } from "@/lib/memory/chat";
 import { selectRelevantMemories } from "@/lib/memory/context";
+import { validateImageAttachments } from "@/lib/ai/attachments";
+import { lookupModelCapabilities } from "@/lib/ai/model-capabilities";
 import { classifyFetchError } from "@/lib/ai/errors";
 import { runWebSearch, toSearchNotice } from "@/lib/ai/search";
 import { searchConfigured } from "@/lib/ai/search/tavily";
@@ -42,6 +44,12 @@ export async function GET() {
 
 interface JarvisRequestBody {
   messages?: unknown;
+  /**
+   * Images attached to the current user turn (`{mimeType, data}` pairs).
+   * Untrusted until `validateImageAttachments` has measured and
+   * magic-checked every payload.
+   */
+  images?: unknown;
   memories?: unknown;
   ownerName?: unknown;
   provider?: unknown;
@@ -159,6 +167,7 @@ function reflectionCompletion(mainConfig: ProviderConfig) {
     );
     try {
       let text = "";
+      // No images here, ever: reflection only sees the turn's text.
       for await (const delta of streamChat(
         resolved.config,
         system,
@@ -276,6 +285,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // Image attachments for this turn only, validated before anything
+  // else runs: malformed or oversized payloads are a plain 400. The
+  // validated bytes are forwarded to exactly one place — this turn's
+  // provider call — never to memory retrieval, persistence, learning
+  // or logs.
+  const imageValidation = validateImageAttachments(body.images);
+  if (!imageValidation.ok) {
+    return NextResponse.json(
+      { error: imageValidation.error },
+      { status: 400 }
+    );
+  }
+  const images = imageValidation.images;
+
   const memories = sanitizeMemories(body.memories);
   const activeModule =
     typeof body.context?.activeModule === "string"
@@ -358,6 +381,39 @@ export async function POST(request: Request) {
         configured: true,
         reason: null,
       });
+
+      // ── Image capability gate ─────────────────────────────
+      // A model that cannot see images refuses the turn here — loudly.
+      // There is no silent switch to another provider/model, and the
+      // local core never answers as if it had looked at the image.
+      if (images.length > 0) {
+        const capability = lookupModelCapabilities(
+          config.provider,
+          config.model
+        );
+        const label = getProviderMeta(config.provider).label;
+        if (!capability.capabilities.imageInput) {
+          send({
+            type: "error",
+            message: `${label} · ${config.model} does not support image input. Switch to a vision-capable model in Settings → Intelligence, or remove the image and try again.`,
+            code: "unsupported_modality",
+          });
+          controller.close();
+          return;
+        }
+        if (
+          capability.maxImages !== undefined &&
+          images.length > capability.maxImages
+        ) {
+          send({
+            type: "error",
+            message: `${label} · ${config.model} accepts at most ${capability.maxImages} image${capability.maxImages === 1 ? "" : "s"} per request. Remove one and try again.`,
+            code: "unsupported_modality",
+          });
+          controller.close();
+          return;
+        }
+      }
 
       // ── Web search (retrieval before generation) ────────
       // Search state is streamed so the UI can show what happened even when
@@ -454,7 +510,8 @@ export async function POST(request: Request) {
             config,
             system,
             messages,
-            abort.signal
+            abort.signal,
+            images
           )) {
             if (delta.text) {
               assistantText += delta.text;

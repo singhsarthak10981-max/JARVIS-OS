@@ -19,6 +19,10 @@ import {
   type OfficialPromptContext,
 } from "./search/prompt";
 import type { SearchSource } from "./search/types";
+import {
+  imageDataUrl,
+  type ImageAttachmentPayload,
+} from "./attachments";
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -320,11 +324,121 @@ async function ensureOk(response: Response, label: string): Promise<void> {
 
 type Delta = { text?: string };
 
+/**
+ * Multimodal serialization. Images belong to the current turn only:
+ * each adapter splices them into the LAST user message in its own
+ * native shape, and `ChatTurn` history itself stays plain text — so
+ * nothing downstream (persistence, reflection, logs) can ever see
+ * image bytes. With no images, every builder below produces exactly
+ * the text-only payloads the adapters always sent.
+ */
+function lastUserIndex(messages: ChatTurn[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") return i;
+  }
+  return -1;
+}
+
+type OpenAiContent =
+  | string
+  | (
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    )[];
+
+function openAiMessages(
+  system: string,
+  messages: ChatTurn[],
+  images: readonly ImageAttachmentPayload[]
+): { role: string; content: OpenAiContent }[] {
+  const out: { role: string; content: OpenAiContent }[] = [
+    { role: "system", content: system },
+    ...messages.map((m) => ({
+      role: m.role,
+      content: m.content as OpenAiContent,
+    })),
+  ];
+  if (images.length > 0) {
+    const index = lastUserIndex(messages);
+    if (index !== -1) {
+      out[index + 1].content = [
+        { type: "text", text: messages[index].content },
+        ...images.map((image) => ({
+          type: "image_url" as const,
+          image_url: { url: imageDataUrl(image) },
+        })),
+      ];
+    }
+  }
+  return out;
+}
+
+type AnthropicContent =
+  | string
+  | (
+      | { type: "text"; text: string }
+      | {
+          type: "image";
+          source: { type: "base64"; media_type: string; data: string };
+        }
+    )[];
+
+function anthropicMessages(
+  messages: ChatTurn[],
+  images: readonly ImageAttachmentPayload[]
+): { role: string; content: AnthropicContent }[] {
+  const out = messages.map((m) => ({
+    role: m.role,
+    content: m.content as AnthropicContent,
+  }));
+  if (images.length > 0) {
+    const index = lastUserIndex(messages);
+    if (index !== -1) {
+      out[index].content = [
+        { type: "text", text: messages[index].content },
+        ...images.map((image) => ({
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: image.mimeType,
+            data: image.data,
+          },
+        })),
+      ];
+    }
+  }
+  return out;
+}
+
+type GooglePart =
+  | { text: string }
+  | { inline_data: { mime_type: string; data: string } };
+
+function googleContents(
+  messages: ChatTurn[],
+  images: readonly ImageAttachmentPayload[]
+): { role: string; parts: GooglePart[] }[] {
+  const target = images.length > 0 ? lastUserIndex(messages) : -1;
+  return messages.map((m, i) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts:
+      i === target
+        ? [
+            { text: m.content },
+            ...images.map((image) => ({
+              inline_data: { mime_type: image.mimeType, data: image.data },
+            })),
+          ]
+        : [{ text: m.content }],
+  }));
+}
+
 async function* streamOpenAiCompatible(
   config: ProviderConfig,
   system: string,
   messages: ChatTurn[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  images: readonly ImageAttachmentPayload[] = []
 ): AsyncGenerator<Delta> {
   const response = await fetch(`${config.baseUrl}/chat/completions`, {
     method: "POST",
@@ -345,7 +459,7 @@ async function* streamOpenAiCompatible(
       stream: true,
       temperature: 0.7,
       max_tokens: 800,
-      messages: [{ role: "system", content: system }, ...messages],
+      messages: openAiMessages(system, messages, images),
     }),
     signal,
   });
@@ -369,7 +483,8 @@ async function* streamAnthropic(
   config: ProviderConfig,
   system: string,
   messages: ChatTurn[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  images: readonly ImageAttachmentPayload[] = []
 ): AsyncGenerator<Delta> {
   const response = await fetch(`${config.baseUrl}/v1/messages`, {
     method: "POST",
@@ -384,7 +499,7 @@ async function* streamAnthropic(
       max_tokens: 800,
       temperature: 0.7,
       stream: true,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      messages: anthropicMessages(messages, images),
     }),
     signal,
   });
@@ -410,7 +525,8 @@ async function* streamGoogle(
   config: ProviderConfig,
   system: string,
   messages: ChatTurn[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  images: readonly ImageAttachmentPayload[] = []
 ): AsyncGenerator<Delta> {
   const url = new URL(
     `${config.baseUrl}/v1beta/models/${encodeURIComponent(config.model)}:streamGenerateContent`
@@ -427,10 +543,7 @@ async function* streamGoogle(
     },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: system }] },
-      contents: messages.map((m) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      })),
+      contents: googleContents(messages, images),
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 800,
@@ -464,19 +577,22 @@ export async function* streamChat(
   config: ProviderConfig,
   system: string,
   messages: ChatTurn[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  images: readonly ImageAttachmentPayload[] = []
 ): AsyncGenerator<Delta> {
   switch (config.provider) {
     case "anthropic":
-      yield* streamAnthropic(config, system, messages, signal);
+      yield* streamAnthropic(config, system, messages, signal, images);
       return;
     case "google":
-      yield* streamGoogle(config, system, messages, signal);
+      yield* streamGoogle(config, system, messages, signal, images);
       return;
     case "local":
+      // Local Core is text-only; the route refuses image turns before
+      // dispatch, so images are never silently dropped here.
       return;
     default:
-      yield* streamOpenAiCompatible(config, system, messages, signal);
+      yield* streamOpenAiCompatible(config, system, messages, signal, images);
   }
 }
 

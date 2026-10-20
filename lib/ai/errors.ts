@@ -25,6 +25,8 @@ export type ProviderErrorCode =
   | "invalid_request"
   /** The safety filter blocked the prompt. */
   | "content_blocked"
+  /** The selected model cannot accept this kind of input (e.g. images on a text-only model). */
+  | "unsupported_modality"
   /** Provider-side failure (5xx). */
   | "upstream_error"
   /** Local core misconfiguration that has nothing to do with credentials. */

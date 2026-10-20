@@ -17,6 +17,7 @@ import {
   prepareTurnMemory,
   type CompletionResult,
 } from "@/lib/memory/chat";
+import { selectRelevantMemories } from "@/lib/memory/context";
 import { classifyFetchError } from "@/lib/ai/errors";
 import { runWebSearch, toSearchNotice } from "@/lib/ai/search";
 import { searchConfigured } from "@/lib/ai/search/tavily";
@@ -50,6 +51,12 @@ interface JarvisRequestBody {
   apiKey?: unknown;
   /** Settings toggle. Any other value than `false` means enabled. */
   webSearch?: unknown;
+  /**
+   * Settings → Memory bank toggle, same convention: anything other than
+   * `false` means enabled. Disabled stops injection and learning;
+   * conversation persistence continues.
+   */
+  memoryEnabled?: unknown;
   context?: {
     activeModule?: unknown;
     openWindows?: unknown;
@@ -112,10 +119,12 @@ function sanitizeMessages(input: unknown): ChatTurn[] {
 
 function sanitizeMemories(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
+  // Cap at the pinboard's own store limit (200) so relevance selection can
+  // see every saved memory; the prompt itself receives at most 8.
   return input
     .filter((m): m is string => typeof m === "string" && m.trim().length > 0)
     .map((m) => m.trim().slice(0, 400))
-    .slice(0, 40);
+    .slice(0, 200);
 }
 
 const REFLECTION_TIMEOUT_MS = 30_000;
@@ -284,11 +293,24 @@ export async function POST(request: Request) {
     : `${getProviderMeta(resolved.provider).label} · ${resolved.model} (not connected)`;
 
   const webSearchEnabled = body.webSearch !== false;
+  const memorySettingEnabled = body.memoryEnabled !== false;
   const lastUserMessage = messages[messages.length - 1]?.content ?? "";
   const previousUserMessage = [...messages]
     .reverse()
     .slice(1)
     .find((message) => message.role === "user")?.content;
+
+  // The browser pinboard reaches model prompts relevance-selected (≤8,
+  // strongest matches first), never in bulk; an unrelated turn selects
+  // nothing. The full sanitized list is still used below for cross-store
+  // dedupe only. With memory disabled in Settings nothing is injected at
+  // all — the stored entries themselves are left intact.
+  const selectedMemories = memorySettingEnabled
+    ? selectRelevantMemories(
+        memories,
+        [lastUserMessage, previousUserMessage ?? ""].join("\n")
+      )
+    : [];
 
   const encoder = new TextEncoder();
 
@@ -395,17 +417,21 @@ export async function POST(request: Request) {
 
       // Long-term memory (SQLite). Retrieval is local, fail-soft, and the
       // block is injected only when this turn's prompt stays on the machine
-      // (Ollama). Cloud providers keep receiving exactly what they received
-      // before: the browser-supplied memories, nothing from the store.
-      const turnMemory = prepareTurnMemory({
-        queryText: [lastUserMessage, previousUserMessage ?? ""].join("\n"),
-        clientMemories: memories,
-        inject: config.provider === "ollama",
-      });
+      // (Ollama). Every provider, cloud ones included, receives only the
+      // relevance-selected pinboard memories (≤8) — never the whole bank —
+      // and nothing from the SQLite store ever leaves the machine. With
+      // memory disabled in Settings, retrieval is skipped entirely.
+      const turnMemory = memorySettingEnabled
+        ? prepareTurnMemory({
+            queryText: [lastUserMessage, previousUserMessage ?? ""].join("\n"),
+            clientMemories: memories,
+            inject: config.provider === "ollama",
+          })
+        : { block: "", candidateKeys: [] };
 
       const system = buildSystemPrompt(
         ownerName,
-        memories,
+        selectedMemories,
         { activeModule, openWindows, providerLabel },
         searchPrompt,
         turnMemory.block || undefined
@@ -442,17 +468,22 @@ export async function POST(request: Request) {
         // Persist the completed exchange, then let a local model review it
         // for durable memory updates off the response path. Both steps are
         // fail-soft: a memory problem can never affect the delivered reply,
-        // and learning never delays the stream closing.
+        // and learning never delays the stream closing. Disabling saved
+        // memory in Settings stops learning only — conversation history is
+        // not saved memory, so persistence continues (JARVIS_MEMORY=off
+        // remains the full server-side stop).
         persistTurn({ history: messages, assistantText });
-        void learnFromTurn(
-          {
-            userText: lastUserMessage,
-            assistantText,
-            candidateKeys: turnMemory.candidateKeys,
-            clientMemories: memories,
-          },
-          { completeText: reflectionCompletion(config) }
-        );
+        if (memorySettingEnabled) {
+          void learnFromTurn(
+            {
+              userText: lastUserMessage,
+              assistantText,
+              candidateKeys: turnMemory.candidateKeys,
+              clientMemories: memories,
+            },
+            { completeText: reflectionCompletion(config) }
+          );
+        }
       } catch (error) {
         const classified = classifyFetchError(
           error,

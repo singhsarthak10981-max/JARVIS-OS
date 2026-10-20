@@ -138,3 +138,55 @@ describe("desktop snapshot", () => {
     expect(raw).not.toContain("gemini-3.8-flash");
   });
 });
+
+describe("saved memory preference", () => {
+  it("defaults to enabled and stores only a boolean", async () => {
+    const store = await freshStore();
+
+    expect(store.getState().settings.memoryEnabled).toBe(true);
+
+    store.getState().updateSettings({ memoryEnabled: false });
+
+    const raw = (localStorage.getItem(SETTINGS_STORAGE_KEY) ?? "").toLowerCase();
+    expect(raw).toContain('"memoryenabled":false');
+    // The toggle must not drag memory contents into the settings record.
+    expect(raw).not.toContain("jarvis-memory");
+  });
+
+  it("stays enabled for records written before the toggle existed", async () => {
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ ownerName: "Sarthak", theme: "stealth" })
+    );
+
+    const store = await freshStore();
+    store.getState().hydrateSettings();
+
+    expect(store.getState().settings.memoryEnabled).toBe(true);
+    expect(store.getState().settings.ownerName).toBe("Sarthak");
+  });
+
+  it("restores a stored false", async () => {
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ memoryEnabled: false })
+    );
+
+    const store = await freshStore();
+    store.getState().hydrateSettings();
+
+    expect(store.getState().settings.memoryEnabled).toBe(false);
+  });
+
+  it("falls back to enabled when the stored value has the wrong type", async () => {
+    localStorage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({ memoryEnabled: "yes" })
+    );
+
+    const store = await freshStore();
+    store.getState().hydrateSettings();
+
+    expect(store.getState().settings.memoryEnabled).toBe(true);
+  });
+});

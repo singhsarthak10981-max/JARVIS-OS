@@ -21,6 +21,7 @@ const context: IntentContext = {
     "my studio is in Madrid",
     "the bar opens at 7pm",
   ],
+  memoryEnabled: true,
   currentTheme: "tactical-red",
   now: new Date("2026-10-19T20:30:00Z"),
 };
@@ -259,6 +260,49 @@ describe("memory", () => {
     expect(resolve("forget everything")).toMatchObject({
       action: { type: "forget-memory" },
     });
+  });
+
+  it("keeps explicit recall wider than the prompt selection", () => {
+    const memories = Array.from({ length: 30 }, (_, i) => `memory ${i + 1}`);
+    const result = resolveIntent("what do you remember?", {
+      ...context,
+      memories,
+      memoryCount: memories.length,
+    });
+    expect(result.kind).toBe("answer");
+    expect(result.reply).toContain("25. memory 25");
+    expect(result.reply).not.toContain("memory 26");
+    expect(result.reply).toContain("5 more");
+    expect(result.reply).toContain("Settings → Memory bank");
+  });
+
+  it("refuses to store new facts while memory is disabled", () => {
+    const result = resolveIntent("remember that the studio is in Madrid", {
+      ...context,
+      memoryEnabled: false,
+    });
+    expect(result.kind).toBe("answer");
+    expect(result.action).toBeUndefined();
+    expect(result.reply).toContain("switched off");
+    // The refusal must not echo back that it kept the fact.
+    expect(result.reply).toContain("not kept");
+  });
+
+  it("does not expose stored facts on recall while memory is disabled", () => {
+    const result = resolveIntent("what do you remember?", {
+      ...context,
+      memoryEnabled: false,
+    });
+    expect(result.kind).toBe("answer");
+    expect(result.reply).toContain("switched off");
+    expect(result.reply).not.toContain("Madrid");
+    expect(result.reply).not.toContain("bar opens");
+  });
+
+  it("still allows explicit forgetting while memory is disabled", () => {
+    expect(
+      resolveIntent("forget everything", { ...context, memoryEnabled: false })
+    ).toMatchObject({ action: { type: "forget-memory" } });
   });
 });
 

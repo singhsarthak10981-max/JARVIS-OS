@@ -77,6 +77,13 @@ export interface SettingsState {
    * server filesystem, never uploaded. Defaults to off.
    */
   localTelemetryEnabled: boolean;
+  /**
+   * Long-term memory: saving facts, injecting relevant ones into prompts,
+   * explicit recall, and server-side learning. Off stops all of that but
+   * deletes nothing — stored memories and conversation history are kept.
+   * Defaults to on, including for installations predating the toggle.
+   */
+  memoryEnabled: boolean;
 
   // Voice
   voiceEnabled: boolean;
@@ -99,6 +106,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   aiBaseUrl: "",
   webSearchEnabled: true,
   localTelemetryEnabled: false,
+  memoryEnabled: true,
   voiceEnabled: false,
   voiceRate: 1,
   voicePitch: 0.9,

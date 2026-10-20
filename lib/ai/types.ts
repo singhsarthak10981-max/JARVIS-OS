@@ -51,6 +51,12 @@ export interface JarvisRequest {
   };
   /** Settings toggle. The server may still decline to search. */
   webSearch?: boolean;
+  /**
+   * Settings → Memory bank toggle. `false` means: inject no saved facts
+   * (pinboard or server store) and do not learn from this turn.
+   * Conversation persistence is unaffected.
+   */
+  memoryEnabled?: boolean;
 }
 
 export interface TestConnectionResult {

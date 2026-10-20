@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useAppStore } from "@/lib/store";
 import { getProviderMeta } from "@/lib/ai/providers";
+import { lookupModelCapabilities } from "@/lib/ai/model-capabilities";
 import {
   WAKE_WORD,
   resolveIntent,
@@ -40,6 +41,7 @@ import {
 import type {
   AssistantMeta,
   ChatMessage,
+  OutgoingImage,
   ServerStatus,
 } from "@/lib/ai/types";
 import type { SearchNotice } from "@/lib/ai/search/types";
@@ -67,7 +69,10 @@ interface JarvisContextValue {
   lastMeta: AssistantMeta | null;
   recognitionSupported: boolean;
   synthesisSupported: boolean;
-  send: (text: string) => Promise<void>;
+  send: (
+    text: string,
+    images?: readonly OutgoingImage[]
+  ) => Promise<void>;
   startListening: () => void;
   stopListening: () => void;
   stopAll: () => void;
@@ -109,9 +114,21 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   const recognitionRef = useRef<RecognizerHandle | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastUserRef = useRef("");
+  const lastImagesRef = useRef<readonly OutgoingImage[]>([]);
+  /** Live `blob:` preview URLs shown on user bubbles; revoked on clear/unmount. */
+  const livePreviewUrlsRef = useRef<Set<string>>(new Set());
   const fallbackNotifiedRef = useRef(false);
   const initializedRef = useRef(false);
   const greetedRef = useRef(false);
+
+  // Revoke any live image-preview object URLs when the provider unmounts.
+  useEffect(() => {
+    const urls = livePreviewUrlsRef.current;
+    return () => {
+      for (const url of urls) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, []);
 
   // Telemetry is opt-in and read live at send time, so switching it off in
   // Settings immediately stops new events. The reporter never throws and its
@@ -241,15 +258,17 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const send = useCallback(
-    async (raw: string) => {
+    async (raw: string, outgoingImages: readonly OutgoingImage[] = []) => {
       const text = raw.trim();
       if (!text || streamingRef.current) return;
+      const hasImages = outgoingImages.length > 0;
 
       setError(null);
       const store = useAppStore.getState();
       const settings = store.settings;
       const owner = settings.ownerName || "sir";
       lastUserRef.current = text;
+      lastImagesRef.current = outgoingImages;
 
       const turnStartedAt = nowMs();
       const traceFor = (dispatch: "deterministic" | "model") =>
@@ -260,11 +279,21 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
           emit: (event) => telemetry.record(event),
         });
 
+      // Preview ownership transfers to the message bubble; the URLs are
+      // revoked when the chat is cleared or the provider unmounts.
+      for (const image of outgoingImages) {
+        livePreviewUrlsRef.current.add(image.previewUrl);
+      }
       pushMessage({
         id: newId(),
         role: "user",
         text,
         timestamp: Date.now(),
+        ...(hasImages
+          ? {
+              imagePreviews: outgoingImages.map((image) => image.previewUrl),
+            }
+          : {}),
       });
       store.logActivity(`Query: ${text.slice(0, 70)}`, "ai");
 
@@ -287,10 +316,32 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         wakePhrase: settings.wakePhrase,
       };
 
-      const intent = resolveIntent(text, intentCtx);
+      // An image turn always goes to the model: deterministic desktop
+      // intents must not swallow it, and a model that cannot see images
+      // refuses it right here (the composer blocks this too, and the
+      // server refuses it again independently).
+      if (hasImages) {
+        const capability = lookupModelCapabilities(
+          settings.aiProvider,
+          settings.aiModel
+        );
+        if (!capability.capabilities.imageInput) {
+          pushMessage({
+            id: newId(),
+            role: "assistant",
+            text: `${getProviderMeta(settings.aiProvider).label} · ${capability.model} does not support image input, ${owner}. Switch to a vision-capable model in Settings → Intelligence, or remove the image and try again.`,
+            timestamp: Date.now(),
+            provider: providerLabel,
+            error: true,
+          });
+          return;
+        }
+      }
+
+      const intent = hasImages ? null : resolveIntent(text, intentCtx);
 
       // ── Desktop action ────────────────────────────────────
-      if (intent.kind === "action" && intent.action) {
+      if (intent && intent.kind === "action" && intent.action) {
         store.setAiState("executing");
         if (intent.thought) store.logActivity(intent.thought, "info");
         await wait(220);
@@ -339,7 +390,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
       }
 
       // ── Deterministic answer ──────────────────────────────
-      if (intent.kind === "answer" && intent.reply) {
+      if (intent && intent.kind === "answer" && intent.reply) {
         pushMessage({
           id: newId(),
           role: "assistant",
@@ -397,6 +448,16 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         meta = await streamJarvis(
           {
             messages: history,
+            // Attached images ride along for this turn's provider call
+            // only — never as part of the text history above.
+            ...(hasImages
+              ? {
+                  images: outgoingImages.map((image) => ({
+                    mimeType: image.mimeType,
+                    data: image.data,
+                  })),
+                }
+              : {}),
             // With saved memory off, no facts leave the browser at all; the
             // server additionally enforces the flag before any injection.
             memories: settings.memoryEnabled ? memories : [],
@@ -653,6 +714,10 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearChat = useCallback(() => {
+    // Session-only image previews die with the conversation.
+    for (const url of livePreviewUrlsRef.current) URL.revokeObjectURL(url);
+    livePreviewUrlsRef.current.clear();
+    lastImagesRef.current = [];
     wipeConversation();
     greetedRef.current = true;
     const settings = useAppStore.getState().settings;
@@ -670,7 +735,9 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   }, [commitMessages]);
 
   const retryLast = useCallback(() => {
-    if (lastUserRef.current) void send(lastUserRef.current);
+    if (lastUserRef.current) {
+      void send(lastUserRef.current, lastImagesRef.current);
+    }
   }, [send]);
 
   const dismissError = useCallback(() => setError(null), []);

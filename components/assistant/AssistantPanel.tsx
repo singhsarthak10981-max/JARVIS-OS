@@ -5,12 +5,24 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { tokens } from "@/lib/tokens";
 import { getProviderMeta } from "@/lib/ai/providers";
+import { lookupModelCapabilities } from "@/lib/ai/model-capabilities";
+import {
+  accumulateImages,
+  readImageFile,
+  type SizedImageAttachment,
+} from "@/lib/ai/attachments";
 import { openModuleWindow } from "@/lib/window-actions";
 import { SUGGESTED_PROMPTS } from "@/lib/ai/intents";
 import { loadMemories } from "@/lib/ai/memory";
 import { useJarvis } from "./JarvisProvider";
 import MessageBubble from "./MessageBubble";
 import VoiceVisualizer from "./VoiceVisualizer";
+import {
+  AttachImageControl,
+  PendingImageStrip,
+  type AttachmentStatus,
+  type PendingImage,
+} from "./ComposerAttachments";
 
 function IconMic({ size = 16 }: { size?: number }) {
   return (
@@ -93,6 +105,10 @@ export default function AssistantPanel() {
   } = useJarvis();
 
   const [input, setInput] = useState("");
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const pendingIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -140,6 +156,36 @@ export default function AssistantPanel() {
     };
   }, [settings.aiProvider, settings.aiBaseUrl, serverStatus]);
 
+  // Whether the selected model can receive images at all — decided by
+  // model capability metadata, not by provider availability. Unknown
+  // models are text-only, and the wording says so.
+  const imageCapability = useMemo(
+    () => lookupModelCapabilities(settings.aiProvider, settings.aiModel),
+    [settings.aiProvider, settings.aiModel]
+  );
+  const canUseImages = imageCapability.capabilities.imageInput;
+
+  const imageBlockedMessage =
+    settings.aiProvider === "local"
+      ? "Local Core can't view images. Choose a vision-capable model in Settings → Intelligence (for example a local Ollama vision model), or remove the image."
+      : imageCapability.known
+        ? `${getProviderMeta(settings.aiProvider).label} · ${imageCapability.model} can't view images. Choose a vision-capable model in Settings → Intelligence, or remove the image.`
+        : `${getProviderMeta(settings.aiProvider).label} · ${imageCapability.model} isn't a known vision model, so images are blocked. Choose a known vision-capable model in Settings → Intelligence, or remove the image.`;
+
+  const attachmentStatus: AttachmentStatus = attachError
+    ? { kind: "error", message: attachError }
+    : pendingImages.length === 0
+      ? null
+      : !canUseImages
+        ? { kind: "blocked", message: imageBlockedMessage }
+        : {
+            kind: "destination",
+            message:
+              settings.aiProvider === "ollama"
+                ? `Local processing: Ollama · ${imageCapability.model} analyses the image on this machine when you submit. Image data is never stored.`
+                : `Cloud processing: the image will be sent to ${getProviderMeta(settings.aiProvider).label} · ${imageCapability.model} when you submit. Image data is never stored.`,
+          };
+
   const stateColor = tokens.orb.core[aiState] ?? tokens.color.textDisabled;
 
   // A seed means the user explicitly asked JARVIS something (palette or
@@ -175,11 +221,62 @@ export default function AssistantPanel() {
     return () => cancelAnimationFrame(frame);
   }, [messages, isStreaming, listening]);
 
+  const addFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+
+    const ready: { file: File; image: SizedImageAttachment }[] = [];
+    let firstError: string | null = null;
+    for (const file of list) {
+      const result = await readImageFile(file);
+      if (result.ok) ready.push({ file, image: result.image });
+      else if (!firstError) firstError = result.error;
+    }
+
+    const { accepted, error } = accumulateImages(
+      pendingImages,
+      ready.map((entry) => entry.image)
+    );
+    if (accepted.length > 0) {
+      const acceptedSet = new Set(accepted);
+      const additions: PendingImage[] = ready
+        .filter((entry) => acceptedSet.has(entry.image))
+        .map((entry) => ({
+          ...entry.image,
+          id: `pending-${++pendingIdRef.current}`,
+          previewUrl: URL.createObjectURL(entry.file),
+        }));
+      setPendingImages((prev) => [...prev, ...additions]);
+    }
+    setAttachError(firstError ?? error);
+  };
+
+  const removePendingImage = (id: string) => {
+    setPendingImages((prev) => {
+      const target = prev.find((image) => image.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((image) => image.id !== id);
+    });
+    setAttachError(null);
+  };
+
   const submit = (value: string) => {
+    if (isStreaming) return;
     const text = value.trim();
-    if (!text || isStreaming) return;
+    if (!text && pendingImages.length === 0) return;
+    // Never drop an image silently: a text-only model blocks the turn
+    // here, with the reason staying visible above the composer.
+    if (pendingImages.length > 0 && !canUseImages) {
+      setAttachError(imageBlockedMessage);
+      return;
+    }
+    // Preview ownership moves to the sent message bubble; JarvisProvider
+    // revokes the URLs when the chat is cleared.
+    const outgoing = pendingImages;
     setInput("");
-    void send(text);
+    setPendingImages([]);
+    setAttachError(null);
+    void send(text || "What do you see in this image?", outgoing);
   };
 
   const stateLabel: Record<string, string> = {
@@ -212,11 +309,31 @@ export default function AssistantPanel() {
             role="dialog"
             aria-label="JARVIS assistant"
             aria-modal="false"
-            className="fixed inset-x-0 bottom-0 z-50 flex h-[82vh] flex-col overflow-hidden rounded-t-2xl border border-jarvis-red/20 bg-jarvis-bg-secondary/95 shadow-[0_0_60px_rgba(0,0,0,0.7)] backdrop-blur-[24px] sm:inset-y-3 sm:right-3 sm:left-auto sm:h-auto sm:w-[440px] sm:rounded-2xl"
+            className={`fixed inset-x-0 bottom-0 z-50 flex h-[82vh] flex-col overflow-hidden rounded-t-2xl border bg-jarvis-bg-secondary/95 shadow-[0_0_60px_rgba(0,0,0,0.7)] backdrop-blur-[24px] transition-colors sm:inset-y-3 sm:right-3 sm:left-auto sm:h-auto sm:w-[440px] sm:rounded-2xl ${
+              dragActive ? "border-jarvis-red/60" : "border-jarvis-red/20"
+            }`}
             initial={{ x: 40, opacity: 0, y: 24 }}
             animate={{ x: 0, opacity: 1, y: 0 }}
             exit={{ x: 40, opacity: 0, y: 24 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            onDragOver={(event) => {
+              if (!event.dataTransfer?.types.includes("Files")) return;
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragLeave={(event) => {
+              if (
+                !event.currentTarget.contains(event.relatedTarget as Node)
+              ) {
+                setDragActive(false);
+              }
+            }}
+            onDrop={(event) => {
+              if (!event.dataTransfer?.types.includes("Files")) return;
+              event.preventDefault();
+              setDragActive(false);
+              void addFiles(event.dataTransfer.files);
+            }}
           >
             {/* Header */}
             <header className="relative flex shrink-0 items-center gap-3 border-b border-jarvis-red/10 px-4 py-3">
@@ -373,6 +490,12 @@ export default function AssistantPanel() {
                 </div>
               )}
 
+              <PendingImageStrip
+                images={pendingImages}
+                onRemove={removePendingImage}
+                status={attachmentStatus}
+              />
+
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -385,6 +508,15 @@ export default function AssistantPanel() {
                     ref={inputRef}
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
+                    onPaste={(event) => {
+                      const files = Array.from(
+                        event.clipboardData?.files ?? []
+                      );
+                      if (files.length > 0) {
+                        event.preventDefault();
+                        void addFiles(files);
+                      }
+                    }}
                     placeholder={
                       listening
                         ? "Listening…"
@@ -397,6 +529,11 @@ export default function AssistantPanel() {
                     className="h-10 w-full rounded-xl border border-jarvis-red/15 bg-jarvis-surface/60 pl-3 pr-3 text-[12.5px] text-white placeholder:text-jarvis-text-disabled focus:border-jarvis-red/40 focus:outline-none focus:ring-1 focus:ring-jarvis-red/25 disabled:opacity-60"
                   />
                 </div>
+
+                <AttachImageControl
+                  onFiles={(files) => void addFiles(files)}
+                  hasPending={pendingImages.length > 0}
+                />
 
                 <button
                   type="button"
@@ -431,8 +568,15 @@ export default function AssistantPanel() {
                 ) : (
                   <button
                     type="submit"
-                    disabled={!input.trim()}
-                    title="Send (Enter)"
+                    disabled={
+                      (!input.trim() && pendingImages.length === 0) ||
+                      (pendingImages.length > 0 && !canUseImages)
+                    }
+                    title={
+                      pendingImages.length > 0 && !canUseImages
+                        ? "This model can't view images — see the note above"
+                        : "Send (Enter)"
+                    }
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-jarvis-red/30 bg-jarvis-red/15 text-jarvis-red transition-all hover:bg-jarvis-red/25 disabled:cursor-not-allowed disabled:opacity-35"
                   >
                     <IconSend />

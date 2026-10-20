@@ -325,6 +325,182 @@ describe("Gemini request", () => {
   });
 });
 
+describe("image serialization", () => {
+  const IMAGE_DATA =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+  const PNG = { mimeType: "image/png" as const, data: IMAGE_DATA };
+
+  const openAiConfig: ProviderConfig = {
+    provider: "openai",
+    model: "gpt-4o-mini",
+    apiKey: "test-key-not-real",
+    baseUrl: "https://api.openai.com/v1",
+    source: "server",
+  };
+
+  const anthropicConfig: ProviderConfig = {
+    provider: "anthropic",
+    model: "claude-sonnet-4-5",
+    apiKey: "test-key-not-real",
+    baseUrl: "https://api.anthropic.com",
+    source: "server",
+  };
+
+  async function drainText(
+    config: ProviderConfig,
+    messages: { role: "user" | "assistant"; content: string }[],
+    images?: (typeof PNG)[]
+  ): Promise<string> {
+    let text = "";
+    for await (const delta of streamChat(
+      config,
+      "sys",
+      messages,
+      undefined,
+      images
+    )) {
+      if (delta.text) text += delta.text;
+    }
+    return text;
+  }
+
+  function parsedBody(fetchMock: ReturnType<typeof vi.fn>): unknown {
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    return JSON.parse(init.body as string) as unknown;
+  }
+
+  it("sends OpenAI-compatible image_url parts on the last user turn only", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse([{ choices: [{ delta: { content: "Seen" } }] }])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const text = await drainText(
+      openAiConfig,
+      [
+        { role: "user", content: "earlier" },
+        { role: "assistant", content: "noted" },
+        { role: "user", content: "what is this?" },
+      ],
+      [PNG]
+    );
+
+    expect(text).toBe("Seen");
+    const body = parsedBody(fetchMock) as {
+      messages: { role: string; content: unknown }[];
+      stream: boolean;
+    };
+    expect(body.stream).toBe(true);
+    expect(body.messages[0]).toEqual({ role: "system", content: "sys" });
+    expect(body.messages[1].content).toBe("earlier");
+    expect(body.messages.at(-1)?.content).toEqual([
+      { type: "text", text: "what is this?" },
+      {
+        type: "image_url",
+        image_url: { url: `data:image/png;base64,${IMAGE_DATA}` },
+      },
+    ]);
+  });
+
+  it("keeps text-only OpenAI-compatible requests as plain strings", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse([{ choices: [{ delta: { content: "Hello" } }] }])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const text = await drainText(openAiConfig, [
+      { role: "user", content: "plain question" },
+    ]);
+    expect(text).toBe("Hello");
+
+    const body = parsedBody(fetchMock) as {
+      messages: { role: string; content: unknown }[];
+    };
+    expect(body.messages.at(-1)).toEqual({
+      role: "user",
+      content: "plain question",
+    });
+  });
+
+  it("sends Anthropic base64 image blocks", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse([
+        {
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "Seen" },
+        },
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const text = await drainText(
+      anthropicConfig,
+      [{ role: "user", content: "what is this?" }],
+      [PNG]
+    );
+    expect(text).toBe("Seen");
+
+    const body = parsedBody(fetchMock) as {
+      system: string;
+      messages: { role: string; content: unknown }[];
+    };
+    expect(body.system).toBe("sys");
+    expect(body.messages.at(-1)?.content).toEqual([
+      { type: "text", text: "what is this?" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: IMAGE_DATA },
+      },
+    ]);
+  });
+
+  it("sends Gemini inline_data parts after the text part", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse([
+        { candidates: [{ content: { parts: [{ text: "Seen" }] } }] },
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const text = await drainText(
+      googleConfig,
+      [{ role: "user", content: "what is this?" }],
+      [PNG]
+    );
+    expect(text).toBe("Seen");
+
+    const body = parsedBody(fetchMock) as {
+      contents: { role: string; parts: unknown[] }[];
+    };
+    expect(body.contents.at(-1)).toEqual({
+      role: "user",
+      parts: [
+        { text: "what is this?" },
+        { inline_data: { mime_type: "image/png", data: IMAGE_DATA } },
+      ],
+    });
+  });
+
+  it("keeps text-only Gemini requests as a single text part", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse([
+        { candidates: [{ content: { parts: [{ text: "Hello" }] } }] },
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await drainText(googleConfig, [{ role: "user", content: "plain" }]);
+
+    const body = parsedBody(fetchMock) as {
+      contents: { role: string; parts: unknown[] }[];
+    };
+    expect(body.contents.at(-1)).toEqual({
+      role: "user",
+      parts: [{ text: "plain" }],
+    });
+  });
+});
+
 describe("probeProvider", () => {
   it("tests Google with the header, not a query key", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

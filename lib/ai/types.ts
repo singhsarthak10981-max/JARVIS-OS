@@ -1,5 +1,9 @@
 import type { AiProviderId } from "./providers";
 import type { SearchNotice } from "./search/types";
+import type {
+  ImageAttachmentPayload,
+  ImageMimeType,
+} from "./attachments";
 
 export type ChatRole = "user" | "assistant" | "system";
 
@@ -16,6 +20,22 @@ export interface ChatMessage {
   streaming?: boolean;
   /** Web search state for this turn, when one was attempted. */
   search?: SearchNotice;
+  /**
+   * Session-only `blob:` preview URLs for images the user attached to
+   * this message. Ephemeral by design: never persisted (the
+   * conversation store writes explicit fields only), never sent to the
+   * server as history, and gone after a reload.
+   */
+  imagePreviews?: string[];
+}
+
+/** An image the user is about to send: wire payload + local preview. */
+export interface OutgoingImage {
+  mimeType: ImageMimeType;
+  /** Base64-encoded bytes (no data-URL prefix). Current turn only. */
+  data: string;
+  /** `blob:` object URL for local preview. Never leaves the browser. */
+  previewUrl: string;
 }
 
 export interface AssistantMeta {
@@ -40,6 +60,12 @@ export interface ServerStatus {
 
 export interface JarvisRequest {
   messages: { role: "user" | "assistant"; content: string }[];
+  /**
+   * Images attached to the current (last) user turn only. Ephemeral:
+   * the server serializes them into this one provider request and never
+   * persists, learns from or logs them. Omitted entirely for text turns.
+   */
+  images?: ImageAttachmentPayload[];
   memories: string[];
   ownerName: string;
   provider: AiProviderId;

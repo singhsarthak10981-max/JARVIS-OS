@@ -101,6 +101,48 @@ JARVIS distinguishes two different Ollama failures:
 
 ---
 
+## Image input (vision)
+
+JARVIS can send images to vision-capable models. Attach with the image button
+in the composer, drop files onto the assistant panel, or paste from the
+clipboard, then send a normal prompt ("What do you see in this image?" is
+used if you send images with no text). PNG, JPEG and WebP only; up to 3
+images per message, 5 MiB each, 10 MiB total — enforced in the browser and
+again on the server.
+
+What works out of the box:
+
+- The default models for OpenAI (`gpt-4o-mini`), Anthropic
+  (`claude-sonnet-4-5`), Google (`gemini-3.8-flash`) and OpenRouter
+  (`openai/gpt-4o-mini`) can all view images.
+- Groq's default (`llama-3.3-70b-versatile`) cannot. On Groq, use
+  `qwen/qwen3.8-27b` (Settings → Intelligence → Model).
+- Ollama's default (`llama3.2`) cannot. Pull a vision model and select it,
+  e.g. `ollama pull qwen3-vl:8b`, `ollama pull gemma3:12b` or
+  `ollama pull llama3.2-vision`, then set that model in Settings. Image
+  analysis then happens entirely on your machine.
+- **Local Core and Custom endpoints never accept images.** Capability is
+  decided per model from a verified catalog (`docs/MULTIMODAL.md`); an
+  unknown model is treated as text-only rather than guessed at.
+
+If the selected model can't view images, submission is blocked with the
+reason shown above the composer, and the send button stays disabled — the
+image is never silently dropped, and JARVIS never quietly switches to a
+different provider or model to make it "work".
+
+With images attached, the composer also names the destination before you
+send: local processing (Ollama on this machine) or cloud processing (the
+selected provider and model). Nothing is sent until you submit.
+
+**Privacy.** Attached images exist only for the turn that sends them. They
+are never written to browser storage, saved memory, the SQLite store,
+reflection learning, telemetry or logs, and there is no third-party file
+hosting — the bytes go directly to the provider you selected, like text
+does. Follow-up messages can't see an earlier image (history stays
+text-only), so re-attach it to ask more. Full details: `docs/MULTIMODAL.md`.
+
+---
+
 ## Web search (Tavily)
 
 Optional. It gives the connected model current information and clickable
@@ -329,6 +371,7 @@ Failures are classified so you know what to fix without reading server logs.
 | `timeout` | Provider didn't respond in time | Check connection, retry |
 | `network` | Provider unreachable | Check base URL and network |
 | `content_blocked` | Safety filter refused the prompt | Rephrase |
+| `unsupported_modality` | The selected model can't accept images | Pick a vision-capable model in Settings → Intelligence, or remove the image |
 
 **An explicitly selected provider that cannot be used produces an error.**
 JARVIS does not quietly answer with the Local Core and present it as a model

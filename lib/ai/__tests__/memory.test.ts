@@ -134,6 +134,20 @@ describe("conversation (jarvis-conversation-v1)", () => {
     expect(loadConversation().map((m) => m.text)).toEqual(["kept"]);
   });
 
+  it("never writes image previews to storage", () => {
+    saveConversation([
+      {
+        ...message("m1", "user", "look at this"),
+        imagePreviews: ["blob:http://localhost/preview-1"],
+      },
+    ]);
+
+    const raw = localStorage.getItem(CONVERSATION_KEY) ?? "";
+    expect(raw).not.toContain("blob:");
+    expect(raw).not.toContain("imagePreviews");
+    expect(loadConversation()[0].imagePreviews).toBeUndefined();
+  });
+
   it("keeps at most the last 60 messages", () => {
     const messages = Array.from({ length: 70 }, (_, i) =>
       message(`m${i}`, "user", `message ${i}`)

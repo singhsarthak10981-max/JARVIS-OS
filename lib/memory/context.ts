@@ -3,6 +3,7 @@ import "server-only";
 import {
   findRelevantMemory,
   getDb,
+  normalizeForMatch,
   type Fact,
   type MemoryDb,
   type Skill,
@@ -22,6 +23,8 @@ import { findSecret } from "./guard";
 export const MAX_INJECTED_FACTS = 8;
 export const MAX_INJECTED_SKILLS = 3;
 export const MAX_MEMORY_BLOCK_CHARS = 1200;
+/** Cap for relevance-selected browser-pinboard memories sent to prompts. */
+export const MAX_SELECTED_MEMORIES = 8;
 const MAX_TERMS = 12;
 
 const STOPWORDS = new Set([
@@ -36,9 +39,18 @@ const STOPWORDS = new Set([
   "used", "now", "today", "really", "very", "much", "many", "also", "one",
 ]);
 
-/** Search terms from free text: content words worth matching on. */
+/**
+ * Search terms from free text: content words worth matching on.
+ *
+ * The text is accent- and case-folded first (`normalizeForMatch`), so
+ * "café" yields the term "cafe". The token pattern keeps an internal
+ * ampersand or apostrophe inside the token, so "r&b" and "rock'n'roll"
+ * survive as single terms — plain "[a-z0-9]+" would split them into
+ * single letters that the length filter then discards.
+ */
 export function extractTerms(text: string): string[] {
-  const words = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const words =
+    normalizeForMatch(text).match(/[a-z0-9]+(?:[&'][a-z0-9]+)*/g) ?? [];
   const terms: string[] = [];
   const seen = new Set<string>();
   for (const word of words) {
@@ -70,6 +82,39 @@ export function isNearDuplicateValue(a: string, b: string): boolean {
   if (a === b) return true;
   const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
   return shorter.length >= 8 && longer.includes(shorter);
+}
+
+/**
+ * Choose the saved pinboard memories worth putting in front of a model for
+ * this turn: deterministic relevance selection over the same terms the
+ * SQLite retrieval uses. Score = how many distinct terms appear in the
+ * memory's accent-folded text; only memories matching at least one term
+ * qualify — the limit is never filled with unrelated entries. Sorting is
+ * stable, so the input's order (the pinboard is newest-first) breaks ties
+ * by recency. This is the prompt set only; explicit recall stays separate
+ * and can show everything.
+ */
+export function selectRelevantMemories(
+  texts: readonly string[],
+  queryText: string,
+  limit: number = MAX_SELECTED_MEMORIES
+): string[] {
+  const terms = extractTerms(queryText);
+  if (terms.length === 0 || texts.length === 0) return [];
+  const scored = texts
+    .map((text) => {
+      const haystack = normalizeForMatch(text);
+      let score = 0;
+      for (const term of terms) {
+        if (haystack.includes(term)) score += 1;
+      }
+      return { text, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return scored
+    .slice(0, Math.max(0, limit))
+    .map((entry) => entry.text);
 }
 
 export interface MemoryContext {

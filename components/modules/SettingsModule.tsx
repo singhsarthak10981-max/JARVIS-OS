@@ -943,13 +943,26 @@ export default function SettingsModule() {
                 title="Memory bank"
                 description="Facts JARVIS retains between sessions. Say “remember that…” or add one from the assistant."
               >
+                <Row
+                  title="Use saved memory"
+                  description="When on, JARVIS saves facts you ask it to keep and uses the relevant ones in replies. When off, nothing new is saved or used — but nothing is deleted: the saved memories below stay yours to review or remove, and your conversation history is not cleared."
+                >
+                  <Toggle
+                    checked={settings.memoryEnabled}
+                    onChange={(value) =>
+                      updateSettings({ memoryEnabled: value })
+                    }
+                    label="Use saved memory"
+                  />
+                </Row>
+
                 {memories.length === 0 ? (
                   <div className="rounded-lg border border-jarvis-red/10 bg-jarvis-surface/30 px-3 py-2.5 text-[9.5px] text-jarvis-text-disabled">
                     No long-term memories stored yet.
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
-                    {memories.slice(0, 8).map((memory) => (
+                  <div className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5">
+                    {memories.map((memory) => (
                       <div
                         key={memory.id}
                         className="flex items-start justify-between gap-2 rounded-lg border border-jarvis-red/10 bg-jarvis-surface/30 px-2.5 py-2"
@@ -971,11 +984,6 @@ export default function SettingsModule() {
                         </button>
                       </div>
                     ))}
-                    {memories.length > 8 && (
-                      <div className="px-1 text-[8.5px] tracking-wider text-jarvis-text-disabled uppercase">
-                        +{memories.length - 8} more
-                      </div>
-                    )}
                   </div>
                 )}
               </Section>

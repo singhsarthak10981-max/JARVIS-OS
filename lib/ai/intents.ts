@@ -51,6 +51,12 @@ export interface IntentContext {
   providerIsLocal: boolean;
   memoryCount: number;
   memories: string[];
+  /**
+   * Settings → Memory bank toggle. When false, nothing new is saved and
+   * recall does not expose stored facts. Explicit forgetting (deletion)
+   * stays available either way.
+   */
+  memoryEnabled: boolean;
   currentTheme: string;
   wakePhrase?: string;
   now?: Date;
@@ -404,6 +410,13 @@ export function resolveIntent(
     /^(?:please\s+)?(?:remember|note|keep in mind)(?:\s+that)?\s+(.{3,300})$/
   );
   if (rememberMatch) {
+    // Do not pretend to store something while memory is switched off.
+    if (!ctx.memoryEnabled) {
+      return {
+        kind: "answer",
+        reply: `Saved memory is switched off, ${owner}, so I've not kept that. You can turn it back on in Settings → Memory bank — anything you stored before is still there.`,
+      };
+    }
     const fact = rememberMatch[1].replace(/[.!]$/, "").trim();
     return {
       kind: "action",
@@ -435,6 +448,14 @@ export function resolveIntent(
       t
     )
   ) {
+    // Off means off: never surface stored facts, even on explicit recall.
+    if (!ctx.memoryEnabled) {
+      return {
+        kind: "answer",
+        reply:
+          "Saved memory is switched off, so I'm not using or showing stored facts right now. Anything you saved earlier is still kept in Settings → Memory bank, where you can review or delete it.",
+      };
+    }
     if (ctx.memoryCount === 0) {
       return {
         kind: "answer",
@@ -442,10 +463,18 @@ export function resolveIntent(
           "My long-term memory is empty. Say “remember that…” and I'll keep it for you.",
       };
     }
-    const facts = ctx.memories.slice(0, 8).map((m, i) => `${i + 1}. ${m}`);
+    // Explicit recall shows far more than the 8-fact prompt selection, but
+    // still caps the chat reply and points at Settings for the full bank.
+    const shown = ctx.memories.slice(0, 25);
+    const facts = shown.map((m, i) => `${i + 1}. ${m}`);
+    const remaining = ctx.memoryCount - shown.length;
+    const tail =
+      remaining > 0
+        ? `\n…and ${remaining} more — see Settings → Memory bank for the full list.`
+        : "";
     return {
       kind: "answer",
-      reply: `I'm holding ${ctx.memoryCount} memor${ctx.memoryCount === 1 ? "y" : "ies"}:\n${facts.join("\n")}`,
+      reply: `I'm holding ${ctx.memoryCount} memor${ctx.memoryCount === 1 ? "y" : "ies"}:\n${facts.join("\n")}${tail}`,
     };
   }
 

@@ -757,11 +757,26 @@ const MAX_FACT_CANDIDATES = 300;
 const MAX_SKILL_CANDIDATES = 100;
 
 /**
+ * Canonical form for keyword matching: lowercase with diacritics removed,
+ * so "café" in a stored fact matches the query term "cafe" (and vice
+ * versa — terms are extracted from text normalised the same way; see
+ * `extractTerms` in lib/memory/context.ts). Punctuation is preserved so
+ * tokens like "r&b" still match the same token in stored text.
+ */
+export function normalizeForMatch(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
  * Keyword-scored retrieval for one chat turn. Terms are expected already
- * normalised (see `extractTerms` in lib/memory/context.ts`); matching is a
- * case-insensitive substring test per field with fixed weights — key/name
- * hits outweigh value/description hits. At personal scale the candidate
- * set is small enough to score in memory.
+ * normalised (see `extractTerms` in lib/memory/context.ts); matching is an
+ * accent- and case-insensitive substring test per field
+ * (`normalizeForMatch`) with fixed weights — key/name hits outweigh
+ * value/description hits. At personal scale the candidate set is small
+ * enough to score in memory.
  */
 export function findRelevantMemory(
   terms: readonly string[],
@@ -801,9 +816,9 @@ export function findRelevantMemory(
     .map((fact) => ({
       fact,
       score: score([
-        [fact.key.toLowerCase(), 3],
-        [fact.value.toLowerCase(), 2],
-        [fact.category.toLowerCase(), 1],
+        [normalizeForMatch(fact.key), 3],
+        [normalizeForMatch(fact.value), 2],
+        [normalizeForMatch(fact.category), 1],
       ]),
     }))
     .filter((entry) => entry.score > 0)
@@ -820,9 +835,9 @@ export function findRelevantMemory(
       return {
         skill,
         score: score([
-          [skill.name.toLowerCase(), 3],
-          [skill.description.toLowerCase(), 2],
-          [skill.steps.join(" ").toLowerCase(), 1],
+          [normalizeForMatch(skill.name), 3],
+          [normalizeForMatch(skill.description), 2],
+          [normalizeForMatch(skill.steps.join(" ")), 1],
         ]),
       };
     })

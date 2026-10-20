@@ -282,6 +282,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         providerIsLocal: settings.aiProvider === "local",
         memoryCount: memories.length,
         memories,
+        memoryEnabled: settings.memoryEnabled,
         currentTheme: settings.theme,
         wakePhrase: settings.wakePhrase,
       };
@@ -396,7 +397,10 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         meta = await streamJarvis(
           {
             messages: history,
-            memories,
+            // With saved memory off, no facts leave the browser at all; the
+            // server additionally enforces the flag before any injection.
+            memories: settings.memoryEnabled ? memories : [],
+            memoryEnabled: settings.memoryEnabled,
             ownerName: owner,
             provider: settings.aiProvider,
             model: settings.aiModel,

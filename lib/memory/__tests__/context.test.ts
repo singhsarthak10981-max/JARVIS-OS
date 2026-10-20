@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   findRelevantMemory,
+  normalizeForMatch,
   openMemoryDb,
   upsertFact,
   upsertSkill,
@@ -9,8 +10,10 @@ import {
 import {
   MAX_INJECTED_FACTS,
   MAX_MEMORY_BLOCK_CHARS,
+  MAX_SELECTED_MEMORIES,
   buildMemoryContext,
   extractTerms,
+  selectRelevantMemories,
 } from "../context";
 
 /**
@@ -173,5 +176,92 @@ describe("buildMemoryContext", () => {
       db
     );
     expect(capped.block.length).toBeLessThanOrEqual(MAX_MEMORY_BLOCK_CHARS);
+  });
+});
+
+describe("accent- and ampersand-aware matching", () => {
+  it("folds accents and case for terms and stored fields", () => {
+    expect(normalizeForMatch("Café MÜNCHEN")).toBe("cafe munchen");
+    expect(extractTerms("Where is that café in Málaga?")).toEqual([
+      "cafe",
+      "malaga",
+    ]);
+  });
+
+  it("keeps r&b as a single searchable term", () => {
+    const terms = extractTerms("put on some R&B and rock'n'roll");
+    expect(terms).toContain("r&b");
+    expect(terms).toContain("rock'n'roll");
+    expect(terms).not.toContain("r");
+  });
+
+  it("matches stored facts regardless of which side carries the accent", () => {
+    upsertFact({ key: "coffee_order", value: "café con leche" }, db);
+    upsertFact({ key: "music_taste", value: "smooth r&b mixes" }, db);
+
+    expect(
+      findRelevantMemory(["cafe"], {}, db).facts.map((f) => f.key)
+    ).toEqual(["coffee_order"]);
+    expect(
+      findRelevantMemory(["r&b"], {}, db).facts.map((f) => f.key)
+    ).toEqual(["music_taste"]);
+  });
+});
+
+describe("selectRelevantMemories", () => {
+  const texts = [
+    "my coffee is an oat flat white",
+    "the bar opens at 7pm",
+    "coffee beans come from the corner roaster",
+  ];
+
+  it("returns only the memories matching the query", () => {
+    expect(selectRelevantMemories(texts, "how do I like my coffee?")).toEqual([
+      "my coffee is an oat flat white",
+      "coffee beans come from the corner roaster",
+    ]);
+  });
+
+  it("ranks stronger matches first and uses recency to break ties", () => {
+    const ranked = selectRelevantMemories(
+      [
+        "coffee note, saved recently",
+        "coffee oat milk, every term",
+        "coffee note, saved long ago",
+      ],
+      "coffee oat milk"
+    );
+    expect(ranked).toEqual([
+      "coffee oat milk, every term",
+      "coffee note, saved recently",
+      "coffee note, saved long ago",
+    ]);
+  });
+
+  it("returns nothing for an unrelated query instead of filling the limit", () => {
+    expect(selectRelevantMemories(texts, "explain photosynthesis")).toEqual([]);
+    expect(selectRelevantMemories(texts, "what do you think?")).toEqual([]);
+  });
+
+  it("caps the selection at 8 and honours an explicit limit", () => {
+    const many = Array.from({ length: 12 }, (_, i) => `coffee note ${i}`);
+    expect(selectRelevantMemories(many, "coffee")).toHaveLength(
+      MAX_SELECTED_MEMORIES
+    );
+    expect(selectRelevantMemories(many, "coffee", 3)).toHaveLength(3);
+  });
+
+  it("matches accents and ampersands from either side", () => {
+    expect(
+      selectRelevantMemories(
+        ["i always order café con leche", "favourite genre is r&b"],
+        "which cafe do i order, and put on some R&B"
+      )
+    ).toEqual(["i always order café con leche", "favourite genre is r&b"]);
+  });
+
+  it("handles empty inputs", () => {
+    expect(selectRelevantMemories([], "coffee")).toEqual([]);
+    expect(selectRelevantMemories(texts, "")).toEqual([]);
   });
 });

@@ -40,17 +40,26 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * Search terms from free text: content words worth matching on.
- *
- * The text is accent- and case-folded first (`normalizeForMatch`), so
- * "café" yields the term "cafe". The token pattern keeps an internal
- * ampersand or apostrophe inside the token, so "r&b" and "rock'n'roll"
- * survive as single terms — plain "[a-z0-9]+" would split them into
- * single letters that the length filter then discards.
+ * Whole-token splitter shared by query-term extraction and memory
+ * matching. Accent- and case-folds first (`normalizeForMatch`), so "café"
+ * becomes the token "cafe". The pattern keeps an internal ampersand or
+ * apostrophe inside the token, so "r&b" and "rock'n'roll" survive as
+ * single tokens — plain "[a-z0-9]+" would split them into single letters.
+ */
+const TOKEN_PATTERN = /[a-z0-9]+(?:[&'][a-z0-9]+)*/g;
+
+function tokenizeForMatch(text: string): string[] {
+  return normalizeForMatch(text).match(TOKEN_PATTERN) ?? [];
+}
+
+/**
+ * Search terms from free text: content words worth matching on — the
+ * tokens of `tokenizeForMatch`, filtered to distinct non-stopwords of at
+ * least 3 characters (which is also why split single letters from a
+ * plainer tokenizer would never survive as terms).
  */
 export function extractTerms(text: string): string[] {
-  const words =
-    normalizeForMatch(text).match(/[a-z0-9]+(?:[&'][a-z0-9]+)*/g) ?? [];
+  const words = tokenizeForMatch(text);
   const terms: string[] = [];
   const seen = new Set<string>();
   for (const word of words) {
@@ -87,12 +96,13 @@ export function isNearDuplicateValue(a: string, b: string): boolean {
 /**
  * Choose the saved pinboard memories worth putting in front of a model for
  * this turn: deterministic relevance selection over the same terms the
- * SQLite retrieval uses. Score = how many distinct terms appear in the
- * memory's accent-folded text; only memories matching at least one term
- * qualify — the limit is never filled with unrelated entries. Sorting is
- * stable, so the input's order (the pinboard is newest-first) breaks ties
- * by recency. This is the prompt set only; explicit recall stays separate
- * and can show everything.
+ * SQLite retrieval uses. Score = how many distinct query terms appear as
+ * whole tokens in the memory's token set — token intersection, never
+ * substring matching, so "art" cannot select a memory about a "party".
+ * Only memories matching at least one term qualify — the limit is never
+ * filled with unrelated entries. Sorting is stable, so the input's order
+ * (the pinboard is newest-first) breaks ties by recency. This is the
+ * prompt set only; explicit recall stays separate and can show everything.
  */
 export function selectRelevantMemories(
   texts: readonly string[],
@@ -103,10 +113,10 @@ export function selectRelevantMemories(
   if (terms.length === 0 || texts.length === 0) return [];
   const scored = texts
     .map((text) => {
-      const haystack = normalizeForMatch(text);
+      const tokens = new Set(tokenizeForMatch(text));
       let score = 0;
       for (const term of terms) {
-        if (haystack.includes(term)) score += 1;
+        if (tokens.has(term)) score += 1;
       }
       return { text, score };
     })

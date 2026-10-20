@@ -434,7 +434,11 @@ describe("buildSystemPrompt memory sections", () => {
 
   it("states the honesty rules and omits the store section by default", () => {
     const prompt = buildSystemPrompt("Sarthak", [], context);
-    expect(prompt).toContain("(no stored memories yet)");
+    expect(prompt).toContain(
+      "no relevant saved-memory facts were supplied for this request"
+    );
+    expect(prompt).toContain("do not infer whether the memory bank is empty");
+    expect(prompt).not.toContain("(no stored memories yet)");
     expect(prompt).toContain("do not have that stored");
     expect(prompt).not.toContain("local memory store");
   });

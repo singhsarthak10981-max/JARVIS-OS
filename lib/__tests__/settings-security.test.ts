@@ -37,6 +37,40 @@ describe("web search settings", () => {
   });
 });
 
+describe("memory setting", () => {
+  it("is enabled by default for existing installations", async () => {
+    const store = await freshStore();
+
+    expect(store.getState().settings.memoryEnabled).toBe(true);
+  });
+
+  it("persists disabled mode without deleting saved facts", async () => {
+    localStorage.setItem(
+      "jarvis-memory-v1",
+      JSON.stringify([
+        { id: "mem-existing", text: "My preferred genre is R&B", createdAt: 1 },
+      ])
+    );
+
+    const store = await freshStore();
+    store.getState().updateSettings({ memoryEnabled: false });
+
+    const savedSettings = JSON.parse(
+      localStorage.getItem(SETTINGS_STORAGE_KEY) ?? "{}"
+    );
+    expect(savedSettings.memoryEnabled).toBe(false);
+
+    store.getState().hydrateSettings();
+    expect(store.getState().settings.memoryEnabled).toBe(false);
+
+    const savedMemories = JSON.parse(
+      localStorage.getItem("jarvis-memory-v1") ?? "[]"
+    );
+    expect(savedMemories).toHaveLength(1);
+    expect(savedMemories[0].text).toBe("My preferred genre is R&B");
+  });
+});
+
 describe("API key persistence", () => {
   it("does not expose an api key field in default settings", async () => {
     const store = await freshStore();

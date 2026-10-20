@@ -597,7 +597,7 @@ export function buildSystemPrompt(
           .slice(0, 30)
           .map((m) => `- ${m}`)
           .join("\n")
-      : "(no stored memories yet)";
+      : "(no memory facts are available for this request; the bank may be empty or memory access may be disabled)";
 
   return `You are J.A.R.V.I.S. — Just A Rather Very Intelligent System — the intelligence layer inside JARVIS OS, a red tactical desktop environment built by ${ownerName}.
 

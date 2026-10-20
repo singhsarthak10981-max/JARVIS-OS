@@ -25,6 +25,7 @@ import { fetchServerStatus, streamJarvis } from "@/lib/ai/client";
 import {
   loadConversation,
   loadMemories,
+  selectRelevantMemories,
   saveConversation,
   clearConversation as wipeConversation,
 } from "@/lib/ai/memory";
@@ -242,7 +243,12 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
       });
       store.logActivity(`Query: ${text.slice(0, 70)}`, "ai");
 
-      const memories = loadMemories().map((entry) => entry.text);
+      const memoryEnabled = settings.memoryEnabled;
+      const savedMemories = memoryEnabled ? loadMemories() : [];
+      const memories = savedMemories.map((entry) => entry.text);
+      const promptMemories = memoryEnabled
+        ? selectRelevantMemories(savedMemories, text, 8)
+        : [];
       const providerLabel = providerDisplayName(
         settings.aiProvider,
         settings.aiModel
@@ -256,6 +262,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         providerIsLocal: settings.aiProvider === "local",
         memoryCount: memories.length,
         memories,
+        memoryEnabled,
         currentTheme: settings.theme,
         wakePhrase: settings.wakePhrase,
       };
@@ -345,7 +352,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         meta = await streamJarvis(
           {
             messages: history,
-            memories,
+            memories: promptMemories,
             ownerName: owner,
             provider: settings.aiProvider,
             model: settings.aiModel,

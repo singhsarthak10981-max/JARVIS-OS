@@ -72,6 +72,8 @@ export interface SettingsState {
   aiBaseUrl: string;
   /** Live web search (Tavily) for questions that need current information. */
   webSearchEnabled: boolean;
+  /** When false, saved facts are neither used in AI prompts nor updated. */
+  memoryEnabled: boolean;
 
   // Voice
   voiceEnabled: boolean;
@@ -93,6 +95,7 @@ export const DEFAULT_SETTINGS: SettingsState = {
   aiModel: "",
   aiBaseUrl: "",
   webSearchEnabled: true,
+  memoryEnabled: true,
   voiceEnabled: false,
   voiceRate: 1,
   voicePitch: 0.9,

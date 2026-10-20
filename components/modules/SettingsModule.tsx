@@ -941,6 +941,17 @@ export default function SettingsModule() {
                 title="Memory bank"
                 description="Facts JARVIS retains between sessions. Say “remember that…” or add one from the assistant."
               >
+                <Row
+                  title="Memory access"
+                  description="Disabling memory stops saved facts from being added to AI prompts and blocks new saves. Existing facts stay in this browser. Recent conversation messages are handled separately and may still be sent to your AI provider; clear conversation separately if needed."
+                >
+                  <Toggle
+                    checked={settings.memoryEnabled}
+                    onChange={(value) => updateSettings({ memoryEnabled: value })}
+                    label="Use saved memories"
+                  />
+                </Row>
+
                 {memories.length === 0 ? (
                   <div className="rounded-lg border border-jarvis-red/10 bg-jarvis-surface/30 px-3 py-2.5 text-[9.5px] text-jarvis-text-disabled">
                     No long-term memories stored yet.

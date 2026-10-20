@@ -201,6 +201,14 @@ export function executeJarvisAction(
     }
 
     case "remember": {
+      if (store.settings.memoryEnabled === false) {
+        return {
+          ok: false,
+          message:
+            "Memory is disabled. Existing saved facts are preserved; enable memory in Settings to save new facts.",
+        };
+      }
+
       addMemory(action.fact);
       store.logActivity("Memory updated", "success");
       return { ok: true, message: "Memory bank updated." };

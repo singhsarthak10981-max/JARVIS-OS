@@ -81,6 +81,103 @@ export function memoryTexts(): string[] {
   return loadMemories().map((entry) => entry.text);
 }
 
+const MEMORY_STOP_WORDS = new Set([
+  "a", "about", "after", "all", "also", "an", "and", "are", "as", "at",
+  "be", "been", "before", "being", "but", "by", "can", "could", "did",
+  "do", "does", "doing", "for", "from", "had", "has", "have", "he",
+  "her", "here", "him", "his", "how", "i", "if", "in", "into", "is",
+  "it", "its", "me", "my", "of", "on", "or", "our", "she", "so",
+  "than", "that", "the", "their", "them", "then", "there", "these",
+  "they", "this", "those", "to", "too", "us", "was", "we", "were",
+  "what", "when", "where", "which", "who", "why", "will", "with",
+  "would", "you", "your", "el", "la", "los", "las", "un", "una",
+  "unos", "unas", "de", "del", "al", "y", "o", "en", "por", "para",
+  "con", "sin", "sobre", "es", "son", "ser", "se", "mi", "mis", "tu",
+  "tus", "te", "que", "como", "cual", "cuales", "quien", "cuando",
+  "donde", "porque", "pero", "si", "ya", "muy", "le", "les", "lo",
+  "su", "sus", "esta", "estan", "estar"
+]);
+
+function memoryTokens(value: string): Set<string> {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  const tokens = normalized.match(/r&b|[a-z0-9]+/g) ?? [];
+  return new Set(
+    tokens.filter(
+      (token) =>
+        (token.length > 1 || token === "r&b") &&
+        !MEMORY_STOP_WORDS.has(token)
+    )
+  );
+}
+
+/**
+ * Select saved facts with terms in common with the current user query.
+ * Matching strength is primary; newer facts break ties.
+ * Returns no facts when nothing matches instead of injecting unrelated data.
+ */
+export function selectRelevantMemories(
+  entries: MemoryEntry[],
+  query: string,
+  limit = 8
+): string[] {
+  const safeLimit = Number.isFinite(limit)
+    ? Math.max(0, Math.floor(limit))
+    : 8;
+
+  if (safeLimit === 0 || !query.trim()) return [];
+
+  const queryTerms = memoryTokens(query);
+  if (queryTerms.size === 0) return [];
+
+  const scored: {
+    text: string;
+    score: number;
+    createdAt: number;
+    index: number;
+  }[] = [];
+
+  entries.forEach((entry, index) => {
+    if (!entry || typeof entry.text !== "string" || !entry.text.trim()) {
+      return;
+    }
+
+    const factTerms = memoryTokens(entry.text);
+    let score = 0;
+
+    for (const term of queryTerms) {
+      if (factTerms.has(term)) {
+        score += 1 + Math.min(term.length, 12) / 20;
+      }
+    }
+
+    if (score <= 0) return;
+
+    scored.push({
+      text: entry.text,
+      score,
+      createdAt:
+        typeof entry.createdAt === "number" && Number.isFinite(entry.createdAt)
+          ? entry.createdAt
+          : 0,
+      index
+    });
+  });
+
+  return scored
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.createdAt - a.createdAt ||
+        a.index - b.index
+    )
+    .slice(0, safeLimit)
+    .map((entry) => entry.text);
+}
+
 export function loadConversation(): ChatMessage[] {
   return readArray<ChatMessage>(CONVERSATION_KEY)
     .filter(

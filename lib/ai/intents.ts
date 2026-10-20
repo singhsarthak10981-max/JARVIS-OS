@@ -51,6 +51,7 @@ export interface IntentContext {
   providerIsLocal: boolean;
   memoryCount: number;
   memories: string[];
+  memoryEnabled?: boolean;
   currentTheme: string;
   wakePhrase?: string;
   now?: Date;
@@ -397,6 +398,14 @@ export function resolveIntent(
     /^(?:please\s+)?(?:remember|note|keep in mind)(?:\s+that)?\s+(.{3,300})$/
   );
   if (rememberMatch) {
+    if (ctx.memoryEnabled === false) {
+      return {
+        kind: "answer",
+        reply:
+          "Memory is disabled, so I did not save that fact. Existing saved facts are preserved. Enable memory in Settings to resume saving.",
+      };
+    }
+
     const fact = rememberMatch[1].replace(/[.!]$/, "").trim();
     return {
       kind: "action",
@@ -428,6 +437,14 @@ export function resolveIntent(
       t
     )
   ) {
+    if (ctx.memoryEnabled === false) {
+      return {
+        kind: "answer",
+        reply:
+          "Memory is disabled. Your saved facts are preserved but aren't being accessed. Enable memory in Settings to use them again.",
+      };
+    }
+
     if (ctx.memoryCount === 0) {
       return {
         kind: "answer",

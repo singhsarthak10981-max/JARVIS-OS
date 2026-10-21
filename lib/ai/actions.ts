@@ -242,6 +242,16 @@ function runAction(
     }
 
     case "remember": {
+      // The intent layer already refuses this while saved memory is off;
+      // enforce it again at execution so no action producer can store a
+      // fact the user has switched off.
+      if (!store.settings.memoryEnabled) {
+        return {
+          ok: false,
+          message: `Saved memory is switched off, ${owner}, so I've not kept that. Anything you stored before is still there — you can turn it back on in Settings → Memory bank.`,
+        };
+      }
+
       addMemory(action.fact);
       store.logActivity("Memory updated", "success");
       return { ok: true, message: "Memory bank updated." };

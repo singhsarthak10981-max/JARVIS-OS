@@ -73,6 +73,11 @@ function MessageBubbleInner({ message }: MessageBubbleProps) {
               {message.provider}
             </span>
           )}
+          {message.localOnly && (
+            <span className="rounded border border-jarvis-red/25 px-1 py-px text-[7.5px] tracking-[0.18em] text-jarvis-red/80 uppercase">
+              local only
+            </span>
+          )}
         </div>
 
         <div
@@ -115,6 +120,11 @@ function MessageBubbleInner({ message }: MessageBubbleProps) {
           <span>{time}</span>
           {message.error && (
             <span className="text-jarvis-warning/80">DEGRADED UPLINK</span>
+          )}
+          {message.localOnly && (
+            <span className="text-jarvis-text-disabled/60">
+              NOT SAVED · NOT SENT TO A MODEL
+            </span>
           )}
         </div>
       </div>

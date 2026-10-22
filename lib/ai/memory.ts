@@ -87,6 +87,11 @@ export function loadConversation(): ChatMessage[] {
       (message) =>
         message &&
         typeof message.text === "string" &&
+        // Local-only messages are never written by saveConversation; if a
+        // record somehow contains one (hand-edited storage, an older or
+        // future writer), it is dropped on load rather than shown as if it
+        // had been part of the saved conversation. Any truthy flag drops it.
+        !message.localOnly &&
         (message.role === "user" ||
           message.role === "assistant" ||
           message.role === "system")
@@ -97,6 +102,11 @@ export function loadConversation(): ChatMessage[] {
 
 export function saveConversation(messages: ChatMessage[]): void {
   const persistable = messages
+    // Hard exclusion, checked before anything else: explicit recall answers
+    // may contain SQLite-derived facts and are never conversation content.
+    // This does not rely on the field allowlist below merely omitting the
+    // flag — a local-only message never reaches the mapping at all.
+    .filter((message) => !message.localOnly)
     .filter((message) => !message.streaming && message.text.trim().length > 0)
     .slice(-MAX_CONVERSATION)
     .map((message) => ({

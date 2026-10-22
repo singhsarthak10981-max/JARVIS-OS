@@ -22,7 +22,9 @@ import {
   replyProviderLabel,
   resolveFailureReply,
 } from "@/lib/ai/reply-policy";
-import { fetchServerStatus, streamJarvis } from "@/lib/ai/client";
+import { fetchRecall, fetchServerStatus, streamJarvis } from "@/lib/ai/client";
+import { buildOutgoingHistory } from "@/lib/ai/history";
+import { buildRecallReply } from "@/lib/memory/recall";
 import {
   loadConversation,
   loadMemories,
@@ -99,6 +101,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   const wakeWordEnabled = useAppStore((s) => s.settings.wakeWordEnabled);
   const wakePhrase = useAppStore((s) => s.settings.wakePhrase);
   const voiceEnabled = useAppStore((s) => s.settings.voiceEnabled);
+  const memoryEnabled = useAppStore((s) => s.settings.memoryEnabled);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -113,6 +116,12 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   const listeningRef = useRef(false);
   const recognitionRef = useRef<RecognizerHandle | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /**
+   * The in-flight recall request, when there is one. Tracked separately from
+   * `abortRef` (which is shared with model streams) so clearing the
+   * conversation can cancel a recall without touching a running model turn.
+   */
+  const recallAbortRef = useRef<AbortController | null>(null);
   const lastUserRef = useRef("");
   const lastImagesRef = useRef<readonly OutgoingImage[]>([]);
   /** Live `blob:` preview URLs shown on user bubbles; revoked on clear/unmount. */
@@ -121,14 +130,58 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   const initializedRef = useRef(false);
   const greetedRef = useRef(false);
 
-  // Revoke any live image-preview object URLs when the provider unmounts.
+  /**
+   * Release the busy state for one recall request — but only while that
+   * request still owns both slots. Stop, clear-chat and the settings toggle
+   * release eagerly; if any of them has already done so (or a newer turn has
+   * taken the slots), this is a no-op and cannot reset the newer turn.
+   */
+  const releaseRecall = useCallback((controller: AbortController) => {
+    if (
+      abortRef.current !== controller ||
+      recallAbortRef.current !== controller
+    ) {
+      return;
+    }
+    abortRef.current = null;
+    recallAbortRef.current = null;
+    streamingRef.current = false;
+    setIsStreaming(false);
+    if (useAppStore.getState().aiState === "thinking") {
+      useAppStore.getState().setAiState("idle");
+    }
+  }, []);
+
+  // Switching saved memory off mid-recall cancels the request immediately
+  // instead of waiting for it to land: the fetch is aborted, the busy state
+  // is released at once, and a late result is ignored on arrival.
+  useEffect(() => {
+    if (memoryEnabled) return;
+    const pendingRecall = recallAbortRef.current;
+    if (!pendingRecall) return;
+    pendingRecall.abort();
+    releaseRecall(pendingRecall);
+  }, [memoryEnabled, releaseRecall]);
+
+  // Revoke any live image-preview object URLs when the provider unmounts,
+  // and cancel an in-flight recall so its answer cannot be appended after
+  // the panel is gone.
   useEffect(() => {
     const urls = livePreviewUrlsRef.current;
     return () => {
       for (const url of urls) URL.revokeObjectURL(url);
       urls.clear();
+      // Release through the ownership guard, not by nulling the ref: the
+      // guard is what clears the shared `thinking` state, and nulling first
+      // would make the pending recall's `finally` a no-op and strand the
+      // store in "thinking" for the next mount.
+      const pendingRecall = recallAbortRef.current;
+      if (pendingRecall) {
+        pendingRecall.abort();
+        releaseRecall(pendingRecall);
+      }
     };
-  }, []);
+  }, [releaseRecall]);
 
   // Telemetry is opt-in and read live at send time, so switching it off in
   // Settings immediately stops new events. The reporter never throws and its
@@ -340,6 +393,85 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
 
       const intent = hasImages ? null : resolveIntent(text, intentCtx);
 
+      // ── Explicit memory recall (local, ephemeral) ─────────
+      // The intent router only recognises the request. The answer is composed
+      // here from the browser pinboard plus the read-only server recall feed:
+      // deterministic text, never a model summary. It is displayed in this
+      // conversation but marked `localOnly`, so every serialisation boundary
+      // (outgoing history, browser conversation storage, and therefore the
+      // server's conversation backfill) filters it out. It is also not spoken:
+      // speech synthesis can route text to a remote voice service in some
+      // browsers, and recall must stay on this machine.
+      if (intent?.recall) {
+        // Defence in depth: the router already answers instead of marking
+        // recall when the toggle is off, so nothing is fetched here.
+        if (!settings.memoryEnabled) {
+          pushMessage({
+            id: newId(),
+            role: "assistant",
+            text:
+              intent.reply ??
+              "Saved memory is switched off, so I'm not using or showing stored facts right now.",
+            timestamp: Date.now(),
+            provider: "local core",
+          });
+          useAppStore.getState().setAiState("idle");
+          return;
+        }
+
+        // A recall is a request like any other: it takes the same streaming
+        // guard a model turn takes. That keeps the composer's submission
+        // guard active, so text typed while recall is in flight is kept in
+        // the input instead of being cleared and then discarded by `send`.
+        const recallController = new AbortController();
+        recallAbortRef.current = recallController;
+        abortRef.current = recallController;
+        streamingRef.current = true;
+        setIsStreaming(true);
+        store.setAiState("thinking");
+
+        try {
+          const serverRecall = await fetchRecall({
+            signal: recallController.signal,
+          });
+
+          // Stopped, cleared, or saved memory switched off while the request
+          // was in flight: never append a late answer. (A timeout leaves the
+          // caller's signal untouched and falls through to the honest
+          // partial recall below.)
+          if (recallController.signal.aborted) return;
+          if (!useAppStore.getState().settings.memoryEnabled) return;
+
+          const recall = buildRecallReply({
+            pinboard: memories,
+            server: serverRecall,
+          });
+          pushMessage({
+            id: newId(),
+            role: "assistant",
+            text: recall.text,
+            timestamp: Date.now(),
+            provider: "local memory",
+            localOnly: true,
+          });
+          store.logActivity("Memory recall (local only)", "info");
+        } catch (recallError) {
+          // Fail-soft: a rejected request, or a failure while composing or
+          // inserting the answer, must not leave the assistant stuck nor
+          // reject the caller's promise (all callers use `void send`).
+          console.error("[jarvis] memory recall failed:", recallError);
+          if (!recallController.signal.aborted) {
+            setError("Memory recall could not be completed. Try again.");
+          }
+        } finally {
+          // Ownership-guarded: Stop, clear-chat and the settings toggle
+          // release their own state, and a newer turn must not have its
+          // guard reset by an older recall.
+          releaseRecall(recallController);
+        }
+        return;
+      }
+
       // ── Desktop action ────────────────────────────────────
       if (intent && intent.kind === "action" && intent.action) {
         store.setAiState("executing");
@@ -421,19 +553,9 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
         streaming: true,
       });
 
-      const history = messagesRef.current
-        .filter(
-          (message) =>
-            (message.role === "user" || message.role === "assistant") &&
-            !message.action &&
-            !message.error &&
-            message.text.trim().length > 0
-        )
-        .slice(-14)
-        .map((message) => ({
-          role: message.role as "user" | "assistant",
-          content: message.text,
-        }));
+      // One tested definition of what leaves the browser as history; it
+      // excludes local-only messages (explicit recall) for every provider.
+      const history = buildOutgoingHistory(messagesRef.current);
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -695,6 +817,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   const stopAll = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    recallAbortRef.current = null;
     streamingRef.current = false;
     setIsStreaming(false);
     recognitionRef.current?.abort();
@@ -714,6 +837,14 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearChat = useCallback(() => {
+    // An in-flight recall belongs to the conversation being cleared: cancel
+    // it and release the streaming guard so its late answer cannot land in
+    // the fresh conversation. Model streams keep their existing behaviour.
+    const pendingRecall = recallAbortRef.current;
+    if (pendingRecall) {
+      pendingRecall.abort();
+      releaseRecall(pendingRecall);
+    }
     // Session-only image previews die with the conversation.
     for (const url of livePreviewUrlsRef.current) URL.revokeObjectURL(url);
     livePreviewUrlsRef.current.clear();
@@ -732,7 +863,7 @@ export function JarvisProvider({ children }: { children: React.ReactNode }) {
       },
     ]);
     useAppStore.getState().logActivity("Conversation cleared", "info");
-  }, [commitMessages]);
+  }, [commitMessages, releaseRecall]);
 
   const retryLast = useCallback(() => {
     if (lastUserRef.current) {

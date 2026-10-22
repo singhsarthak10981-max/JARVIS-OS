@@ -250,10 +250,34 @@ describe("memory", () => {
     });
   });
 
-  it("recalls stored facts", () => {
+  it("marks explicit recall for the provider instead of listing memory itself", () => {
+    // Recall v3: the router recognises the request, and the provider composes
+    // the labelled Pinboard / Saved facts / Learned skills sections from both
+    // stores. The router must not answer from the pinboard alone any more.
     const result = resolve("what do you remember?");
-    expect(result.kind).toBe("answer");
-    expect(result.reply).toContain("my studio is in Madrid");
+    expect(result).toMatchObject({ kind: "answer", recall: true });
+    expect(result.reply).toBeUndefined();
+  });
+
+  it("recognises every existing recall phrase", () => {
+    for (const phrase of [
+      "what do you remember?",
+      "What do you know about me?",
+      "recall",
+      "Show your memory",
+    ]) {
+      expect(resolve(phrase).recall).toBe(true);
+    }
+  });
+
+  it("does not add topic-recall grammar", () => {
+    // Today's substring triggers still match a topical question; this is the
+    // pre-existing behaviour, not a new relevance path. New recall grammar is
+    // out of scope for this task.
+    const topical = resolve("what do you remember about coffee?");
+    expect(topical.recall).toBe(true);
+    const unrelated = resolve("remind me to call the studio");
+    expect(unrelated.recall).toBeUndefined();
   });
 
   it("wipes memory on request", () => {
@@ -262,18 +286,18 @@ describe("memory", () => {
     });
   });
 
-  it("keeps explicit recall wider than the prompt selection", () => {
+  it("still marks recall with a large pinboard (the 25-entry cap lives in the composer)", () => {
+    // The per-section cap is covered in lib/memory/__tests__/recall.test.ts;
+    // here we only pin the router contract: a populated pinboard does not
+    // make the router list or truncate anything itself.
     const memories = Array.from({ length: 30 }, (_, i) => `memory ${i + 1}`);
     const result = resolveIntent("what do you remember?", {
       ...context,
       memories,
       memoryCount: memories.length,
     });
-    expect(result.kind).toBe("answer");
-    expect(result.reply).toContain("25. memory 25");
-    expect(result.reply).not.toContain("memory 26");
-    expect(result.reply).toContain("5 more");
-    expect(result.reply).toContain("Settings → Memory bank");
+    expect(result.recall).toBe(true);
+    expect(result.reply).toBeUndefined();
   });
 
   it("refuses to store new facts while memory is disabled", () => {

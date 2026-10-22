@@ -50,6 +50,11 @@ export interface IntentContext {
   providerLabel: string;
   providerIsLocal: boolean;
   memoryCount: number;
+  /**
+   * Pinboard snapshot (browser `jarvis-memory-v1`). The recall branch does
+   * not render from it any more — the provider combines it with the server
+   * store — but it stays part of the context contract for callers.
+   */
   memories: string[];
   /**
    * Settings → Memory bank toggle. When false, nothing new is saved and
@@ -66,6 +71,14 @@ export interface IntentResolution {
   kind: "action" | "answer" | "chat";
   action?: JarvisAction;
   reply?: string;
+  /**
+   * Explicit memory recall, recognised here but answered by the assistant
+   * provider: it composes the labelled Pinboard / Saved facts / Learned
+   * skills sections from the browser pinboard plus `GET /api/memory/recall`,
+   * locally and ephemerally. `reply` is only set on this path when saved
+   * memory is switched off, where nothing may be listed or requested.
+   */
+  recall?: boolean;
   /** Short status line shown in the panel while the action executes. */
   thought?: string;
 }
@@ -456,26 +469,12 @@ export function resolveIntent(
           "Saved memory is switched off, so I'm not using or showing stored facts right now. Anything you saved earlier is still kept in Settings → Memory bank, where you can review or delete it.",
       };
     }
-    if (ctx.memoryCount === 0) {
-      return {
-        kind: "answer",
-        reply:
-          "My long-term memory is empty. Say “remember that…” and I'll keep it for you.",
-      };
-    }
-    // Explicit recall shows far more than the 8-fact prompt selection, but
-    // still caps the chat reply and points at Settings for the full bank.
-    const shown = ctx.memories.slice(0, 25);
-    const facts = shown.map((m, i) => `${i + 1}. ${m}`);
-    const remaining = ctx.memoryCount - shown.length;
-    const tail =
-      remaining > 0
-        ? `\n…and ${remaining} more — see Settings → Memory bank for the full list.`
-        : "";
-    return {
-      kind: "answer",
-      reply: `I'm holding ${ctx.memoryCount} memor${ctx.memoryCount === 1 ? "y" : "ies"}:\n${facts.join("\n")}${tail}`,
-    };
+    // Enabled: the provider fetches the read-only recall endpoint and
+    // composes the labelled sections from both stores. Listing happens
+    // there, not here, and the answer stays local-only/ephemeral. Whether
+    // either store is empty is only knowable after that fetch, so this
+    // branch no longer guesses from the pinboard count.
+    return { kind: "answer", recall: true };
   }
 
   // ── Timers ────────────────────────────────────────────────

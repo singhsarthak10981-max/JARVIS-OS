@@ -1,5 +1,9 @@
 import { findSecret } from "./guard";
-import { isNearDuplicateValue, normalizeMemoryText } from "./text";
+import {
+  isNearDuplicateValue,
+  memoryIdentityKey,
+  normalizeMemoryText,
+} from "./text";
 
 /**
  * Explicit memory recall ("what do you remember?"), composed in the browser.
@@ -243,14 +247,20 @@ export function buildRecallReply(input: RecallComposeInput): RecallComposition {
   );
 
   // Pinboard: trim, drop exact repeats, keep newest first, cap per section.
+  // Duplicate identity uses a Unicode-preserving key, not the ASCII-only
+  // `normalizeMemoryText`: the latter collapses distinct Hindi (or any
+  // non-Latin) notes to "" or to a shared English prefix, which would hide
+  // valid notes from the answer. The ASCII normalisation is still used below
+  // for cross-store *near*-duplicate matching, where its semantics are
+  // intentional.
   const pinboardAll: string[] = [];
   const seen = new Set<string>();
   for (const entry of input.pinboard) {
     const clean = cleanText(entry, MAX_VALUE_CHARS);
     if (!clean) continue;
-    const normalised = normalizeMemoryText(clean);
-    if (seen.has(normalised)) continue;
-    seen.add(normalised);
+    const identity = memoryIdentityKey(clean);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     pinboardAll.push(clean);
   }
   const pinboard = pinboardAll.slice(0, limit);

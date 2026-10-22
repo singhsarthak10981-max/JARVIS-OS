@@ -18,6 +18,22 @@ export function normalizeMemoryText(text: string): string {
 }
 
 /**
+ * Identity key for de-duplicating one store's own notes (the pinboard).
+ *
+ * Deliberately different from `normalizeMemoryText`: that helper reduces text
+ * to ASCII for *cross-store* near-duplicate matching, so distinct Hindi (or
+ * any other non-Latin) notes collapse to "" — or to the same leftover English
+ * prefix — and valid notes would silently disappear from the recall answer.
+ *
+ * This key keeps every script intact. It only canonicalises Unicode form
+ * (NFC, so equivalent accented sequences compare equal), case, and runs of
+ * whitespace, which is all a "same note twice" check needs.
+ */
+export function memoryIdentityKey(text: string): string {
+  return text.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
  * True when two already-normalised texts say the same thing closely enough
  * that storing/injecting both is noise: equal, or one contains the other.
  * The length floor keeps short values ("black") from swallowing longer,

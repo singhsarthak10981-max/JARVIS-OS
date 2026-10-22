@@ -5,6 +5,7 @@ import {
   parseRecallResponse,
   type RecallResponse,
 } from "../recall";
+import { memoryIdentityKey, normalizeMemoryText } from "../text";
 
 /**
  * Explicit recall composition: pinboard + saved facts + learned skills.
@@ -179,6 +180,75 @@ describe("buildRecallReply", () => {
     expect(JSON.stringify(pinboard)).toBe(pinboardBefore);
     expect(JSON.stringify(facts)).toBe(factsBefore);
     expect(JSON.stringify(skills)).toBe(skillsBefore);
+  });
+
+  it("keeps distinct non-Latin pinboard notes visible", () => {
+    // Regression: the ASCII-only normalisation used to collapse both notes
+    // to "" and drop the second one, so a Hindi-only pinboard appeared to
+    // contain a single note.
+    const hindiOne = "मेरा स्टूडियो मैड्रिड में है";
+    const hindiTwo = "मुझे कॉफ़ी पसंद है";
+    // Both are "empty" under the cross-store normaliser, which is exactly why
+    // the pinboard needs its own Unicode-preserving identity key.
+    expect(normalizeMemoryText(hindiOne)).toBe("");
+    expect(normalizeMemoryText(hindiTwo)).toBe("");
+    expect(memoryIdentityKey(hindiOne)).not.toBe(memoryIdentityKey(hindiTwo));
+
+    const recall = buildRecallReply({
+      pinboard: [hindiOne, hindiTwo],
+      server: server(),
+    });
+
+    expect(recall.sections.pinboard).toEqual([hindiOne, hindiTwo]);
+    expect(recall.text).toContain(`1. ${hindiOne}`);
+    expect(recall.text).toContain(`2. ${hindiTwo}`);
+  });
+
+  it("keeps notes that share an English prefix but differ in Hindi", () => {
+    // Both reduce to the same ASCII prefix ("my studio"), which previously
+    // made the second note a duplicate.
+    const delhi = "My studio: दिल्ली में है";
+    const madrid = "My studio: मैड्रिड में है";
+    expect(normalizeMemoryText(delhi)).toBe(normalizeMemoryText(madrid));
+
+    const recall = buildRecallReply({
+      pinboard: [delhi, madrid],
+      server: server(),
+    });
+
+    expect(recall.sections.pinboard).toEqual([delhi, madrid]);
+    expect(recall.text).toContain(delhi);
+    expect(recall.text).toContain(madrid);
+  });
+
+  it("still de-duplicates genuine pinboard repeats", () => {
+    const recall = buildRecallReply({
+      pinboard: [
+        "my studio is in Madrid",
+        "my studio is in Madrid",
+        "  My   Studio  is  in  MADRID  ",
+        "the bar opens at 7pm",
+      ],
+      server: server(),
+    });
+
+    // Case, spacing and repeats of the same note collapse to one entry; a
+    // genuinely different note is untouched.
+    expect(recall.sections.pinboard).toEqual([
+      "my studio is in Madrid",
+      "the bar opens at 7pm",
+    ]);
+    expect(recall.text.match(/my studio is in madrid/gi)).toHaveLength(1);
+  });
+
+  it("keeps the cap and overflow label correct with non-Latin notes", () => {
+    const pinboard = Array.from({ length: 26 }, (_, i) => `स्मरण नोट ${i + 1}`);
+    const recall = buildRecallReply({ pinboard, server: server() });
+
+    expect(recall.sections.pinboard).toHaveLength(25);
+    expect(recall.sections.pinboard[24]).toBe("स्मरण नोट 25");
+    expect(recall.text).toContain("(showing 25 of 26");
+    expect(recall.text).not.toContain("स्मरण नोट 26");
   });
 
   it("never suppresses a SQLite fact behind a pinboard entry outside the visible cap", () => {

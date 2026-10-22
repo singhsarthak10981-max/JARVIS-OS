@@ -113,7 +113,14 @@ provider call — see `docs/MULTIMODAL.md`).
   Ollama), and reflection learning is Ollama-only — a cloud model is
   never asked to process an exchange for learning. Pinboard memories go
   to the user-selected provider after server-side relevance selection
-  (≤8 facts; explicit recall ≤25). This split is deliberate.
+  (≤8 facts). This split is deliberate.
+- Explicit recall is the one path that shows SQLite facts and skill
+  descriptions in the browser: composed deterministically client-side
+  from `GET /api/memory/recall` (≤25 per section), marked `localOnly`,
+  and excluded from model history, browser conversation storage,
+  server conversation persistence and telemetry. `JARVIS_MEMORY=off`
+  returns that endpoint with `enabled: false` and no record contents;
+  the review/delete routes stay available.
 - `memoryEnabled: false` (Settings → Memory bank) stops memory
   injection (both stores), reflection learning, saving new facts
   (intent layer **and** action executor), and recall listing — and

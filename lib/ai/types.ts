@@ -18,6 +18,16 @@ export interface ChatMessage {
   action?: boolean;
   error?: boolean;
   streaming?: boolean;
+  /**
+   * Local-only message: composed in this browser from the memory stores and
+   * never allowed to leave it. Explicit recall of SQLite-derived facts and
+   * skills sets this, so the answer can be read on screen but is excluded
+   * from model requests (`buildOutgoingHistory`), browser conversation
+   * storage (`saveConversation`) and therefore from SQLite conversation
+   * backfill. Every boundary filters on the flag itself, not on a missing
+   * field, so a hand-edited record or a stray spread cannot re-admit it.
+   */
+  localOnly?: boolean;
   /** Web search state for this turn, when one was attempted. */
   search?: SearchNotice;
   /**

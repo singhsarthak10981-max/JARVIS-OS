@@ -5,6 +5,7 @@ import type {
   TestConnectionResult,
 } from "./types";
 import type { SearchNotice } from "./search/types";
+import { parseRecallResponse, type RecallResponse } from "@/lib/memory/recall";
 
 export async function fetchServerStatus(): Promise<ServerStatus | null> {
   try {
@@ -43,6 +44,67 @@ export async function testConnection(
           ? error.message
           : "Could not reach the JARVIS API route.",
     };
+  }
+}
+
+/**
+ * Upper bound for a recall request. The endpoint is a local SQLite read, so
+ * this only fires when the server is stuck or unreachable; the turn then
+ * degrades to a partial (pinboard-only) recall instead of hanging.
+ */
+export const RECALL_TIMEOUT_MS = 10_000;
+
+export interface FetchRecallOptions {
+  /**
+   * Caller-owned cancellation. Aborting it means "the user stopped this" —
+   * the caller must not render a late answer. Distinct from the internal
+   * timeout, which is a failure and may still produce a partial recall.
+   */
+  signal?: AbortSignal;
+  /** Override for tests. */
+  timeoutMs?: number;
+}
+
+/**
+ * Read the server's explicit-recall feed (`GET /api/memory/recall`).
+ *
+ * Returns null on any failure — network, non-2xx, timeout, caller abort or
+ * an unrecognisable body — so the caller can show a truthfully labelled
+ * partial recall instead of failing the turn or inventing stored facts. The
+ * payload is read-only and is never forwarded to a model.
+ *
+ * The request is bounded twice: a caller signal (stop button, memory
+ * disabled, unmount) and an internal timeout. The timeout aborts an internal
+ * controller and leaves the caller's signal untouched, which is how the
+ * provider tells "timed out" (show partial) from "cancelled" (show nothing).
+ */
+export async function fetchRecall(
+  options: FetchRecallOptions = {}
+): Promise<RecallResponse | null> {
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  const timeoutMs = Math.max(0, options.timeoutMs ?? RECALL_TIMEOUT_MS);
+
+  if (options.signal?.aborted) controller.abort();
+  else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
+
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    // Already cancelled before we start: do not issue the request at all.
+    // Real `fetch` would reject its aborted signal, but short-circuiting is
+    // explicit and keeps the behaviour independent of the runtime.
+    if (controller.signal.aborted) return null;
+    const response = await fetch("/api/memory/recall", {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    return parseRecallResponse(await response.json());
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 

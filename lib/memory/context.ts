@@ -9,6 +9,11 @@ import {
   type Skill,
 } from "./db";
 import { findSecret } from "./guard";
+import { isNearDuplicateValue, normalizeMemoryText } from "./text";
+
+// Re-exported for existing callers (lib/memory/chat.ts and tests). The
+// implementations live in ./text so browser-side recall can share them.
+export { isNearDuplicateValue, normalizeMemoryText } from "./text";
 
 /**
  * Retrieval → prompt block, sized for a 7B model's context window.
@@ -69,28 +74,6 @@ export function extractTerms(text: string): string[] {
     if (terms.length >= MAX_TERMS) break;
   }
   return terms;
-}
-
-/** Normal form for duplicate comparisons between the two memory stores. */
-export function normalizeMemoryText(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * True when two already-normalised texts say the same thing closely enough
- * that storing/injecting both is noise: equal, or one contains the other.
- * The length floor keeps short values ("black") from swallowing longer,
- * more informative ones ("black, no sugar").
- */
-export function isNearDuplicateValue(a: string, b: string): boolean {
-  if (a.length === 0 || b.length === 0) return false;
-  if (a === b) return true;
-  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  return shorter.length >= 8 && longer.includes(shorter);
 }
 
 /**

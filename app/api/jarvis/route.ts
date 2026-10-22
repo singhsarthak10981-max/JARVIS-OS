@@ -78,6 +78,11 @@ function sanitizeMessages(input: unknown): ChatTurn[] {
   const cleaned: ChatTurn[] = [];
   for (const item of input) {
     if (!item || typeof item !== "object") continue;
+    // Defence in depth for local-only messages (explicit memory recall): the
+    // browser already filters them out of outgoing history, but a caller that
+    // flags one must never have it reach a provider or the conversation
+    // store. `sanitizeMessages` also feeds `persistTurn`'s backfill.
+    if ((item as { localOnly?: unknown }).localOnly) continue;
     const role = (item as { role?: unknown }).role;
     const content = (item as { content?: unknown }).content;
     if (

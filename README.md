@@ -15,7 +15,7 @@ The visual shell is complete. The assistant is no longer a mock-up — it stream
 - **Wake word** — say “Jarvis” (configurable) followed by a command.
 - **Spoken replies** with a British-accented voice when available, adjustable rate and pitch.
 - **Text chat** with streaming responses in a glass assistant panel.
-- **Memory** — “remember that…” persists facts across sessions; memories are injected into every model prompt.
+- **Memory** — “remember that…” persists facts across sessions. Pinboard notes are relevance-selected (at most 8) for the provider you choose; the server-side SQLite store is injected only on the local Ollama path. “What do you remember?” lists both stores in the panel, and the SQLite part is composed locally — never sent to a model or saved as conversation.
 - **Timers** — “remind me in 20 minutes to check the mix”, with desktop notification and voice alert.
 
 ### See what it actually did

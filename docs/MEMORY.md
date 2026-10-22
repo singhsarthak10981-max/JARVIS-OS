@@ -128,10 +128,9 @@ database cannot be opened, chat simply runs without memory):
   tokens like "r&b" survive intact), strongest matches first, recency
   breaking ties, at most **8** — an unrelated turn sends none, and the
   limit is never padded with unrelated facts. This applies to every
-  adapter (Gemini included); the SQLite store still never leaves the
-  machine. Explicit recall ("what do you remember?") is separate from
-  this prompt set: it lists up to 25 entries and points at
-  Settings → Memory bank for the rest.
+  adapter (Gemini included); SQLite content reaches a model only through
+  the local Ollama path above. Explicit recall ("what do you remember?")
+  is separate from this prompt set and is described below.
 - **Learning (reflection).** After each reply, a **local** model reviews
   the exchange off the response path and may propose updates as JSON.
   Reflection runs through Ollama only — never a cloud provider, even when
@@ -147,28 +146,135 @@ database cannot be opened, chat simply runs without memory):
   reflection, learning and conversation persistence. It does **not**
   erase anything: existing rows stay reviewable and deletable through
   this API (the management routes above are unaffected by the switch).
+  Explicit recall keeps working from the pinboard and states plainly that
+  server memory is switched off; `GET /api/memory/recall` answers
+  `enabled: false` with no record contents (see below).
 - **Settings toggle.** Settings → Memory bank → "Use saved memory"
   (on by default, including for installations that predate it) is the
   user-facing switch. Off stops: injection of pinboard **and** SQLite
   memory into prompts, saving new facts ("remember that…" is honestly
-  refused), explicit recall (it explains instead of listing facts), and
-  reflection learning. It deletes nothing — stored memories stay
-  reviewable and deletable, forgetting stays available, and
-  **conversation history is not saved memory**, so persistence
-  continues; `JARVIS_MEMORY=off` remains the only full stop.
+  refused), explicit recall (it explains instead of listing anything and
+  makes no recall request), and reflection learning. It deletes nothing —
+  stored memories stay reviewable and deletable, forgetting stays
+  available, and **conversation history is not saved memory**, so
+  persistence continues; `JARVIS_MEMORY=off` remains the only full stop.
 - **Reflection model.** When the main provider is not Ollama, reflection
   uses `JARVIS_MEMORY_MODEL` if set, else the Ollama default model. With
   only the Local Core (no Ollama running), reflection is skipped.
 
-Two memory stores deliberately coexist for now: the browser pinboard
+Two memory stores deliberately coexist: the browser pinboard
 (`jarvis-memory-v1`, managed in Settings; when memory is off the client
 sends none of it) and this database (auto-learned, relevance-injected).
 Retrieval dedupes against the pinboard so the same note is not injected
 twice, and nothing is migrated, copied, or deleted between them
-automatically. Known gap: "what do you remember?" is still answered
-from the pinboard only — unifying that is left to a future PR. The
-Settings → Memory bank list shows every pinboard entry (scrollable),
-so all of them stay individually reviewable and deletable.
+automatically. Explicit recall now reads both stores without merging
+them — see the next section. The Settings → Memory bank list shows every
+pinboard entry (scrollable), so all of them stay individually reviewable
+and deletable; SQLite records are reviewed and deleted through this API.
+
+## Explicit recall (both stores)
+
+"What do you remember?", "What do you know about me?", "Recall" and
+"Show your memory" (the only supported phrases; there is no topic-recall
+grammar) show three labelled sections:
+
+1. **Pinboard** — the browser store, newest first.
+2. **Saved facts** — SQLite `facts`, newest-updated first, with the
+   existing `[inferred]` marker on automatically learned entries.
+3. **Learned skills** — SQLite `skills`, most-used first, **name and
+   description only**. Steps are never returned by the endpoint or
+   displayed (the row is loaded with `SELECT *`, but only `name` and
+   `description` cross the wire and reach the panel).
+
+Each section is capped at **25** entries. Cross-store duplicates are
+shown once, under Pinboard, using the existing normalization/near-
+duplicate rules; the underlying records are not modified, merged,
+migrated or deleted. Deduplication is scoped to the pinboard entries
+actually rendered in the message, so a saved fact is never hidden behind
+a pinboard note that the 25-entry cap kept out of view — the trade-off is
+that such a duplicate is shown in both sections rather than once, which
+loses no information and keeps the "shown there once" note truthful.
+SQLite rows are secret-filtered by the route and filtered again in the
+browser before display; withheld rows are counted, not shown. When a
+section is truncated, the message says so: pinboard overflow points at
+Settings → Memory bank (which lists every pinboard entry), while SQLite
+overflow points at `GET /api/memory` (the review API — there is no
+Settings list for SQLite records).
+
+**How it is composed.** The assistant provider fetches
+`GET /api/memory/recall` once and builds the text deterministically in
+the browser with `lib/memory/recall.ts`. No model summarises it. The
+request is bounded: the stop button, clearing the conversation, or
+switching saved memory off cancels it, and it times out after 10 seconds.
+Because recall counts as a busy turn, text typed while it is in flight
+stays in the composer instead of being discarded. A timeout degrades to
+the partial pinboard-only answer below; a cancellation or a mid-request
+toggle change appends nothing at all, so a late answer is never rendered.
+A failure while fetching or composing the answer is reported in the panel
+and releases the turn — the assistant is never left stuck.
+
+**Privacy.** The rendered answer may contain SQLite-derived facts and
+skill descriptions, so it is a `localOnly` chat message: it is visible
+in the panel for the current session, tagged "local only", and is
+never:
+
+- included in the history sent to `/api/jarvis` (any provider);
+- written to `jarvis-conversation-v1` (browser storage);
+- backfilled into SQLite conversation messages (the server also drops
+  any request message flagged `localOnly`, as defence in depth);
+- sent to telemetry or written to logs; and it is not spoken aloud.
+
+Every boundary filters on the flag itself, and the regression tests
+inspect the actual serialized payloads and stored rows.
+
+**Partial failure.** If the recall request fails, the pinboard is still
+shown and the answer is labelled partial ("server memory could not be
+reached") — it is never presented as complete, and nothing is invented.
+A malformed or unrecognisable response is treated the same way.
+
+**Settings toggle.** With Settings → Memory bank off, the recall request
+is not made at all: the assistant explains that saved memory is switched
+off, and neither store is listed. Nothing is fetched, so nothing can leak.
+
+**Kill switch.** With `JARVIS_MEMORY=off`, `GET /api/memory/recall`
+returns `enabled: false`, empty arrays and zero counts — no fact values,
+descriptions or steps. Recall shows the pinboard plus a one-line note
+that server memory is switched off. Review and deletion through
+`GET /api/memory` and the item routes are unaffected.
+
+### `GET /api/memory/recall`
+
+A read-only feed for explicit recall; separate from the review endpoint
+above, which is unchanged. `runtime = "nodejs"`, `Cache-Control:
+no-store`.
+
+```bash
+curl localhost:3000/api/memory/recall
+```
+
+```json
+{
+  "enabled": true,
+  "limit": 25,
+  "facts": [{ "key": "coffee", "value": "oat flat white" }],
+  "skills": [{ "name": "brew-coffee", "description": "V60 pour-over" }],
+  "totalFacts": 1,
+  "totalSkills": 1,
+  "withheld": { "facts": 0, "skills": 0 }
+}
+```
+
+The raw `source` column is never transmitted: it accepts arbitrary
+strings at write time and is not covered by the secret guard. Only an
+allowlisted `inferred: true` indicator is sent, for the `[inferred]`
+marker.
+
+`enabled: false` (kill switch) always comes with empty arrays and zero
+counts. The `total*` fields count every row so the UI can say what is not
+shown; `withheld` counts rows removed by the secret guard. Reads are
+audited by the data layer like other reads (counts only — the log never
+stores fact or skill contents). A database failure returns 500 and the
+client reports a partial recall.
 
 > The local-only guarantee depends on this backend and the SQLite file
 > running on your own machine. If the backend ever moves to a remote
@@ -187,4 +293,9 @@ so all of them stay individually reviewable and deletable.
   table over `facts(key, value)` without changing the API.
 - The connection runs in WAL mode with foreign keys on; `getDb()` caches one
   handle per server process (survives `next dev` reloads via `globalThis`).
-- Tests: `lib/memory/__tests__/db.test.ts` runs against `:memory:` databases.
+- Tests: `lib/memory/__tests__/db.test.ts` runs against `:memory:` databases;
+  recall composition is covered by `lib/memory/__tests__/recall.test.ts`,
+  the recall endpoint by `app/api/memory/__tests__/recall-route.test.ts`, and
+  the serialization boundaries by `lib/ai/__tests__/history.test.ts`,
+  `app/api/jarvis/__tests__/recall-privacy-route.test.ts` and
+  `components/assistant/__tests__/recall-boundaries.test.tsx`.

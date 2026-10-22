@@ -134,6 +134,51 @@ describe("conversation (jarvis-conversation-v1)", () => {
     expect(loadConversation().map((m) => m.text)).toEqual(["kept"]);
   });
 
+  it("never persists a local-only recall answer", () => {
+    // Explicit recall may contain SQLite-derived facts. It is displayed in
+    // the panel but is never conversation content: assert the actual stored
+    // JSON, not just the in-memory message list.
+    saveConversation([
+      message("m1", "user", "what do you remember?"),
+      {
+        ...message("m2", "assistant", "coffee_preference: oat flat white"),
+        localOnly: true,
+        provider: "local memory",
+      },
+      message("m3", "assistant", "Anything else?"),
+    ]);
+
+    const raw = localStorage.getItem(CONVERSATION_KEY) ?? "";
+    expect(raw).not.toContain("oat flat white");
+    expect(raw).not.toContain("localOnly");
+    expect(raw).not.toContain("local memory");
+    expect(loadConversation().map((m) => m.text)).toEqual([
+      "what do you remember?",
+      "Anything else?",
+    ]);
+  });
+
+  it("drops a local-only record if storage contains one", () => {
+    // Defence in depth for hand-edited storage or a future writer that
+    // forgets the filter: loading must not resurrect the message.
+    localStorage.setItem(
+      CONVERSATION_KEY,
+      JSON.stringify([
+        { id: "m1", role: "user", text: "what do you remember?", timestamp: 1 },
+        {
+          id: "m2",
+          role: "assistant",
+          text: "coffee_preference: oat flat white",
+          timestamp: 2,
+          localOnly: true,
+        },
+      ])
+    );
+    expect(loadConversation().map((m) => m.text)).toEqual([
+      "what do you remember?",
+    ]);
+  });
+
   it("never writes image previews to storage", () => {
     saveConversation([
       {
